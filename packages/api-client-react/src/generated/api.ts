@@ -14709,7 +14709,7 @@ export const deleteEmployee = async (id: number, options?: RequestInit): Promise
 
 
 
-export const getDeleteEmployeeMutationOptions = <TError = ErrorType<unknown>,
+export const getDeleteEmployeeMutationOptions = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEmployee>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteEmployee>>, TError,{id: number}, TContext> => {
 
@@ -14738,9 +14738,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteEmployeeMutationResult = NonNullable<Awaited<ReturnType<typeof deleteEmployee>>>
 
-    export type DeleteEmployeeMutationError = ErrorType<unknown>
+    export type DeleteEmployeeMutationError = ErrorType<ErrorResponse>
 
-    export const useDeleteEmployee = <TError = ErrorType<unknown>,
+    export const useDeleteEmployee = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteEmployee>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteEmployee>>,

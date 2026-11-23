@@ -3127,3 +3127,17 @@ VATEX-SA-OOS the taxpayer's; approval refuses a Z/E/O line without its reason, f
 invoice form states each line's category and chooses the reason from the list in the reader's language
 (`@workspace/shared` `invoiceFormLines.ts`, whose request builder the live ZATCA pass uses). Not covered: a quotation
 converted into an invoice carries no reason (its lines have none) — the invoice's approval then names the missing one.
+
+## PAYROLL IGNORED THE END DATE — CLOSED IN PART 2026-11-23 (owner item 3)
+
+**Found** 2026-11-22 by the S2a pre-removal review's probe (19B): a run took every `active` employee and nobody else,
+so a leaver still marked active was paid a full month and GOSI every month, one marked `inactive` lost the final
+part-month silently, and deleting an employee with a payroll line surfaced the foreign key as a 500. Recorded in
+CLAUDE.md §5 (rank 2).
+
+**Closed (owner's rule, 2026-11-23):** a run never pays an employee whose end date is before its month, whatever their
+status, and names an active one (`ended_before_period`); an end date inside the month, the first and last day included,
+is named (`ends_in_period`) and not paid, whatever the status; a run that would pay nobody is refused by name
+(`payroll_nobody_payable`); deleting an employee on any run is a 409 in both languages (`employee_on_payroll_run`,
+`nextStep: mark_inactive`). GO-12's leaving-month GOSI by days stays in code, tested at its functions, unused by a run.
+**Still open (CLAUDE.md §5 rank 2):** how a final part-month is paid — the accountant, advisor Block N.

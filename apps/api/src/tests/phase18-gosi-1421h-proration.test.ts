@@ -9,13 +9,21 @@
  * Employer FAQ #11 reads otherwise (the joining month in full; the leaving month
  * only when service ends on its last day): question G1 asks which GOSI invoices.
  *
+ * 🔴 Owner item 3 (2026-11-23): an employee whose end date falls inside the period
+ * is named in the run and not paid automatically until the accountant answers how
+ * a final part-month is paid. So the LEAVING month is no longer a payroll line:
+ * the run names the leaver, and the leaving-month day rule is held, with the same
+ * independent figures, at the functions the run calls (gosiServiceDays,
+ * gosiLineAmounts) until that answer.
+ *
  * Proven through the real API, each figure computed independently below:
- *  - a joining, a leaving and a both-in-one month are charged by days; a leaving
- *    date on the month's last day, and a full month, are not; a non-Saudi line
- *    (its law not modelled) is not;
+ *  - a joining month is charged by days; a full month is not; a non-Saudi line
+ *    (its law not modelled) is not; a leaving, a both-in-one and a last-day
+ *    leaving month are named and not paid, their day rule held at the functions;
  *  - the divisor is the month's actual days: 30, 28 and 29;
  *  - with the year's wage (Art. 21(2)(b)): the joining month's wage fixes the
- *    year, a raise does not move it, and the leaving month is charged on it;
+ *    year, a raise does not move it; the leaving month is named, and its charge
+ *    on that wage by days is held at the functions;
  *  - with the pension floor (Art. 19(1)) and in-kind housing (Art. 16(c)): the
  *    month's contribution is found first, then charged by days.
  *
@@ -27,6 +35,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
+import { gosiLineAmounts, gosiRatesFor, gosiServiceDays } from "@workspace/shared";
 import { g04Harness } from "./helpers/g04Harness";
 
 const url = process.env.DATABASE_URL;
@@ -95,7 +104,23 @@ describeMaybe("GOSI GO-12, 1421H law — the joining and leaving months by days 
 
   afterAll(async () => { await h.stop(); await h.cleanup(); });
 
-  it("🔴 a 1421H-law joining, leaving or both-in-one month is charged by days of service; a last-day leaving, a full month and a non-Saudi line are not", async () => {
+  /** GO-12's day rule at the functions a run calls (gosiServiceDays, then gosiLineAmounts), for a month a run no longer pays. */
+  const atFunctions = (num: string, period: string, wage: number, joiningDate: string, endDate: string) => {
+    const d = gosiServiceDays(period, joiningDate, endDate);
+    const a = gosiLineAmounts({ rates: gosiRatesFor("law_1421h", period)!, wage, serviceDays: d?.serviceDays, periodDays: d?.periodDays });
+    return { num, emp: r2(a.employee), er: r2(a.employer), days: d?.serviceDays ?? null, monthDays: d?.periodDays ?? null };
+  };
+  const figures = (l: Line) => ({ num: l.num, emp: l.emp, er: l.er, days: l.days, monthDays: l.monthDays });
+  const leftOutOf = async (runId: number) =>
+    ((await pool.query(`SELECT left_out FROM payroll_runs WHERE id = $1`, [runId])).rows[0].left_out as { employeeNumber: string; reason: string }[])
+      .map((l) => [l.employeeNumber, l.reason]).sort();
+
+  /**
+   * 🔴 Restated by owner item 3 (2026-11-23): the leaving (J2), both-in-one (J3) and last-day leaving (J4) months were
+   * lines here, charged 10/31, 20/31 and in full. An end date inside the period is now named and not paid, so each is
+   * asserted NAMED with no line, and the same three independent figures are asserted at the functions.
+   */
+  it("🔴 a 1421H-law joining month is charged by days of service; a full month and a non-Saudi line are not; a leaving month is named and not paid (owner item 3), its day rule held at the functions", async () => {
     const W = 9_300;
     await employee("J1-JOIN", { basicSalary: W, joiningDate: "2025-10-21" });                      // 21..31 = 11 days
     await employee("J2-LEAVE", { basicSalary: W, joiningDate: "2020-03-01", endDate: "2025-10-10" }); // 1..10 = 10 days
@@ -106,9 +131,6 @@ describeMaybe("GOSI GO-12, 1421H law — the joining and leaving months by days 
     const id = await run("2025-10"); // October: 31 days
     const want: Line[] = [
       line("J1-JOIN", W, "2025-10", 11, 31),
-      line("J2-LEAVE", W, "2025-10", 10, 31),
-      line("J3-BOTH", W, "2025-10", 20, 31),
-      line("J4-LASTDAY", W, "2025-10", null, 31),
       line("J5-FULL", W, "2025-10", null, 31),
       { num: "N1-NON", emp: 0, er: r2(W * NON_SAUDI_ER), wage: W, floor: null, inKind: null, days: null, monthDays: null, fixedFrom: null },
     ];
@@ -116,6 +138,13 @@ describeMaybe("GOSI GO-12, 1421H law — the joining and leaving months by days 
     // The run's totals are the lines' own (rounded) figures.
     const { rows: [t] } = await pool.query(`SELECT total_gosi_employee AS e, total_gosi_employer AS r FROM payroll_runs WHERE id = $1`, [id]);
     expect([Number(t.e), Number(t.r)]).toEqual([r2(want.reduce((s, l) => s + l.emp, 0)), r2(want.reduce((s, l) => s + l.er, 0))]);
+    // owner item 3: the 10th, the 24th and the LAST day are all inside October — each named, none paid
+    expect(await leftOutOf(id)).toEqual([["J2-LEAVE", "ends_in_period"], ["J3-BOTH", "ends_in_period"], ["J4-LASTDAY", "ends_in_period"]]);
+    expect([
+      atFunctions("J2-LEAVE", "2025-10", W, "2020-03-01", "2025-10-10"),
+      atFunctions("J3-BOTH", "2025-10", W, "2025-10-05", "2025-10-24"),
+      atFunctions("J4-LASTDAY", "2025-10", W, "2020-01-01", "2025-10-31"),
+    ]).toEqual([line("J2-LEAVE", W, "2025-10", 10, 31), line("J3-BOTH", W, "2025-10", 20, 31), line("J4-LASTDAY", W, "2025-10", null, 31)].map(figures));
   });
 
   it("🔴 the divisor is the month's actual days: 30 (November), 28 (February 2027) and 29 (February 2028)", async () => {
@@ -134,17 +163,27 @@ describeMaybe("GOSI GO-12, 1421H law — the joining and leaving months by days 
     expectLines(got, cases.map((c) => line(c.num, W, c.period, c.days, c.monthDays)));
   });
 
-  it("🔴 with the year's wage: the joining month's wage fixes the year, a raise does not move it, and the leaving month is charged on it by days", async () => {
+  /**
+   * 🔴 Restated by owner item 3 (2026-11-23): May (the leaving month, 1..20) was a line charged on the year's wage by
+   * days. It is now named and not paid; the same independent figure is asserted at the functions, on the wage the
+   * year's first line recorded.
+   */
+  it("🔴 with the year's wage: the joining month's wage fixes the year and a raise does not move it; the leaving month is named, and its charge on that wage by days held at the functions", async () => {
     const y = await employee("Y1-JOIN-RAISE-LEAVE", { basicSalary: 10_000, joiningDate: "2027-03-11" }); // 11..31 = 21 days
     const mar = await lines(await run("2027-03"));
     expect((await h.api("admin", "PATCH", `/employees/${y.id}`, { basicSalary: 12_000, endDate: "2027-05-20" })).status).toBe(200);
     const apr = await lines(await run("2027-04"));
-    const may = await lines(await run("2027-05")); // 1..20 = 20 days
-    expectLines([...mar, ...apr, ...may], [
+    // the employee is the only candidate in May, so the run would pay nobody: refused by name, nothing created
+    const may = await h.api("admin", "POST", "/payroll", { period: "2027-05" }); // 1..20 = 20 days
+    expect(may.status, JSON.stringify(may.body)).toBe(422);
+    expect([may.body.code, may.body.leftOut.map((l: { employeeNumber: string; reason: string }) => [l.employeeNumber, l.reason])])
+      .toEqual(["payroll_nobody_payable", [["Y1-JOIN-RAISE-LEAVE", "ends_in_period"]]]);
+    expectLines([...mar, ...apr], [
       line("Y1-JOIN-RAISE-LEAVE", 10_000, "2027-03", 21, 31),
       line("Y1-JOIN-RAISE-LEAVE", 10_000, "2027-03", null, 30),
-      line("Y1-JOIN-RAISE-LEAVE", 10_000, "2027-03", 20, 31),
     ]);
+    expect(atFunctions("Y1-JOIN-RAISE-LEAVE", "2027-05", mar[0]!.wage, "2027-03-11", "2027-05-20"))
+      .toEqual(figures(line("Y1-JOIN-RAISE-LEAVE", 10_000, "2027-03", 20, 31)));
   });
 
   it("🔴 with the pension floor and in-kind housing: the month's contribution is found first, then charged by days", async () => {

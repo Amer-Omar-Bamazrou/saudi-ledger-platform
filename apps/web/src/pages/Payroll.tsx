@@ -39,6 +39,17 @@ const GOSI_PAY_REFUSALS: Record<string, [string, string]> = {
 };
 
 /**
+ * Why a run left an employee out, in both languages (the contract's PayrollLeftOutEmployee.reason). Owner item 3
+ * (2026-11-23): a leaver's final part-month is not paid automatically until the accountant answers how it is paid.
+ */
+const LEFT_OUT_REASON: Record<PayrollLeftOutEmployee["reason"], [string, string]> = {
+  pay_not_set: ["pay not set", "لم يُحدَّد الراتب"],
+  ends_in_period: ["leaves this month — the final part-month is not paid automatically", "تنتهي خدمته هذا الشهر — لا يُصرف الجزء الأخير من الشهر تلقائيًا"],
+  ended_before_period: ["end date before this month, still marked active", "انتهت خدمته قبل هذا الشهر ولا يزال نشطًا"],
+};
+const leftOutReason = (l: PayrollLeftOutEmployee, t: (en: string, ar: string) => string) => t(...LEFT_OUT_REASON[l.reason]);
+
+/**
  * 🔴 GOSI (Phase 18): generating or approving a run can be refused for a GOSI reason. The refusal is titled AND
  * explained here in both languages (the server's sentence is English), keyed on the code; the employees a
  * `gosi_regime_required` refusal names come from its body.
@@ -62,6 +73,16 @@ function runRefusal(e: Error, t: (en: string, ar: string) => string): { title: s
       description: t(
         `Every active employee's pay is not set (${names.join(", ")}). An accountant or admin sets each one's pay on the Employees page. Nothing was created.`,
         `لم يُحدَّد راتب أي موظف نشط (${names.join("، ")}). يحدّد المحاسب أو المسؤول راتب كل منهم من صفحة الموظفين. لم يُنشأ شيء.`,
+      ),
+    };
+  }
+  if (e.code === "payroll_nobody_payable") {
+    const left = (e.body?.leftOut ?? []) as PayrollLeftOutEmployee[];
+    return {
+      title: t("This run would pay nobody", "لن يُصرف في هذا المسير لأحد"),
+      description: t(
+        `Every employee is left out: ${left.map((l) => `${l.name} (${leftOutReason(l, t)})`).join(", ")}. Nothing was created.`,
+        `جميع الموظفين مستبعدون: ${left.map((l) => `${l.name} (${leftOutReason(l, t)})`).join("، ")}. لم يُنشأ شيء.`,
       ),
     };
   }
@@ -121,8 +142,9 @@ export default function Payroll() {
     onSuccess: (run) => {
       qc.invalidateQueries({ queryKey: ["payroll"] });
       setOpen(false);
-      const left = ((run as { leftOut?: PayrollLeftOutEmployee[] })?.leftOut ?? []).map((l) => l.name);
-      toast({ title: t("Payroll run generated", "تم إنشاء مسير الرواتب"), description: left.length ? t(`${left.length} employee(s) left out — pay not set: ${left.join(", ")}`, `استُبعد ${left.length} موظف — لم يُحدَّد الراتب: ${left.join("، ")}`) : undefined });
+      const left = (run as { leftOut?: PayrollLeftOutEmployee[] })?.leftOut ?? [];
+      const named = (sep: string) => left.map((l) => `${l.name} (${leftOutReason(l, t)})`).join(sep);
+      toast({ title: t("Payroll run generated", "تم إنشاء مسير الرواتب"), description: left.length ? t(`${left.length} employee(s) left out: ${named(", ")}`, `استُبعد ${left.length} موظف: ${named("، ")}`) : undefined });
     },
     onError: (e: Error) => { const r = runRefusal(e, t); toast({ title: r?.title ?? t("Error", "خطأ"), description: r?.description ?? e.message, variant: "destructive" }); },
   });
@@ -171,17 +193,17 @@ export default function Payroll() {
           <p className="text-muted-foreground text-sm mt-1">{t("Saudi payroll processing · GOSI · WPS-ready", "معالجة رواتب سعودية · GOSI · متوافق مع WPS")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button className="gap-2"><Play className="w-4 h-4" /> {t("Run Payroll", "تشغيل الرواتب")}</Button></DialogTrigger>
+          <DialogTrigger asChild><Button className="gap-2" data-testid="payroll-run-open"><Play className="w-4 h-4" /> {t("Run Payroll", "تشغيل الرواتب")}</Button></DialogTrigger>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>{t("Generate Payroll Run", "إنشاء مسير رواتب")}</DialogTitle></DialogHeader>
             <div className="mt-2 space-y-3">
-              <div><Label className="text-xs text-muted-foreground">{t("Period (YYYY-MM)", "الفترة (السنة-الشهر)")}</Label><Input type="month" value={period} onChange={e=>setPeriod(e.target.value)} className="mt-1 h-8 text-sm" /></div>
+              <div><Label className="text-xs text-muted-foreground">{t("Period (YYYY-MM)", "الفترة (السنة-الشهر)")}</Label><Input type="month" value={period} onChange={e=>setPeriod(e.target.value)} className="mt-1 h-8 text-sm" data-testid="payroll-generate-period" /></div>
               {(activeTotals?.totals.payNotSetCount ?? 0) > 0 && (
                 <p className="text-xs text-attention" data-testid="payroll-generate-pay-not-set">{t(`${activeTotals!.totals.payNotSetCount} active employee(s) have no pay set: the run leaves them out and names them — nothing is computed at zero.`, `${activeTotals!.totals.payNotSetCount} من الموظفين النشطين لم يُحدَّد راتبهم: يستبعدهم المسير ويذكر أسماءهم — لا يُحتسب لهم صفر.`)}</p>
               )}
-              <p className="text-xs text-muted-foreground">{t("This will generate payroll items for all active employees from their current salary setup. GOSI is computed for the period from each employee's GOSI law, on basic pay plus housing up to SAR 45,000.", "سيُنشئ هذا بنود الرواتب لجميع الموظفين النشطين من إعداد الراتب الحالي. وتُحسب التأمينات للفترة وفق نظام التأمينات لكل موظف، على الأساسي مع السكن حتى 45,000 ريال.")}</p>
+              <p className="text-xs text-muted-foreground">{t("This will generate payroll items for the active employees from their current salary setup. Anyone whose service ends this month, anyone still marked active whose service ended earlier, and anyone whose pay is not set is named and not paid: a leaver's final part-month is not paid automatically. GOSI is computed for the period from each employee's GOSI law, on basic pay plus housing up to SAR 45,000.", "سيُنشئ هذا بنود الرواتب للموظفين النشطين من إعداد الراتب الحالي. ومن تنتهي خدمته هذا الشهر، ومن لا يزال نشطًا وقد انتهت خدمته قبله، ومن لم يُحدَّد راتبه، يُذكر اسمه ولا يُصرف له: لا يُصرف الجزء الأخير من شهر المغادر تلقائيًا. وتُحسب التأمينات للفترة وفق نظام التأمينات لكل موظف، على الأساسي مع السكن حتى 45,000 ريال.")}</p>
             </div>
-            <Button className="w-full mt-4" onClick={()=>generateMut.mutate(period)} disabled={generateMut.isPending}>{generateMut.isPending ? t("Generating...", "جارٍ الإنشاء...") : t("Generate Payroll", "إنشاء مسير الرواتب")}</Button>
+            <Button className="w-full mt-4" data-testid="payroll-generate" onClick={()=>generateMut.mutate(period)} disabled={generateMut.isPending}>{generateMut.isPending ? t("Generating...", "جارٍ الإنشاء...") : t("Generate Payroll", "إنشاء مسير الرواتب")}</Button>
           </DialogContent>
         </Dialog>
         <Dialog open={payRun !== null} onOpenChange={(o)=>{ if (!o) setPayRun(null); }}>
@@ -239,11 +261,11 @@ export default function Payroll() {
             ) : (
               <div className="space-y-2">
                 {runs.map(r=>(
-                  <div data-row key={r.id} className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${selectedId===r.id?"border-primary/40 bg-primary/5":"border-border hover:bg-secondary/20"}`} onClick={()=>setSelectedId(selectedId===r.id?null:r.id)}>
+                  <div data-row key={r.id} data-testid={`payroll-run-${r.id}`} className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${selectedId===r.id?"border-primary/40 bg-primary/5":"border-border hover:bg-secondary/20"}`} onClick={()=>setSelectedId(selectedId===r.id?null:r.id)}>
                     <div>
                       <div className="font-mono text-sm font-semibold">{r.period}</div>
                       <div className="text-xs text-muted-foreground mt-0.5">{fmtNum(r.totalNetPay)} {t("net", "صافي")}</div>
-                      {r.leftOut.length > 0 && <div className="text-xs text-attention mt-0.5" data-testid={`payroll-left-out-count-${r.id}`}>{t(`${r.leftOut.length} left out — pay not set`, `${r.leftOut.length} مستبعد — لم يُحدَّد الراتب`)}</div>}
+                      {r.leftOut.length > 0 && <div className="text-xs text-attention mt-0.5" data-testid={`payroll-left-out-count-${r.id}`}>{t(`${r.leftOut.length} left out`, `${r.leftOut.length} مستبعد`)}</div>}
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={`text-xs ${STATUS_STYLES[r.status]??""}`}>{statusLabel(r.status, lang)}</Badge>
@@ -268,8 +290,8 @@ export default function Payroll() {
               <div className="overflow-x-auto">
               {detail.leftOut.length > 0 && (
                 <div className="mb-3 rounded-md border border-attention/40 p-2 text-xs" data-testid="payroll-left-out">
-                  <p className="font-medium text-attention">{t(`${detail.leftOut.length} employee(s) left out: pay not set`, `${detail.leftOut.length} موظف خارج المسير: لم يُحدَّد الراتب`)}</p>
-                  <ul className="mt-1 text-muted-foreground">{detail.leftOut.map((l) => <li key={l.employeeId}>{l.name} <span className="font-mono">{l.employeeNumber}</span></li>)}</ul>
+                  <p className="font-medium text-attention">{t(`${detail.leftOut.length} employee(s) left out`, `${detail.leftOut.length} موظف خارج المسير`)}</p>
+                  <ul className="mt-1 text-muted-foreground">{detail.leftOut.map((l) => <li key={l.employeeId} data-testid={`payroll-left-out-${l.employeeId}`}>{l.name} <span className="font-mono">{l.employeeNumber}</span> — {leftOutReason(l, t)}</li>)}</ul>
                 </div>
               )}
               <table className="w-full text-xs">

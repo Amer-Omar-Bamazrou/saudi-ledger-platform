@@ -3712,7 +3712,7 @@ paths:
         "400":
           description: Body failed validation, or no active employees
         "422":
-          description: Every active employee is left out (pay not set), or a GOSI law or rate is missing — named, nothing created
+          description: "The run would pay nobody — every employee is left out (`payroll_no_pay_set` when every reason is pay not set, else `payroll_nobody_payable`: a leaver's end date before or inside the period) — or a GOSI law or rate is missing. Named, nothing created."
 
   /payroll/field-access:
     get:
@@ -3836,6 +3836,11 @@ paths:
       responses:
         "204":
           description: Deleted
+        "409":
+          description: "Owner item 3 (2026-11-23): the employee is on a payroll run (paid, or on a draft), so the record is kept with the payroll history. Code `employee_on_payroll_run`, in both languages, with `nextStep: mark_inactive` and the runs' periods (`payrollRuns`). Nothing is deleted."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
 
   /asset-categories:
     get:
@@ -13135,7 +13140,10 @@ components:
         employeeId: { type: integer }
         employeeNumber: { type: string }
         name: { type: string }
-        reason: { type: string, enum: [pay_not_set] }
+        reason:
+          type: string
+          enum: [pay_not_set, ended_before_period, ends_in_period]
+          description: "pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23)."
 
     FieldAccess:
       type: object

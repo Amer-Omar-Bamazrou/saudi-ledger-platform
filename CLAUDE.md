@@ -574,7 +574,7 @@ the order is not the severity order.**
 | Rank | Item | Composes with | Why here |
 | --- | --- | --- | --- |
 | **1** | **Password recovery** (known-issues file, "RANK 1 — BREAK-GLASS"). 🔴 Remaining: the self-service EMAIL reset, `organization_invitations`-shaped, waiting ONLY on the mail provider — and the risk stands: the break-glass must not quietly become the permanent answer. | **B1**. | Build it the week the provider lands. |
-| **2** | 🔴 **Payroll ignores the end date**: an `active` leaver is paid a full month and GOSI every month; a leaving month's pay is never pro-rated; `inactive` drops the final part-month. Deleting a paid employee: 500. | posts + hides. | Final pay: accountant. |
+| **2** | 🔴 **A leaver's final part-month is never paid**: a run names anyone whose end date falls in its month and pays them nothing until the accountant answers. | posts. | Advisor Block N. |
 | **3** | 🔴 **Art. 40(10) is unbuilt**: input VAT on a bill unpaid 12 months after its supply month is never reversed, so the company keeps VAT it must give back. | files + hides. | Advisor Block M. |
 | **4** | 🔴 **The generic journal reverse accepts an entry a receipt, depreciation or recognition OWNS** — the document reads live while its entry is cancelled. | posts + hides. | DR-34; Phase 12 §7 #8. |
 | **5** | **`operatorService.getApplication` accepts ANY orgId**, including an approved LIVE tenant, returning CR/VAT and verification documents; the access **never expires**. | Official identity documents. | Audited, operator-only. P6: no statutory expiry. |

@@ -24,6 +24,7 @@ because it was already wrong once (it read "not four" while carrying five).
 | **K** | Owner's regulatory review, 2026-11-19 | 🔴 The accountant FIRST: correcting an approved payroll run. Then the framework per tenant, the `manual` policy for untraceable entries, and (tax adviser) an identified advance's VAT period |
 | **L** | VAT Implementing Regulations, Tenth Edition (`docs/zatca/README.md`) | Five amended articles our records still read the old way — the tax adviser |
 | **M** | Owner, 2026-11-21: Art. 40(10) is never applied (CLAUDE.md §5) | 🔴 The accountant: how the 40(10) reversal posts, and how the VAT is re-claimed when the bill is later paid |
+| **N** | Owner, 2026-11-23: a leaver's final part-month is never paid (CLAUDE.md §5) | 🔴 The accountant: how a final part-month is paid, and its GOSI |
 
 ## 🔴 If one firm cannot cover both specialisms — SEQUENCE, do not split
 
@@ -932,6 +933,14 @@ entries, and no run's status is changed to make a reversal look resolved (owner,
 **Why.** The platform never reverses input VAT on a purchase still unpaid twelve months after the month following its supply, so a company with old unpaid bills keeps VAT it must give back (CLAUDE.md §5, owner 2026-11-21). The regulation sets the duty and the periods: the reversal goes in the return for the month the twelve months end (40(10)); after a later payment the VAT may be deducted again, in that payment's period or a later one (40(11)). It is silent on the booking. The design recorded in 2026-09 ([`phase-13b-vat-claim-ledger-architecture.md`](phase-13b-vat-claim-ledger-architecture.md) §5 and §11, not built) posts the reversal Dr the purchase's cost / Cr `VAT Adjustment – Non-Payment (Art. 40(10))`, and the re-claim as the mirror, proportional to the amount paid; it covers expense purchases only. Nothing is built until the accountant answers.
 
 - **M1 — for the accountant:** how should the 40(10) reversal post, and how is the VAT re-claimed when the bill is later paid in full or in part — is the recorded design right (Dr the purchase's cost / Cr the separate adjustment account, and its proportional mirror on payment), and what changes when the purchase was capitalised as a fixed asset or is held in inventory, or when the purchase's own period is already closed?
+
+---
+
+## Block N — a leaver's final part-month (added 2026-11-23)
+
+**Why.** Until 2026-11-23 a payroll run ignored the end date: an employee still `active` after leaving was paid a full month and GOSI every month, and one marked `inactive` lost their final part-month without a word (CLAUDE.md §5). The owner's rule since then (2026-11-23): a run never pays an employee whose end date is before its month, whatever their status; an employee whose end date falls inside the month (the first and the last day included) is **named in the run and not paid automatically** until the accountant answers how a final part-month is paid. Nothing else about the run changed. GOSI's own leaving-month rule is already written (GO-12: contributions by days of service over the month's actual days, both laws) and is kept in code, unused by a run until this answer.
+
+- **N1 — for the accountant:** how is a leaver's final part-month paid? (a) Is the pay for the days served pro-rated over the month's calendar days, over 30, or over working days, and is an employee whose service ends on the month's last day paid the full month? (b) Does the final month's GOSI follow GO-12's days of service (the 1421H law's Art. 21(3) and the 2024 Regulation's Art. 20(2)), or GOSI's Employer FAQ #11 as our test records it (the leaving month charged only when service ends on its last day)? (c) Is the final part-month paid in the month's ordinary run, or in a separate final settlement?
 
 ---
 
