@@ -24,6 +24,8 @@ const BANK_ACCOUNT_KEYS = [
   "pendingBankDetailChanges[].subjectName pendingBankDetailChanges[].ibanBefore pendingBankDetailChanges[].ibanAfter pendingBankDetailChanges[].status",
   "pendingBankDetailChanges[].requestedBy pendingBankDetailChanges[].requestedByName pendingBankDetailChanges[].requestedAt",
   "pendingBankDetailChanges[].decidedBy pendingBankDetailChanges[].decidedByName pendingBankDetailChanges[].decidedAt",
+  // 19B S3: the held-change shape gained the employee kind and the fallback's reason (null for a bank account's change)
+  "pendingBankDetailChanges[].employeeId pendingBankDetailChanges[].reason",
 ].join(" ");
 const PRODUCT_KEYS = "id code name nameAr description type unit unitPrice unitCost currency vatApplicable stockQty reorderPoint categoryId isActive organizationId createdAt";
 const APPLICATION_DECISION = { standard: "organizationId status reason" };

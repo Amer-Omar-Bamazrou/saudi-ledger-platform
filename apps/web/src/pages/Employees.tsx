@@ -12,6 +12,7 @@ import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import { DualDate } from "@/components/DualDate";
 import { PayNotSet, Withheld } from "@/components/Withheld";
+import { PartyIbanLine } from "@/components/PartyIbanLine";
 import {
   EmployeeForm, HOUSING_LABELS, REGIME_LABELS, STATUSES, housingFlags, housingOf, statusLabel,
   type HousingChoice, type RegimeChoice,
@@ -126,7 +127,7 @@ export default function Employees() {
               <thead><tr className="border-b border-border text-muted-foreground text-xs uppercase">{[t("Employee","الموظف"),t("Department","القسم"),t("Nationality","الجنسية"),t("Basic Salary","الراتب الأساسي"),t("Gross","الإجمالي"),t("GOSI law","نظام التأمينات"),t("GOSI Emp","تأمين الموظف"),t("GOSI Er","تأمين صاحب العمل"),t("Join Date","تاريخ الالتحاق"),t("End Date","تاريخ انتهاء الخدمة"),t("Status","الحالة"),""].map((h, i)=><th key={`${h}-${i}`} className="text-start pb-2 pe-3 font-medium">{h}</th>)}</tr></thead>
               <tbody>{employees.map(e=>(
                 <tr key={e.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors" data-testid={`employee-row-${e.id}`}>
-                  <td className="py-3 pe-3"><div className="font-medium">{e.name}</div><div className="text-xs text-muted-foreground font-mono">{e.employeeNumber}</div>{e.jobTitle && <div className="text-xs text-muted-foreground">{e.jobTitle}</div>}</td>
+                  <td className="py-3 pe-3"><div className="font-medium">{e.name}</div><div className="text-xs text-muted-foreground font-mono">{e.employeeNumber}</div>{e.jobTitle && <div className="text-xs text-muted-foreground">{e.jobTitle}</div>}<PartyIbanLine record={e} testId={`employee-iban-${e.id}`} /></td>
                   <td className="py-3 pe-3 text-muted-foreground text-xs">{e.department||"—"}</td>
                   <td className="py-3 pe-3">{!readable("nationality") ? <Withheld cls={cls("nationality")} testId={`withheld-nationality-${e.id}`} /> : <Badge variant="outline" className={`text-xs ${e.nationality==="SA"?"border-primary/40 text-primary":"border-info-surface/40 text-info"}`}>{e.nationality==="SA" ? t("🇸🇦 Saudi","🇸🇦 سعودي") : t("Expat","وافد")}</Badge>}</td>
                   <td className="py-3 pe-3 font-mono text-sm">{money(e, "basicSalary")}</td>

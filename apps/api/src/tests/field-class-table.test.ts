@@ -59,7 +59,13 @@ describe("the class table against the contract (19B S1)", () => {
         if (!byField.has(f)) problems.push(`${node}: a condition names '${f}', not a field of this node`);
         else if (byField.get(f)!.cls === "standard") problems.push(`${node}.${f}: a condition on a standard field`);
       }
-      for (const key of Object.keys(entry)) if (![...FIELD_CLASSES, "resource", "writeAlsoNeeds", "conditions"].includes(key as never)) problems.push(`${node}: unknown key '${key}'`);
+      // 19B S3: a per-row resource names a field of its own node, and at least one resource
+      if (entry.rowResource) {
+        if (!byField.has(entry.rowResource.by)) problems.push(`${node}: rowResource reads '${entry.rowResource.by}', not a field of this node`);
+        if (Object.keys(entry.rowResource.resources).length === 0) problems.push(`${node}: rowResource names no resource`);
+        if (!entry.resource) problems.push(`${node}: rowResource without a default resource`);
+      }
+      for (const key of Object.keys(entry)) if (![...FIELD_CLASSES, "resource", "writeAlsoNeeds", "conditions", "rowResource"].includes(key as never)) problems.push(`${node}: unknown key '${key}'`);
     }
     expect(problems).toEqual([]);
   });

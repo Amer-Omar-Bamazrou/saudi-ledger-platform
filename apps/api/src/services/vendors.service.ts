@@ -49,6 +49,11 @@ export interface VendorMatchResult {
   suggestions: Vendor[];
 }
 
+/** 19B S3: one supplier's IBAN state (a change waiting; the last fallback's line). */
+async function partyIbanView(id: number) {
+  return (await bankDetailChangesService.partyIbanViews("vendor_iban", [id])).get(id)!;
+}
+
 export const vendorsService = {
   /**
    * 🔴 The list carries each vendor's AP, because the page shows it — and did
@@ -63,11 +68,13 @@ export const vendorsService = {
       vendorsRepository.listTotals(filter),
     ]);
     const byVendor = new Map(balances.map((b) => [b.vendorId, b]));
+    // 19B S3: each supplier's IBAN state (a change waiting; the fallback's line) — one read for the page.
+    const views = await bankDetailChangesService.partyIbanViews("vendor_iban", rows.map((v) => v.id));
     const items = rows.map((v) => {
       const bal = byVendor.get(v.id);
       const totalBilled = Number(bal?.totalBilled ?? 0);
       const totalPaid = Number(bal?.totalPaid ?? 0);
-      return { ...v, totalBilled, totalPaid, balance: totalBilled - totalPaid };
+      return { ...v, ...views.get(v.id)!, totalBilled, totalPaid, balance: totalBilled - totalPaid };
     });
     return {
       items,
@@ -85,6 +92,7 @@ export const vendorsService = {
     const totalPaid = Number(bal?.totalPaid ?? 0);
     return {
       ...vendor,
+      ...(await partyIbanView(id)),
       totalBilled,
       totalPaid,
       balance: totalBilled - totalPaid,
@@ -114,40 +122,53 @@ export const vendorsService = {
     return { matchType: "none", vendor: null, suggestions: [] };
   },
 
+  /**
+   * 🔴 19B S3 (v4 §6.3, D2): the supplier is created WITHOUT its IBAN; an IBAN given with it is then HELD for an
+   * accountant or admin who is not the requester (or applied at once, the fallback, when the requester is the only one
+   * who could ever approve it). The database refuses a supplier inserted with an IBAN (0170).
+   */
   async create(data: unknown) {
     // H-8 (DR-23): a supplier's IBAN is checked the one way and stored normalised
-    const [row] = await vendorsRepository.insert(withValidIban(normalize(pick<VendorInsert>(data, VENDOR_FIELDS))) as VendorInsert);
+    const { iban, ...values } = withValidIban(normalize(pick<VendorInsert>(data, VENDOR_FIELDS)));
+    let [row] = await vendorsRepository.insert(values as VendorInsert);
     await auditService.created("vendor", row.id, row);
+    const { held, applyNow } = await bankDetailChangesService.holdPartyIban("vendor_iban", row.id, null, iban ?? null, { atCreation: true });
+    if (applyNow) row = await vendorsService.applyApprovedIban(row.id, iban ?? null);
     // Explicit created:true so callers can distinguish "created" from "existed".
-    return { ...row, created: true as const };
+    return { ...row, ...(await partyIbanView(row.id)), created: true as const, pendingBankDetailChanges: await bankDetailChangesService.out(held) };
   },
 
   async update(id: number, data: unknown) {
     const [before] = await vendorsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
-    // 🔴 Phase 18 R-6 (DR-23): where the organisation has two or more usable admins, a change of the IBAN is HELD for a
-    // second admin (recorded as a pending request) and the rest of the request is written.
-    const { values, held } = await bankDetailChangesService.holdVendorIban(before, withValidIban(normalize(pick<VendorInsert>(data, VENDOR_FIELDS))));
+    // 🔴 19B S3 (v4 §6.3; was DR-23's two-admin rule): a change of the IBAN is HELD for an accountant or admin who is not
+    // the requester — or applied at once, the fallback — and the rest of the request is written.
+    const all = withValidIban(normalize(pick<VendorInsert>(data, VENDOR_FIELDS)));
+    const { iban, ...values } = all;
+    const { held, applyNow } = "iban" in all ? await bankDetailChangesService.holdPartyIban("vendor_iban", id, before.iban ?? null, iban ?? null) : { held: [], applyNow: false };
     let row: Vendor = before;
     if (Object.keys(values).length > 0) {
       [row] = await vendorsRepository.update(id, values);
       await auditService.updated("vendor", id, before, row);
     }
+    if (applyNow) row = await vendorsService.applyApprovedIban(id, iban ?? null);
     // Phase 13A: the supplier's VAT number is evidence — their unposted bills are re-decided.
     if ((before.taxNumber ?? null) !== (row?.taxNumber ?? null)) await vatEvidenceService.refreshForVendor(id);
-    return { ...row, pendingBankDetailChanges: await bankDetailChangesService.out(held) };
+    return { ...row, ...(await partyIbanView(id)), pendingBankDetailChanges: await bankDetailChangesService.out(held) };
   },
 
   /**
-   * 🔴 Phase 18 R-6 (DR-23): the IBAN a second admin APPROVED, written by the decision
-   * (`bankDetailChangeDecisions.service`) in the approval's own transaction, with its audit record — the record
-   * H-9's change-then-pay finding reads, dated at the approval.
+   * 🔴 Phase 18 R-6 (DR-23) → 19B S3: the IBAN an approver APPROVED (written by the decision,
+   * `bankDetailChangeDecisions.service`, in the approval's own transaction), or the fallback's (the requester's own,
+   * in theirs) — with its audit record, the record H-9's change-then-pay finding reads. The database lets the write
+   * through only beside that request (0170).
    */
-  async applyApprovedIban(id: number, iban: string | null): Promise<void> {
+  async applyApprovedIban(id: number, iban: string | null): Promise<Vendor> {
     const [before] = await vendorsRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
     const [row] = await vendorsRepository.update(id, { iban });
     await auditService.updated("vendor", id, before, row);
+    return row;
   },
 
   async remove(id: number) {

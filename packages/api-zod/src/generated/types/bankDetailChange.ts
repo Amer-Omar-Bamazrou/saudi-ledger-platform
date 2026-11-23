@@ -9,7 +9,7 @@ import type { BankDetailChangeKind } from './bankDetailChangeKind';
 import type { BankDetailChangeStatus } from './bankDetailChangeStatus';
 
 /**
- * Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier's IBAN, a company bank account's IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.
+ * A held bank-detail change. 19B S3 (v4 §6.3, D2): a supplier's or an employee's IBAN — the first and every later one — is ALWAYS held, and approved by a member who can approve bank details (an accountant or an admin) who is not the requester; when the requester is the only member who could ever approve it, it applies at once and is recorded closed as `applied_without_second_approver` with its `reason`. Phase 18 R-6 (DR-23): a company bank account's IBAN, or which account is the default (the IBAN printed on future invoices), is held only where the organisation has two or more usable admins, and approved by an admin who is not the requester. Rejected by an approver, or withdrawn by the requester. A decision is final.
  */
 export interface BankDetailChange {
   id: number;
@@ -17,12 +17,19 @@ export interface BankDetailChange {
   /** @nullable */
   vendorId: number | null;
   /** @nullable */
+  employeeId: number | null;
+  /** @nullable */
   bankAccountId: number | null;
   /**
-     * The supplier's or the bank account's name.
+     * The supplier's, the employee's or the bank account's name.
      * @nullable
      */
   subjectName: string | null;
+  /**
+     * 19B S3: why the IBAN applied without a second approver (`applied_without_second_approver` only); null otherwise.
+     * @nullable
+     */
+  reason: string | null;
   /**
      * The stored IBAN before; for a default switch, the IBAN printed before (null when none was).
      * @nullable

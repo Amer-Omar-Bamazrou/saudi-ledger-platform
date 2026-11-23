@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ibanSaveNotice } from "@/components/PartyIbanLine";
 
 export type RegimeChoice = "" | "law_1421h" | "law_2024";
 export const REGIME_LABELS: Record<Exclude<RegimeChoice, "">, [string, string]> = {
@@ -124,10 +125,12 @@ export function EmployeeForm({ mode, employee, access, open, onOpenChange }: {
       mode === "create"
         ? apiFetch("/employees", { method: "POST", body: JSON.stringify(body() as unknown as CreateEmployeeInput) })
         : apiFetch(`/employees/${employee!.id}`, { method: "PATCH", body: JSON.stringify(body() as UpdateEmployeeInput) }),
-    onSuccess: () => {
+    // 🔴 19B S3: an IBAN in the body is HELD for an accountant or admin who did not enter it (or applied at once, the fallback)
+    onSuccess: (res: unknown) => {
       qc.invalidateQueries({ queryKey: ["employees"] });
       onOpenChange(false);
-      toast({ title: mode === "create" ? t("Employee added", "تمت إضافة الموظف") : t("Employee saved", "تم حفظ بيانات الموظف") });
+      toast(ibanSaveNotice(res, "iban" in (body() as Record<string, unknown>), t)
+        ?? { title: mode === "create" ? t("Employee added", "تمت إضافة الموظف") : t("Employee saved", "تم حفظ بيانات الموظف") });
     },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });

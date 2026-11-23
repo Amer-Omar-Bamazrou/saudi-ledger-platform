@@ -66,9 +66,16 @@ const ACTIVATION_ACTIONS = new Set(["approve"]);
 // a review decision about a tax claim, same reasoning as `acknowledge`.
 const APPROVE_ROUTE = /\/(?:post|approve|pay|reject|reverse|send-?back|settle|acknowledge|allocate|apply|unallocate|override|unmatch|bad-debt-relief|file|rejection|correction|vat-figures-confirmation)\/?$/i;
 
+/**
+ * 🔴 19B S3: a PUT to `…/decision` decides a held change (approve or reject) — a review decision, so `approve`, never
+ * `update`. Today one guarded route has that shape: the held bank-detail changes (`bank_detail`).
+ */
+const DECISION_ROUTE = /\/decision\/?$/i;
+
 /** Resolve the permission action for a request (method + activation-route override). */
 function resolveAction(req: Request): PermissionAction | undefined {
   if (req.method === "POST" && APPROVE_ROUTE.test(req.path)) return "approve";
+  if (req.method === "PUT" && DECISION_ROUTE.test(req.path)) return "approve";
   return METHOD_ACTION[req.method];
 }
 

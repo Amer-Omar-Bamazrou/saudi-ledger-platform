@@ -13,4 +13,5 @@ export const BankDetailChangeStatus = {
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
+  applied_without_second_approver: 'applied_without_second_approver',
 } as const;

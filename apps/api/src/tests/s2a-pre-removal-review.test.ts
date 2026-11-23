@@ -26,6 +26,7 @@ import { primePermissionCache } from "../lib/rbac";
 import { CONTRACT } from "../lib/fieldClasses/contractShapes.generated";
 import { EXPORTABLE_REPORTS } from "../services/reporting/reportExport.service";
 import { g04Harness } from "./helpers/g04Harness";
+import { approveHeldIbans } from "./helpers/approveHeldIbans";
 
 const url = process.env.DATABASE_URL;
 const describeDb = !!url && !url.includes("placeholder") ? describe : describe.skip;
@@ -73,6 +74,8 @@ describeDb("19B S2a pre-removal review — with the twelve grants removed", () =
       ids.push(r.body.id);
       secrets.push(s.nationalId, s.gosiNumber, s.iban, s.iban.slice(0, -4), s.notes, ...money(s.basicSalary), ...money(s.housingAllowance), ...money(s.basicSalary + s.housingAllowance + s.transportAllowance));
     }
+    // 19B S3 (D2): each IBAN went through the hold (the accountant entered them); the admin approves them, so they are in place
+    expect(await approveHeldIbans(h, "admin")).toBe(STAFF.length);
     const run = await h.api("accountant", "POST", "/payroll", { period: "2026-10" });
     expect(run.status, JSON.stringify(run.body)).toBe(201);
     runId = run.body.id;
@@ -92,7 +95,9 @@ describeDb("19B S2a pre-removal review — with the twelve grants removed", () =
   it("the twelve are out of what this process enforces — PERMISSION_MATRIX itself — and nothing else is", () => {
     expect(PERMISSION_MATRIX.filter((r) => REMOVED.has(key(r))).map(key)).toEqual([]);
     expect(REMOVED.size).toBe(12);
-    expect([PERMISSION_MATRIX.length, S2A_MATRIX.length]).toEqual([395 - 12, 395 - 12]);
+    // 19B S3 added the six `bank_detail` grants (read ×4, approve ×2) — additions, outside S2a's set
+    const withoutS3 = PERMISSION_MATRIX.filter((r) => r.resource !== "bank_detail");
+    expect([withoutS3.length, S2A_MATRIX.filter((r) => r.resource !== "bank_detail").length, PERMISSION_MATRIX.length - withoutS3.length]).toEqual([395 - 12, 395 - 12, 6]);
   });
 
   // ── B ──
@@ -111,9 +116,12 @@ describeDb("19B S2a pre-removal review — with the twelve grants removed", () =
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     expect(created.body.payNotSet).toBe(true);
     expect("nationalId" in created.body).toBe(false); // written, never read back
-    expect(created.body.iban).toBe("•••• 7519");
+    // 🔴 Restated for 19B S3 (D2, v4 §6.3): the IBAN a bookkeeper enters is HELD for an accountant or admin — the employee
+    // is created without it, and the held change shows it as its last four (the employees grants, per row).
+    expect([created.body.iban, created.body.ibanPending]).toEqual([null, true]);
+    expect(created.body.pendingBankDetailChanges[0].ibanAfter).toBe("•••• 7519");
     const row = (await pool.query(`SELECT national_id, iban, basic_salary FROM employees WHERE id = $1`, [created.body.id])).rows[0];
-    expect(row).toEqual({ national_id: "1011111111", iban: "SA0380000000608010167519", basic_salary: null });
+    expect(row).toEqual({ national_id: "1011111111", iban: null, basic_salary: null });
   });
 
   it("🔴 B. field access tells each role what it may read and write — the page offers only that (never a value)", async () => {
@@ -214,15 +222,24 @@ describeDb("19B S2a pre-removal review — with the twelve grants removed", () =
     expect((await pool.query(`SELECT count(*)::int n FROM employees WHERE employee_number = 'REV-PAID'`)).rows[0].n).toBe(0);
   });
 
-  it("🔴 D. what a bookkeeper MAY write (the national ID, the IBAN) is saved and not echoed back", async () => {
+  // 🔴 Restated for 19B S3 (D2, v4 §6.3): the IBAN half is HELD — the current one stays (shown as its last four) until an
+  // accountant or admin who did not enter it approves; then the new one is in place, still never echoed in full.
+  it("🔴 D. what a bookkeeper MAY write: the national ID is saved and not echoed back; the IBAN is held, then approved, never echoed in full", async () => {
     const id = await h.api("bookkeeper", "PATCH", `/employees/${ids[1]}`, { nationalId: "2099999999" });
     expect(id.status, JSON.stringify(id.body)).toBe(200);
     expect("nationalId" in id.body).toBe(false);
     expect(JSON.stringify(id.body).includes("2099999999")).toBe(false);
+    const current = STAFF[1]!.iban;
     const iban = await h.api("bookkeeper", "PATCH", `/employees/${ids[1]}`, { iban: "SA7710000001111222233334" });
-    expect([iban.status, iban.body.iban]).toEqual([200, "•••• 3334"]);
+    expect([iban.status, iban.body.iban, iban.body.ibanPending], JSON.stringify(iban.body)).toEqual([200, `•••• ${current.slice(-4)}`, true]);
+    expect(iban.body.pendingBankDetailChanges[0].ibanAfter).toBe("•••• 3334");
+    expect(JSON.stringify(iban.body).includes("SA7710000001111222233334")).toBe(false);
+    expect((await pool.query(`SELECT national_id, iban FROM employees WHERE id = $1`, [ids[1]])).rows[0]).toEqual({ national_id: "2099999999", iban: current });
+    const ok = await h.api("accountant", "PUT", `/companies/current/bank-detail-changes/${iban.body.pendingBankDetailChanges[0].id}/decision`, { decision: "approve" });
+    expect(ok.status, JSON.stringify(ok.body)).toBe(200);
     const row = (await pool.query(`SELECT national_id, iban FROM employees WHERE id = $1`, [ids[1]])).rows[0];
     expect(row).toEqual({ national_id: "2099999999", iban: "SA7710000001111222233334" });
+    expect((await h.api("bookkeeper", "GET", `/employees/${ids[1]}`)).body.iban).toBe("•••• 3334");
   });
 
   it("🔴 D. a viewer writes nothing (the route's own grant refuses it first), and a bookkeeper no longer prepares a run", async () => {

@@ -55,7 +55,14 @@ export const companyControlsRepository = {
     return row;
   },
 
-  /** Every vendor update record whose before and after IBAN differ, oldest first. */
+  /**
+   * Every vendor update record whose before and after IBAN differ, oldest first — except the one that applied the IBAN
+   * entered WITH the supplier (🔴 19B S3): before S3 that IBAN was written in the creation record and was never a
+   * change (H-9: "not a steady supplier's"); S3 applies it after the creation, from a request marked `at_creation`.
+   * That record is matched to its request by the transaction they share: the database sets an audit row's time to
+   * now() (0159) and a decision's `decided_at` to now() (the request guard), and the IBAN is written only beside a
+   * request decided in that transaction (0170). A record that fails the match is COUNTED — it errs toward showing.
+   */
   vendorIbanChanges() {
     return db
       // 🔴 owner A23: the change's instant as epoch milliseconds, computed by the database (`timestamp` read into JS
@@ -67,6 +74,13 @@ export const companyControlsRepository = {
           eq(auditLogsTable.entityType, "vendor"),
           eq(auditLogsTable.action, "update"),
           sql`${auditLogsTable.beforeState}->>'iban' IS DISTINCT FROM ${auditLogsTable.afterState}->>'iban'`,
+          // table-qualified: inside the subquery a bare column would bind to the request table (drizzle renders `${col}` bare)
+          sql`NOT EXISTS (SELECT 1 FROM bank_detail_change_requests r
+                WHERE r.at_creation AND r.kind = 'vendor_iban' AND r.status IN ('approved', 'applied_without_second_approver')
+                  AND r.vendor_id::text = ${auditLogsTable}."entity_id"
+                  AND r.decided_at = ${auditLogsTable}."created_at"::timestamptz
+                  AND ${auditLogsTable}."before_state"->>'iban' IS NULL
+                  AND r.iban_after = ${auditLogsTable}."after_state"->>'iban')`,
         ),
       )
       .orderBy(asc(auditLogsTable.createdAt), asc(auditLogsTable.id));

@@ -1,15 +1,17 @@
 /**
- * 🔴 Phase 18 R-6 — DR-23's dual control (register §11.98): Company settings →
- * the bank-detail changes waiting for a second admin.
+ * 🔴 Company settings → the held bank-detail changes.
  *
- * In an organisation with two or more admins, a change of a supplier's IBAN,
- * of a bank account's IBAN, or of the account printed on invoices is held
- * until an admin who did not ask for it approves it. This lists the SERVER's
- * requests as they come (newest first) and offers the decision, which the
- * route allows admins only:
- *  - another admin: Approve or Reject;
- *  - an admin who asked: told another admin approves it, and may withdraw it;
- *  - anyone else: told an admin decides.
+ *  - 19B S3 (v4 §6.3): a supplier's or an employee's IBAN — the first and every
+ *    later one — is ALWAYS held until an accountant or admin who did not ask for
+ *    it approves it; when the person who entered it is the only member who could
+ *    ever approve it, it applied at once and is listed as such, with the reason.
+ *  - Phase 18 R-6 (DR-23): a company bank account's IBAN, or the account printed
+ *    on invoices, is held where two or more admins exist, for an admin who did
+ *    not ask for it.
+ * This lists the SERVER's requests as they come (newest first) and offers the
+ * decision to whoever may make it: another approver Approves or Rejects; the
+ * one who asked is told someone else approves it, and may withdraw it; anyone
+ * else is told who decides. An IBAN the reader may not see is marked withheld.
  * A refusal is explained in the reader's language, keyed on its CODE.
  */
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,10 +30,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { refusalOf } from "@/lib/openingVatRefusals";
 import { ibanChangeText } from "@/lib/walkLabels";
+import { Withheld } from "@/components/Withheld";
+
+/** 19B S3: the kinds S3's rule governs — decided by an accountant or admin; the rest by an admin (DR-23). */
+const isParty = (k: BankDetailChange["kind"]) => k === "vendor_iban" || k === "employee_iban";
 
 export function BankDetailChangesSection() {
   const { t, lang } = useLanguage();
   const { user, isOrgAdmin } = useAuth();
+  // 19B S3: who may decide which kind — an accountant or admin a supplier's or employee's IBAN; an admin the company's own.
+  const canDecide = (k: BankDetailChange["kind"]) => (isParty(k) ? isOrgAdmin || user?.organizationRole === "accountant" : isOrgAdmin);
   const { toast } = useToast();
   const qc = useQueryClient();
   const list = useListBankDetailChanges();
@@ -41,9 +49,11 @@ export function BankDetailChangesSection() {
     switch (code) {
       case "second_admin_required":
         return t(
-          "You asked for this change, so another admin approves it. You can withdraw it.",
-          "أنت من طلب هذا التغيير، لذا يوافق عليه مسؤول آخر. ويمكنك سحبه.",
+          "You asked for this change, so someone else who can approve it approves it. You can withdraw it.",
+          "أنت من طلب هذا التغيير، لذا يعتمده شخص آخر ممن يحق لهم اعتماده. ويمكنك سحبه.",
         );
+      case "bank_detail_change_admin_only":
+        return t("A change of the company's own bank details is decided by an admin.", "يبتّ مسؤول النظام في تغيير البيانات البنكية للشركة نفسها.");
       case "bank_detail_change_stale":
         return t(
           "The bank details changed after this request was made. Reject it and ask again from the details as they are now.",
@@ -63,6 +73,7 @@ export function BankDetailChangesSection() {
         qc.invalidateQueries({ queryKey: getListBankDetailChangesQueryKey() });
         qc.invalidateQueries({ queryKey: ["bank-accounts"] });
         qc.invalidateQueries({ queryKey: ["vendors"] });
+        qc.invalidateQueries({ queryKey: ["employees"] });
         toast({
           title:
             r.status === "approved"
@@ -77,15 +88,21 @@ export function BankDetailChangesSection() {
   const kindLabel = (k: BankDetailChange["kind"]) =>
     k === "vendor_iban"
       ? t("Supplier IBAN", "آيبان المورد")
-      : k === "bank_account_iban"
+      : k === "employee_iban"
+        ? t("Employee IBAN", "آيبان الموظف")
+        : k === "bank_account_iban"
         ? t("Bank account IBAN", "آيبان الحساب البنكي")
         : t("Account printed on invoices", "الحساب المطبوع على الفواتير");
-  const statusLabel = (s: BankDetailChange["status"]) =>
-    s === "pending"
-      ? t("Waiting for a second admin", "بانتظار موافقة مسؤول ثانٍ")
-      : s === "approved"
+  const statusLabel = (c: BankDetailChange) =>
+    c.status === "pending"
+      ? isParty(c.kind)
+        ? t("Waiting for an accountant or admin", "بانتظار اعتماد محاسب أو مسؤول")
+        : t("Waiting for a second admin", "بانتظار موافقة مسؤول ثانٍ")
+      : c.status === "approved"
         ? t("Approved", "تمت الموافقة")
-        : t("Rejected", "مرفوض");
+        : c.status === "applied_without_second_approver"
+          ? t("Applied without a second approver", "طُبِّق دون معتمِد ثانٍ")
+          : t("Rejected", "مرفوض");
 
 
   const items = list.data?.items ?? [];
@@ -98,8 +115,8 @@ export function BankDetailChangesSection() {
         <CardTitle className="text-base">{t("Bank-detail changes", "تغييرات البيانات البنكية")}</CardTitle>
         <CardDescription>
           {t(
-            "With two or more admins, a change of a supplier's IBAN, of a bank account's IBAN, or of the account printed on invoices waits here until an admin who did not ask for it approves it.",
-            "عند وجود مسؤولَين أو أكثر، ينتظر هنا أي تغيير على آيبان مورد أو آيبان حساب بنكي أو على الحساب المطبوع على الفواتير، حتى يوافق عليه مسؤول غير الذي طلبه.",
+            "A supplier's or an employee's IBAN waits here until an accountant or admin who did not ask for it approves it. With two or more admins, a change of a company bank account's IBAN, or of the account printed on invoices, waits for an admin who did not ask for it.",
+            "ينتظر هنا آيبان المورد أو الموظف حتى يعتمده محاسب أو مسؤول لم يطلبه. وعند وجود مسؤولَين أو أكثر، ينتظر أي تغيير على آيبان حساب بنكي للشركة أو على الحساب المطبوع على الفواتير حتى يوافق عليه مسؤول لم يطلبه.",
           )}
         </CardDescription>
       </CardHeader>
@@ -115,12 +132,19 @@ export function BankDetailChangesSection() {
                     {c.subjectName ? ` — ${c.subjectName}` : ""}
                   </span>
                   <span className="text-xs text-muted-foreground" data-testid={`bank-detail-change-status-${c.id}`}>
-                    {statusLabel(c.status)}
+                    {statusLabel(c)}
                   </span>
                 </div>
                 <p className="font-mono text-xs break-all" dir="ltr">
-                  {ibanChangeText(c.ibanBefore, c.ibanAfter, t)}
+                  {c.ibanBefore === undefined && c.ibanAfter === undefined
+                    ? <Withheld cls="bank_account" testId={`bank-detail-change-iban-withheld-${c.id}`} />
+                    : ibanChangeText(c.ibanBefore ?? null, c.ibanAfter ?? null, t)}
                 </p>
+                {c.status === "applied_without_second_approver" && (
+                  <p className="text-[11px] text-attention" data-testid={`bank-detail-change-fallback-${c.id}`}>
+                    {t("No other member holds a role that can approve bank details.", "لا يملك أي عضو آخر دوراً يتيح اعتماد البيانات البنكية.")}
+                  </p>
+                )}
                 <p className="text-[11px] text-muted-foreground">
                   {t("Asked by", "طلبه")} {c.requestedByName ?? `#${c.requestedBy}`} · {fmtDate(c.requestedAt, lang)}
                   {c.decidedBy != null && (
@@ -132,7 +156,7 @@ export function BankDetailChangesSection() {
                 </p>
                 {c.status === "pending" && (
                   <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {isOrgAdmin && !mine && (
+                    {canDecide(c.kind) && !mine && (
                       <Button
                         type="button"
                         size="sm"
@@ -143,7 +167,7 @@ export function BankDetailChangesSection() {
                         {t("Approve", "موافقة")}
                       </Button>
                     )}
-                    {isOrgAdmin && (
+                    {canDecide(c.kind) && (
                       <Button
                         type="button"
                         size="sm"
@@ -156,10 +180,14 @@ export function BankDetailChangesSection() {
                       </Button>
                     )}
                     <span className="text-[11px] text-muted-foreground">
-                      {mine && isOrgAdmin
-                        ? t("You asked for this change: another admin approves it.", "أنت من طلب هذا التغيير: يوافق عليه مسؤول آخر.")
-                        : !isOrgAdmin
-                          ? t("An admin approves or rejects this change.", "يوافق مسؤول النظام على هذا التغيير أو يرفضه.")
+                      {mine && canDecide(c.kind)
+                        ? isParty(c.kind)
+                          ? t("You asked for this change: another accountant or admin approves it.", "أنت من طلب هذا التغيير: يعتمده محاسب أو مسؤول آخر.")
+                          : t("You asked for this change: another admin approves it.", "أنت من طلب هذا التغيير: يوافق عليه مسؤول آخر.") // DR-23, unchanged
+                        : !canDecide(c.kind)
+                          ? isParty(c.kind)
+                            ? t("An accountant or admin approves or rejects this change.", "يعتمد محاسب أو مسؤول هذا التغيير أو يرفضه.")
+                            : t("An admin approves or rejects this change.", "يوافق مسؤول النظام على هذا التغيير أو يرفضه.")
                           : null}
                     </span>
                   </div>

@@ -11,6 +11,7 @@ export type BankDetailChangeKind = typeof BankDetailChangeKind[keyof typeof Bank
 
 export const BankDetailChangeKind = {
   vendor_iban: 'vendor_iban',
+  employee_iban: 'employee_iban',
   bank_account_iban: 'bank_account_iban',
   default_bank_account: 'default_bank_account',
 } as const;

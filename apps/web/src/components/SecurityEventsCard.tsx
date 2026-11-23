@@ -60,6 +60,8 @@ const ACTION_LABEL: Record<string, [string, string]> = {
   "mfa.recovery_code_used": ["Recovery code used", "استخدام رمز استرداد"],
   "mfa.reset": ["Two-step verification reset by the platform", "إعادة تعيين التحقق بخطوتين من المنصة"],
   "security_settings.changed": ["Security settings changed", "تغيير إعدادات الأمان"],
+  // 🔴 19B S3 (v4 §6.3): the fallback — an IBAN applied by the only member who could approve bank details
+  "bank_detail.applied_without_second_approver": ["An IBAN applied without a second approver (no other member can approve bank details)", "تطبيق آيبان دون معتمِد ثانٍ (لا يملك عضو آخر صلاحية اعتماد البيانات البنكية)"],
 };
 
 export function SecurityEventsCard({ orgId, nameOf }: { orgId: string; nameOf: (userId: number) => string | undefined }) {

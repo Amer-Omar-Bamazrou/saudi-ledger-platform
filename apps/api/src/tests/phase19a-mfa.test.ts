@@ -289,7 +289,8 @@ describeMaybe("Phase 19A slice 2 — MFA: enrolment, verification, recovery, the
   it("🔴 A1 — for 30 days after its factor was reset, an account cannot approve a held bank-detail change; just outside the window it can", async () => {
     await resetLimits();
     await enrol("admin2", "admin2");
-    const vendor = await h.api("admin-g", "POST", "/vendors", { name: "P19M Vendor", residency: "resident", iban: "SA0380000000608010167519" });
+    // 19B S3: created WITHOUT an IBAN — an IBAN given at creation is itself held (v4 §6.3); the held change under test is the PATCH
+    const vendor = await h.api("admin-g", "POST", "/vendors", { name: "P19M Vendor", residency: "resident" });
     expect(vendor.status, JSON.stringify(vendor.body)).toBeLessThan(300);
     const change = await h.api("admin-g", "PATCH", `/vendors/${vendor.body.id}`, { iban: "SA1310000000111122223333" });
     expect(change.status, JSON.stringify(change.body)).toBeLessThan(300);

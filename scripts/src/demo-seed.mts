@@ -157,10 +157,12 @@ async function main() {
     ["Gulf Office Supplies", "الخليج للأدوات المكتبية"],
     ["Najd Facilities Services", "نجد للخدمات"],
   ] as const).entries()) {
+    // 🔴 19B S3: a supplier's IBAN enters only through the hold (approved by an accountant or admin who did not enter
+    // it) — the database refuses one written with the row (0170). This raw-row seed writes none; enter one in the app.
     const r = await q(
-      `INSERT INTO vendors (organization_id, name, name_ar, tax_number, city, iban, payment_terms_days)
-       VALUES ($1,$2,$3,$4,$5,$6,'30') RETURNING id`,
-      [orgId, `${P}${name}`, ar, `31099999${i}00003`, "Riyadh", "SA0380000000608010167519"],
+      `INSERT INTO vendors (organization_id, name, name_ar, tax_number, city, payment_terms_days)
+       VALUES ($1,$2,$3,$4,$5,'30') RETURNING id`,
+      [orgId, `${P}${name}`, ar, `31099999${i}00003`, "Riyadh"],
     );
     vendors.push(Number(r.rows[0].id));
   }

@@ -46,12 +46,21 @@ export interface NodeClasses {
   by_entity?: string;
   writeAlsoNeeds?: Record<string, readonly ProtectedFieldClass[]>;
   conditions?: Record<string, string>;
+  /**
+   * 🔴 19B S3: the RESOURCE whose grants decide this node's protected fields, chosen PER ROW by one of the row's own
+   * fields — `{ by: "kind", resources: { employee_iban: "employees" } }`: a row whose `kind` is `employee_iban` is decided
+   * by the `employees` grants; any other row by `resource`. The walk applies it (walk.ts), so one served list can hold a
+   * supplier's IBAN (vendors) and an employee's (employees), each withheld by its own record's grants.
+   */
+  rowResource?: { by: string; resources: Record<string, string> };
 }
 
 export interface FieldSpec {
   cls: FieldClass;
   resource: string | null;
   writeAlsoNeeds: readonly ProtectedFieldClass[];
+  /** 19B S3: the per-row resource rule of the field's node (NodeClasses.rowResource), when it has one. */
+  rowResource?: { by: string; resources: Record<string, string> };
 }
 
 /** Every node's fields, by class. Kept in node order; one line per node. */
@@ -113,9 +122,11 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   "BalanceSheetReport.equity": { standard: "retainedEarnings priorYearsProfit currentYearProfit total" },
   "BalanceSheetReport.equity.fiscalYear": { standard: "label startDate endDate calendar" },
   "BalanceSheetReport.liabilities": { standard: "accountsPayable accountsPayableKey total" },
-  BankDetailChange: { resource: "vendors", standard: "id kind vendorId bankAccountId subjectName status requestedBy requestedByName requestedAt decidedBy decidedByName decidedAt", bank_account: "ibanBefore ibanAfter", conditions: {
-      ibanBefore: "classified per row: a vendor's (or, from S3, an employee's) IBAN is bank_account; the company's own bank account is standard (S2c)",
-      ibanAfter: "classified per row: a vendor's (or, from S3, an employee's) IBAN is bank_account; the company's own bank account is standard (S2c)",
+  // 🔴 19B S3: an EMPLOYEE's held IBAN is decided by the `employees` grants (S2a: a bookkeeper its last four, a viewer
+  // nothing) — per row, by `kind` — so the held-change list never shows it more than the employee's own record does.
+  BankDetailChange: { resource: "vendors", rowResource: { by: "kind", resources: { employee_iban: "employees" } }, standard: "id kind vendorId employeeId bankAccountId subjectName status reason requestedBy requestedByName requestedAt decidedBy decidedByName decidedAt", bank_account: "ibanBefore ibanAfter", conditions: {
+      ibanBefore: "classified per row: a vendor's IBAN by the vendors grants, an employee's by the employees grants (S3, built: rowResource); the company's own bank account is standard (S2c)",
+      ibanAfter: "classified per row: a vendor's IBAN by the vendors grants, an employee's by the employees grants (S3, built: rowResource); the company's own bank account is standard (S2c)",
     } },
   BankDetailChangeDecisionInput: { standard: "decision" },
   BankReconciliationPosition: { standard: "bankAccountId asOf bankStatementId statementBalance ledgerBalance ledgerOnlyTotal statementOnlyTotal expectedStatement difference balanced reconciledThrough" },
@@ -251,7 +262,7 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   DepreciateAssetInput: { standard: "period postingDate" },
   DiscardResult: { standard: "status imageDeleted" },
   DisposeAssetInput: { standard: "date kind reason withdrawalReason" },
-  Employee: { resource: "employees", standard: "id employeeNumber name nameAr jobTitle jobTitleAr department joiningDate endDate status createdAt payNotSet", identity: "nationalId nationality gosiNumber", compensation: "basicSalary housingAllowance transportAllowance otherAllowances notes grossSalary gosiEmployee gosiEmployer gosiWageBase gosiRegime gosiRegimeSetBy gosiRegimeSetAt gosiRegimeBasis gosiInKindHousing gosiInKindHousingExempt", bank_account: "iban bank", writeAlsoNeeds: { status: ["compensation"], joiningDate: ["compensation"], endDate: ["compensation"], nationality: ["compensation"], gosiNumber: ["compensation"] } },
+  Employee: { resource: "employees", standard: "id employeeNumber name nameAr jobTitle jobTitleAr department joiningDate endDate status createdAt payNotSet ibanPending", identity: "nationalId nationality gosiNumber", compensation: "basicSalary housingAllowance transportAllowance otherAllowances notes grossSalary gosiEmployee gosiEmployer gosiWageBase gosiRegime gosiRegimeSetBy gosiRegimeSetAt gosiRegimeBasis gosiInKindHousing gosiInKindHousingExempt", bank_account: "iban bank", writeAlsoNeeds: { status: ["compensation"], joiningDate: ["compensation"], endDate: ["compensation"], nationality: ["compensation"], gosiNumber: ["compensation"] } },
   EmployeeInputFields: { resource: "employees", standard: "employeeNumber name nameAr jobTitle jobTitleAr department joiningDate endDate status", identity: "nationalId nationality gosiNumber", compensation: "basicSalary housingAllowance transportAllowance otherAllowances notes gosiRegime gosiRegimeBasis gosiInKindHousing gosiInKindHousingExempt", bank_account: "iban bank", writeAlsoNeeds: { status: ["compensation"], joiningDate: ["compensation"], endDate: ["compensation"], nationality: ["compensation"], gosiNumber: ["compensation"] } },
   // 🔴 19B S2a (owner item 2, 2026-11-23): a money total over a set the CALLER chooses (search, department, status) is
   // pay — a one-person search, or all minus all-but-one, is one person's pay — so it is withheld from roles without pay
@@ -260,6 +271,8 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   EmployeeTotals: { resource: "employees", standard: "payNotSetCount", identity: "saudiCount", compensation: "grossSalary gosiEmployer gosiUnstatedCount" },
   // 19B S2a: what a role may do with each field — classes and levels, never a value.
   FieldAccess: { standard: "record" },
+  // 19B S3 (v4 §6.3): the fallback line a supplier or employee shows — when, and who entered it. Standard: a fact about the record.
+  IbanAppliedWithoutSecondApprover: { standard: "at byName" },
   FieldAccessEntry: { standard: "class read write" },
   EndUserSessionsInput: { resource: "users", member_security: "email" },
   ErrorResponse: { standard: "error" },
@@ -635,7 +648,7 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   VatReturnSalesSection: { standard: "box1_standardRatedDomesticSales box2_zeroRatedDomesticSales box3_exemptSales box4_exportSales box5_totalSales box6_vatOnStandardRatedSales box7_vatAdjustments box8_totalOutputVat" },
   VatSummary: { standard: "vatCollected vatPaid vatBlocked netVatPosition vatRate" },
   VatTransaction: { resource: "transactions", standard: "id date amount vatAmount type", bank_narrative: "description" },
-  Vendor: { resource: "vendors", standard: "id name nameAr taxNumber crNumber country currency paymentTermsDays isActive residency whtDefaultPaymentType foreignTaxId createdAt", contact: "phone email address city notes", bank_account: "iban" },
+  Vendor: { resource: "vendors", standard: "id name nameAr taxNumber crNumber country currency paymentTermsDays isActive ibanPending residency whtDefaultPaymentType foreignTaxId createdAt", contact: "phone email address city notes", bank_account: "iban" },
   VendorCreated: { standard: "created" },
   VendorDetail: { standard: "billCount" },
   VendorInputFields: { resource: "vendors", standard: "name nameAr taxNumber crNumber country currency paymentTermsDays isActive residency whtDefaultPaymentType foreignTaxId", contact: "phone email address city notes", bank_account: "iban" },
@@ -775,7 +788,7 @@ export function indexTable(table: Record<string, NodeClasses>): Map<string, Map<
       if (!list) continue;
       for (const field of list.split(" ").filter(Boolean)) {
         if (fields.has(field)) throw new Error(`class table: ${node}.${field} is listed twice`);
-        fields.set(field, { cls, resource: entry.resource ?? null, writeAlsoNeeds: entry.writeAlsoNeeds?.[field] ?? [] });
+        fields.set(field, { cls, resource: entry.resource ?? null, writeAlsoNeeds: entry.writeAlsoNeeds?.[field] ?? [], ...(entry.rowResource ? { rowResource: entry.rowResource } : {}) });
       }
     }
     index.set(node, fields);

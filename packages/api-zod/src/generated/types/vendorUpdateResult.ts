@@ -9,6 +9,6 @@ import type { BankDetailChange } from './bankDetailChange';
 import type { Vendor } from './vendor';
 
 export type VendorUpdateResult = Vendor & {
-  /** Phase 18 R-6 (DR-23): a change of the IBAN held for a second admin (the organisation has two or more usable admins). Empty when the change was written at once, or none was asked for. */
+  /** 19B S3 (v4 §6.3): a change of the IBAN, held for an accountant or admin who did not ask for it. Empty when it applied at once (the fallback), or none was asked for. */
   pendingBankDetailChanges: BankDetailChange[];
 };

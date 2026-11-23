@@ -27,7 +27,6 @@ const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
 const describeMaybe = REAL_DB ? describe : describe.skip;
 const PW = "Z1NamesAfterCommitPw1!";
-const IBAN_A = "SA0380000000608010167519";
 const IBAN_B = "SA1310000000111122223333";
 const CHANGES = "/companies/current/bank-detail-changes";
 
@@ -38,7 +37,8 @@ describeMaybe("TR-5: a bank-detail decision's names are read only after it has c
 
   const statusOf = async (id: number) => (await pool.query(`SELECT status FROM bank_detail_change_requests WHERE id = $1`, [id])).rows[0]?.status as string;
   const hold = async (name: string) => {
-    const made = await h.api("first", "POST", "/vendors", { name, residency: "resident", iban: IBAN_A });
+    // 19B S3: created WITHOUT an IBAN — an IBAN given at creation is itself held (v4 §6.3); the held change under test is the PATCH
+    const made = await h.api("first", "POST", "/vendors", { name, residency: "resident" });
     expect(made.status, JSON.stringify(made.body)).toBe(201);
     const held = await h.api("first", "PATCH", `/vendors/${made.body.id}`, { iban: IBAN_B });
     expect(held.status, JSON.stringify(held.body)).toBe(200);

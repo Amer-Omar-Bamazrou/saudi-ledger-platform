@@ -5,9 +5,12 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { BankDetailChange } from './bankDetailChange';
 import type { Vendor } from './vendor';
 
 export type VendorCreated = Vendor & {
   /** Always true here; lets a caller that also matches tell "created" from "existed". */
   created: boolean;
+  /** 19B S3: the IBAN given with the supplier, held for an accountant or admin who did not ask for it. Empty when none was given, or when it applied at once (the fallback). */
+  pendingBankDetailChanges: BankDetailChange[];
 };

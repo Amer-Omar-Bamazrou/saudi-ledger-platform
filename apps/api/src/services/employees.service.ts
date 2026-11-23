@@ -65,6 +65,7 @@ function gosiRegimeFields(
   };
 }
 import { auditService } from "./audit.service";
+import { bankDetailChangesService } from "./bankDetailChanges.service";
 import { employeesRepository, type EmployeeListFilter } from "../repositories/employees.repository";
 import { payrollRepository } from "../repositories/payroll.repository";
 import { DEFAULT_PAGE } from "../lib/httpParams";
@@ -123,6 +124,11 @@ function assertEmploymentDates(joiningDate: unknown, endDate: unknown) {
   }
 }
 
+/** 19B S3: one employee's IBAN state (a change waiting; the last fallback's line). */
+async function partyIbanView(id: number) {
+  return (await bankDetailChangesService.partyIbanViews("employee_iban", [id])).get(id)!;
+}
+
 export const employeesService = {
   async list(filter: EmployeeListFilter) {
     const [rows, totals] = await Promise.all([
@@ -130,8 +136,10 @@ export const employeesService = {
       employeesRepository.listTotals(filter),
     ]);
     const { total, ...headline } = totals;
+    // 19B S3: each employee's IBAN state (a change waiting; the fallback's line) — one read for the page.
+    const views = await bankDetailChangesService.partyIbanViews("employee_iban", rows.map((e) => e.id));
     return {
-      items: rows.map(toView),
+      items: rows.map((e) => ({ ...toView(e), ...views.get(e.id)! })),
       page: { limit: filter.limit ?? DEFAULT_PAGE, offset: filter.offset ?? 0, total },
       totals: headline,
     };
@@ -140,7 +148,7 @@ export const employeesService = {
   async getById(id: number) {
     const [row] = await employeesRepository.findById(id);
     if (!row) throw new NotFoundError("Not found");
-    return toView(row);
+    return { ...toView(row), ...(await partyIbanView(id)) };
   },
 
   async create(data: Record<string, unknown>) {
@@ -159,9 +167,15 @@ export const employeesService = {
       otherAllowances: assertAmount(data.otherAllowances ?? 0, "otherAllowances", { min: 0, allowZero: true }).toFixed(2),
       ...gosiRegimeFields(data, picked.nationality ?? "SA", null),
     } as typeof employeesTable.$inferInsert;
-    const [row] = await employeesRepository.insert(values);
+    // 🔴 19B S3 (v4 §6.3, D2 under O2): the employee is created WITHOUT the IBAN; an IBAN given with it — a bookkeeper's
+    // included — is then HELD for an accountant or admin who is not the requester (or applied at once, the fallback).
+    // The database refuses an employee inserted with an IBAN (0170).
+    const { iban, ...withoutIban } = values;
+    let [row] = await employeesRepository.insert(withoutIban as typeof employeesTable.$inferInsert);
     await auditService.created("employee", row.id, row);
-    return toView(row);
+    const { held, applyNow } = await bankDetailChangesService.holdPartyIban("employee_iban", row.id, null, (iban as string | null | undefined) ?? null, { atCreation: true });
+    if (applyNow) row = await employeesService.applyApprovedIban(row.id, (iban as string | null | undefined) ?? null);
+    return { ...toView(row), ...(await partyIbanView(row.id)), pendingBankDetailChanges: await bankDetailChangesService.out(held) };
   },
 
   async update(id: number, data: Record<string, unknown>) {
@@ -178,9 +192,31 @@ export const employeesService = {
     // A Saudi turned non-Saudi loses the regime; a regime stated for a non-Saudi is refused below.
     const regimeInput = nationality !== "SA" && !("gosiRegime" in data) && before.gosiRegime ? { ...data, gosiRegime: null } : data;
     Object.assign(updates, gosiRegimeFields(regimeInput, nationality, before));
-    const [row] = await employeesRepository.update(id, updates as Partial<typeof employeesTable.$inferInsert>);
+    // 🔴 19B S3: a change of the IBAN is HELD (or applied at once, the fallback); the rest is written.
+    const { iban, ...rest } = updates;
+    const { held, applyNow } = "iban" in updates
+      ? await bankDetailChangesService.holdPartyIban("employee_iban", id, before.iban ?? null, (iban as string | null | undefined) ?? null)
+      : { held: [] as number[], applyNow: false };
+    let row: Employee = before;
+    if (Object.keys(rest).length > 0) {
+      [row] = await employeesRepository.update(id, rest as Partial<typeof employeesTable.$inferInsert>);
+      await auditService.updated("employee", id, before, row);
+    }
+    if (applyNow) row = await employeesService.applyApprovedIban(id, (iban as string | null | undefined) ?? null);
+    return { ...toView(row), ...(await partyIbanView(id)), pendingBankDetailChanges: await bankDetailChangesService.out(held) };
+  },
+
+  /**
+   * 🔴 19B S3: the IBAN an approver APPROVED (the decision, `bankDetailChangeDecisions.service`, in its own transaction)
+   * or the fallback's (the requester's own) — with its audit record. The database lets the write through only beside that
+   * request (0170).
+   */
+  async applyApprovedIban(id: number, iban: string | null): Promise<Employee> {
+    const [before] = await employeesRepository.findById(id);
+    if (!before) throw new NotFoundError("Not found");
+    const [row] = await employeesRepository.update(id, { iban });
     await auditService.updated("employee", id, before, row);
-    return toView(row);
+    return row;
   },
 
   /**

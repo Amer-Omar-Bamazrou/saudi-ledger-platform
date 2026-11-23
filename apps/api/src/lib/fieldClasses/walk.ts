@@ -18,8 +18,11 @@ export type ReadLevel = "read" | "last4" | "none";
 /** What the reader may see of a protected class on a resource. */
 export type ReadDecider = (cls: ProtectedFieldClass, resource: string) => ReadLevel;
 
-/** The class table's answer for one field: its class and the resource whose grants govern it. */
-export type FieldLookup = (node: string, field: string) => { cls: FieldClass; resource: string | null } | undefined;
+/**
+ * The class table's answer for one field: its class and the resource whose grants govern it — and, 19B S3, the rule that
+ * picks the resource per row from one of the row's own fields (classTable.ts, NodeClasses.rowResource).
+ */
+export type FieldLookup = (node: string, field: string) => { cls: FieldClass; resource: string | null; rowResource?: { by: string; resources: Record<string, string> } } | undefined;
 
 export interface Withheld {
   /** Where in the value: `items[].iban`, `customer.nationalId`, `$` for the whole value. */
@@ -99,13 +102,15 @@ export function walkValue(
   const withheld: Withheld[] = [];
   const unclassified = new Set<string>();
 
-  const decideLeaf = (node: string, field: string, v: unknown, path: string): unknown => {
+  const decideLeaf = (node: string, field: string, v: unknown, path: string, row?: Record<string, unknown>): unknown => {
     const spec = lookup(node, field);
     if (!spec) {
       unclassified.add(`${node}.${field}`);
       return v;
     }
-    const { cls, resource } = spec;
+    const { cls } = spec;
+    // 🔴 19B S3: a per-row resource — the row's own field picks whose grants decide (an employee's held IBAN: employees).
+    const resource = spec.rowResource && row ? (spec.rowResource.resources[String(row[spec.rowResource.by])] ?? spec.resource) : spec.resource;
     if (cls === "standard" || cls === "by_entity") return v; // by_entity: each key by the audited entity's node (S2c)
     if (!resource) throw new Error(`class table: ${node}.${field} is ${cls} but its node names no resource`);
     const level = decide(cls, resource);
@@ -122,12 +127,12 @@ export function walkValue(
   };
 
   /** A field's value: walked into when the contract gives it structure of the value's own kind, else ONE value. */
-  const visitField = (node: string, field: string, ps: Shape, v: unknown, path: string): unknown => {
+  const visitField = (node: string, field: string, ps: Shape, v: unknown, path: string, row?: Record<string, unknown>): unknown => {
     const offer = offerOf(ps, components);
     // A null where the contract allows a plain value is that value's answer (classified); a null object serves nothing.
-    if (v === null || v === undefined) return offer.leaf ? decideLeaf(node, field, v, path) : v;
+    if (v === null || v === undefined) return offer.leaf ? decideLeaf(node, field, v, path, row) : v;
     if (Array.isArray(v) ? offer.item !== null : isPlainObject(v) && (offer.nodes.length > 0 || offer.maps.length > 0)) return visit(ps, v, path, node, field);
-    return decideLeaf(node, field, v, path);
+    return decideLeaf(node, field, v, path, row);
   };
 
   const visit = (sh: Shape, v: unknown, path: string, node: string, field: string): unknown => {
@@ -153,11 +158,11 @@ export function walkValue(
       const childPath = path ? `${path}.${key}` : key;
       const owner = nodes.find((n) => own(n.p, key));
       let next: unknown;
-      if (owner) next = visitField(owner.n, key, owner.p[key]!, child, childPath);
-      else if (dynamic) next = visitField(dynamic.n, "*", dynamic.ap!, child, childPath);
+      if (owner) next = visitField(owner.n, key, owner.p[key]!, child, childPath, v);
+      else if (dynamic) next = visitField(dynamic.n, "*", dynamic.ap!, child, childPath, v);
       else if (maps.length) next = visitField(node, field, maps[0]!, child, childPath);
       // A key the contract does not declare: classified only by an explicit row (SERVED_BEYOND_CONTRACT), else unclassified.
-      else next = decideLeaf(nodes[0]!.n, key, child, childPath);
+      else next = decideLeaf(nodes[0]!.n, key, child, childPath, v);
       if (next === REMOVE) {
         out ??= { ...v };
         delete out[key];

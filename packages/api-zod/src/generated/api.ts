@@ -5361,20 +5361,22 @@ export const GetPaymentAfterBankChangeFindingResponse = zod.object({
 export const ListBankDetailChangesResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
-  "kind": zod.enum(['vendor_iban', 'bank_account_iban', 'default_bank_account']),
+  "kind": zod.enum(['vendor_iban', 'employee_iban', 'bank_account_iban', 'default_bank_account']),
   "vendorId": zod.number().nullable(),
+  "employeeId": zod.number().nullable(),
   "bankAccountId": zod.number().nullable(),
-  "subjectName": zod.string().nullable().describe('The supplier\'s or the bank account\'s name.'),
+  "subjectName": zod.string().nullable().describe('The supplier\'s, the employee\'s or the bank account\'s name.'),
+  "reason": zod.string().nullable().describe('19B S3: why the IBAN applied without a second approver (`applied_without_second_approver` only); null otherwise.'),
   "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
   "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'applied_without_second_approver']),
   "requestedBy": zod.number(),
   "requestedByName": zod.string().nullable(),
   "requestedAt": zod.coerce.date(),
   "decidedBy": zod.number().nullable(),
   "decidedByName": zod.string().nullable(),
   "decidedAt": zod.coerce.date().nullable()
-}).describe('Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier\'s IBAN, a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.\n')).describe('Every request of the active company, newest first (pending and decided).')
+}).describe('A held bank-detail change. 19B S3 (v4 §6.3, D2): a supplier\'s or an employee\'s IBAN — the first and every later one — is ALWAYS held, and approved by a member who can approve bank details (an accountant or an admin) who is not the requester; when the requester is the only member who could ever approve it, it applies at once and is recorded closed as `applied_without_second_approver` with its `reason`. Phase 18 R-6 (DR-23): a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices), is held only where the organisation has two or more usable admins, and approved by an admin who is not the requester. Rejected by an approver, or withdrawn by the requester. A decision is final.\n')).describe('Every request of the active company, newest first (pending and decided).')
 })
 
 
@@ -5392,20 +5394,22 @@ export const DecideBankDetailChangeBody = zod.object({
 
 export const DecideBankDetailChangeResponse = zod.object({
   "id": zod.number(),
-  "kind": zod.enum(['vendor_iban', 'bank_account_iban', 'default_bank_account']),
+  "kind": zod.enum(['vendor_iban', 'employee_iban', 'bank_account_iban', 'default_bank_account']),
   "vendorId": zod.number().nullable(),
+  "employeeId": zod.number().nullable(),
   "bankAccountId": zod.number().nullable(),
-  "subjectName": zod.string().nullable().describe('The supplier\'s or the bank account\'s name.'),
+  "subjectName": zod.string().nullable().describe('The supplier\'s, the employee\'s or the bank account\'s name.'),
+  "reason": zod.string().nullable().describe('19B S3: why the IBAN applied without a second approver (`applied_without_second_approver` only); null otherwise.'),
   "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
   "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'applied_without_second_approver']),
   "requestedBy": zod.number(),
   "requestedByName": zod.string().nullable(),
   "requestedAt": zod.coerce.date(),
   "decidedBy": zod.number().nullable(),
   "decidedByName": zod.string().nullable(),
   "decidedAt": zod.coerce.date().nullable()
-}).describe('Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier\'s IBAN, a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.\n')
+}).describe('A held bank-detail change. 19B S3 (v4 §6.3, D2): a supplier\'s or an employee\'s IBAN — the first and every later one — is ALWAYS held, and approved by a member who can approve bank details (an accountant or an admin) who is not the requester; when the requester is the only member who could ever approve it, it applies at once and is recorded closed as `applied_without_second_approver` with its `reason`. Phase 18 R-6 (DR-23): a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices), is held only where the organisation has two or more usable admins, and approved by an admin who is not the requester. Rejected by an approver, or withdrawn by the requester. A decision is final.\n')
 
 
 /**
@@ -6862,6 +6866,11 @@ export const ListEmployeesResponse = zod.object({
   "otherAllowances": zod.number().optional(),
   "gosiNumber": zod.string().nullish(),
   "iban": zod.string().nullish(),
+  "ibanPending": zod.boolean().optional().describe('19B S3 (v4 §6.3): a change of this employee\'s IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then.'),
+  "ibanAppliedWithoutSecondApprover": zod.object({
+  "at": zod.coerce.date(),
+  "byName": zod.string().nullable()
+}).nullish().describe('19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as \'IBAN applied without a second approver on {at}, entered by {byName}\'. Null when none did.'),
   "bank": zod.string().nullish(),
   "joiningDate": zod.string().nullable(),
   "endDate": zod.string().nullable(),
@@ -6949,6 +6958,11 @@ export const CreateEmployeeResponse = zod.object({
   "otherAllowances": zod.number().optional(),
   "gosiNumber": zod.string().nullish(),
   "iban": zod.string().nullish(),
+  "ibanPending": zod.boolean().optional().describe('19B S3 (v4 §6.3): a change of this employee\'s IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then.'),
+  "ibanAppliedWithoutSecondApprover": zod.object({
+  "at": zod.coerce.date(),
+  "byName": zod.string().nullable()
+}).nullish().describe('19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as \'IBAN applied without a second approver on {at}, entered by {byName}\'. Null when none did.'),
   "bank": zod.string().nullish(),
   "joiningDate": zod.string().nullable(),
   "endDate": zod.string().nullable(),
@@ -6966,7 +6980,26 @@ export const CreateEmployeeResponse = zod.object({
   "gosiRegimeBasis": zod.string().nullish().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
   "gosiInKindHousing": zod.boolean().optional().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
   "gosiInKindHousingExempt": zod.boolean().optional().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
-}).describe('19B (v4 §4, D4): a field of a class the reader\'s role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.')
+}).describe('19B (v4 §4, D4): a field of a class the reader\'s role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.').and(zod.object({
+  "pendingBankDetailChanges": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['vendor_iban', 'employee_iban', 'bank_account_iban', 'default_bank_account']),
+  "vendorId": zod.number().nullable(),
+  "employeeId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "subjectName": zod.string().nullable().describe('The supplier\'s, the employee\'s or the bank account\'s name.'),
+  "reason": zod.string().nullable().describe('19B S3: why the IBAN applied without a second approver (`applied_without_second_approver` only); null otherwise.'),
+  "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
+  "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'applied_without_second_approver']),
+  "requestedBy": zod.number(),
+  "requestedByName": zod.string().nullable(),
+  "requestedAt": zod.coerce.date(),
+  "decidedBy": zod.number().nullable(),
+  "decidedByName": zod.string().nullable(),
+  "decidedAt": zod.coerce.date().nullable()
+}).describe('A held bank-detail change. 19B S3 (v4 §6.3, D2): a supplier\'s or an employee\'s IBAN — the first and every later one — is ALWAYS held, and approved by a member who can approve bank details (an accountant or an admin) who is not the requester; when the requester is the only member who could ever approve it, it applies at once and is recorded closed as `applied_without_second_approver` with its `reason`. Phase 18 R-6 (DR-23): a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices), is held only where the organisation has two or more usable admins, and approved by an admin who is not the requester. Rejected by an approver, or withdrawn by the requester. A decision is final.\n')).describe('19B S3: an IBAN entered or changed, held for an accountant or admin who did not ask for it. Empty when none was, or when it applied at once (the fallback).')
+}))
 
 
 /**
@@ -7002,6 +7035,11 @@ export const GetEmployeeResponse = zod.object({
   "otherAllowances": zod.number().optional(),
   "gosiNumber": zod.string().nullish(),
   "iban": zod.string().nullish(),
+  "ibanPending": zod.boolean().optional().describe('19B S3 (v4 §6.3): a change of this employee\'s IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then.'),
+  "ibanAppliedWithoutSecondApprover": zod.object({
+  "at": zod.coerce.date(),
+  "byName": zod.string().nullable()
+}).nullish().describe('19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as \'IBAN applied without a second approver on {at}, entered by {byName}\'. Null when none did.'),
   "bank": zod.string().nullish(),
   "joiningDate": zod.string().nullable(),
   "endDate": zod.string().nullable(),
@@ -7080,6 +7118,11 @@ export const UpdateEmployeeResponse = zod.object({
   "otherAllowances": zod.number().optional(),
   "gosiNumber": zod.string().nullish(),
   "iban": zod.string().nullish(),
+  "ibanPending": zod.boolean().optional().describe('19B S3 (v4 §6.3): a change of this employee\'s IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then.'),
+  "ibanAppliedWithoutSecondApprover": zod.object({
+  "at": zod.coerce.date(),
+  "byName": zod.string().nullable()
+}).nullish().describe('19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as \'IBAN applied without a second approver on {at}, entered by {byName}\'. Null when none did.'),
   "bank": zod.string().nullish(),
   "joiningDate": zod.string().nullable(),
   "endDate": zod.string().nullable(),
@@ -7097,7 +7140,26 @@ export const UpdateEmployeeResponse = zod.object({
   "gosiRegimeBasis": zod.string().nullish().describe('What the statement rests on, e.g. the GOSI contribution certificate.'),
   "gosiInKindHousing": zod.boolean().optional().describe('GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage.'),
   "gosiInKindHousingExempt": zod.boolean().optional().describe('GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing.')
-}).describe('19B (v4 §4, D4): a field of a class the reader\'s role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.')
+}).describe('19B (v4 §4, D4): a field of a class the reader\'s role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.').and(zod.object({
+  "pendingBankDetailChanges": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['vendor_iban', 'employee_iban', 'bank_account_iban', 'default_bank_account']),
+  "vendorId": zod.number().nullable(),
+  "employeeId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "subjectName": zod.string().nullable().describe('The supplier\'s, the employee\'s or the bank account\'s name.'),
+  "reason": zod.string().nullable().describe('19B S3: why the IBAN applied without a second approver (`applied_without_second_approver` only); null otherwise.'),
+  "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
+  "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'applied_without_second_approver']),
+  "requestedBy": zod.number(),
+  "requestedByName": zod.string().nullable(),
+  "requestedAt": zod.coerce.date(),
+  "decidedBy": zod.number().nullable(),
+  "decidedByName": zod.string().nullable(),
+  "decidedAt": zod.coerce.date().nullable()
+}).describe('A held bank-detail change. 19B S3 (v4 §6.3, D2): a supplier\'s or an employee\'s IBAN — the first and every later one — is ALWAYS held, and approved by a member who can approve bank details (an accountant or an admin) who is not the requester; when the requester is the only member who could ever approve it, it applies at once and is recorded closed as `applied_without_second_approver` with its `reason`. Phase 18 R-6 (DR-23): a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices), is held only where the organisation has two or more usable admins, and approved by an admin who is not the requester. Rejected by an approver, or withdrawn by the requester. A decision is final.\n')).describe('19B S3: an IBAN entered or changed, held for an accountant or admin who did not ask for it. Empty when none was, or when it applied at once (the fallback).')
+}))
 
 
 export const DeleteEmployeeParams = zod.object({
@@ -9095,6 +9157,11 @@ export const ListVendorsResponse = zod.object({
   "country": zod.string().nullable(),
   "currency": zod.string().nullable(),
   "iban": zod.string().nullable(),
+  "ibanPending": zod.boolean().optional().describe('19B S3 (v4 §6.3): a change of this supplier\'s IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then.'),
+  "ibanAppliedWithoutSecondApprover": zod.object({
+  "at": zod.coerce.date(),
+  "byName": zod.string().nullable()
+}).nullish().describe('19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as \'IBAN applied without a second approver on {at}, entered by {byName}\'. Null when none did.'),
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
@@ -9159,6 +9226,11 @@ export const CreateVendorResponse = zod.object({
   "country": zod.string().nullable(),
   "currency": zod.string().nullable(),
   "iban": zod.string().nullable(),
+  "ibanPending": zod.boolean().optional().describe('19B S3 (v4 §6.3): a change of this supplier\'s IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then.'),
+  "ibanAppliedWithoutSecondApprover": zod.object({
+  "at": zod.coerce.date(),
+  "byName": zod.string().nullable()
+}).nullish().describe('19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as \'IBAN applied without a second approver on {at}, entered by {byName}\'. Null when none did.'),
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
@@ -9167,7 +9239,25 @@ export const CreateVendorResponse = zod.object({
   "foreignTaxId": zod.string().nullable().describe('The beneficiary\'s registration number abroad (Income Tax Law Art. 68(B)(3)).'),
   "createdAt": zod.string()
 }).and(zod.object({
-  "created": zod.boolean().describe('Always true here; lets a caller that also matches tell \"created\" from \"existed\".')
+  "created": zod.boolean().describe('Always true here; lets a caller that also matches tell \"created\" from \"existed\".'),
+  "pendingBankDetailChanges": zod.array(zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['vendor_iban', 'employee_iban', 'bank_account_iban', 'default_bank_account']),
+  "vendorId": zod.number().nullable(),
+  "employeeId": zod.number().nullable(),
+  "bankAccountId": zod.number().nullable(),
+  "subjectName": zod.string().nullable().describe('The supplier\'s, the employee\'s or the bank account\'s name.'),
+  "reason": zod.string().nullable().describe('19B S3: why the IBAN applied without a second approver (`applied_without_second_approver` only); null otherwise.'),
+  "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
+  "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'applied_without_second_approver']),
+  "requestedBy": zod.number(),
+  "requestedByName": zod.string().nullable(),
+  "requestedAt": zod.coerce.date(),
+  "decidedBy": zod.number().nullable(),
+  "decidedByName": zod.string().nullable(),
+  "decidedAt": zod.coerce.date().nullable()
+}).describe('A held bank-detail change. 19B S3 (v4 §6.3, D2): a supplier\'s or an employee\'s IBAN — the first and every later one — is ALWAYS held, and approved by a member who can approve bank details (an accountant or an admin) who is not the requester; when the requester is the only member who could ever approve it, it applies at once and is recorded closed as `applied_without_second_approver` with its `reason`. Phase 18 R-6 (DR-23): a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices), is held only where the organisation has two or more usable admins, and approved by an admin who is not the requester. Rejected by an approver, or withdrawn by the requester. A decision is final.\n')).describe('19B S3: the IBAN given with the supplier, held for an accountant or admin who did not ask for it. Empty when none was given, or when it applied at once (the fallback).')
 }))
 
 
@@ -9194,6 +9284,11 @@ export const MatchVendorResponse = zod.object({
   "country": zod.string().nullable(),
   "currency": zod.string().nullable(),
   "iban": zod.string().nullable(),
+  "ibanPending": zod.boolean().optional().describe('19B S3 (v4 §6.3): a change of this supplier\'s IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then.'),
+  "ibanAppliedWithoutSecondApprover": zod.object({
+  "at": zod.coerce.date(),
+  "byName": zod.string().nullable()
+}).nullish().describe('19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as \'IBAN applied without a second approver on {at}, entered by {byName}\'. Null when none did.'),
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
@@ -9215,6 +9310,11 @@ export const MatchVendorResponse = zod.object({
   "country": zod.string().nullable(),
   "currency": zod.string().nullable(),
   "iban": zod.string().nullable(),
+  "ibanPending": zod.boolean().optional().describe('19B S3 (v4 §6.3): a change of this supplier\'s IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then.'),
+  "ibanAppliedWithoutSecondApprover": zod.object({
+  "at": zod.coerce.date(),
+  "byName": zod.string().nullable()
+}).nullish().describe('19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as \'IBAN applied without a second approver on {at}, entered by {byName}\'. Null when none did.'),
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
@@ -9246,6 +9346,11 @@ export const GetVendorResponse = zod.object({
   "country": zod.string().nullable(),
   "currency": zod.string().nullable(),
   "iban": zod.string().nullable(),
+  "ibanPending": zod.boolean().optional().describe('19B S3 (v4 §6.3): a change of this supplier\'s IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then.'),
+  "ibanAppliedWithoutSecondApprover": zod.object({
+  "at": zod.coerce.date(),
+  "byName": zod.string().nullable()
+}).nullish().describe('19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as \'IBAN applied without a second approver on {at}, entered by {byName}\'. Null when none did.'),
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
@@ -9305,6 +9410,11 @@ export const UpdateVendorResponse = zod.object({
   "country": zod.string().nullable(),
   "currency": zod.string().nullable(),
   "iban": zod.string().nullable(),
+  "ibanPending": zod.boolean().optional().describe('19B S3 (v4 §6.3): a change of this supplier\'s IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then.'),
+  "ibanAppliedWithoutSecondApprover": zod.object({
+  "at": zod.coerce.date(),
+  "byName": zod.string().nullable()
+}).nullish().describe('19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as \'IBAN applied without a second approver on {at}, entered by {byName}\'. Null when none did.'),
   "paymentTermsDays": zod.string().nullable(),
   "notes": zod.string().nullable(),
   "isActive": zod.boolean(),
@@ -9315,20 +9425,22 @@ export const UpdateVendorResponse = zod.object({
 }).and(zod.object({
   "pendingBankDetailChanges": zod.array(zod.object({
   "id": zod.number(),
-  "kind": zod.enum(['vendor_iban', 'bank_account_iban', 'default_bank_account']),
+  "kind": zod.enum(['vendor_iban', 'employee_iban', 'bank_account_iban', 'default_bank_account']),
   "vendorId": zod.number().nullable(),
+  "employeeId": zod.number().nullable(),
   "bankAccountId": zod.number().nullable(),
-  "subjectName": zod.string().nullable().describe('The supplier\'s or the bank account\'s name.'),
+  "subjectName": zod.string().nullable().describe('The supplier\'s, the employee\'s or the bank account\'s name.'),
+  "reason": zod.string().nullable().describe('19B S3: why the IBAN applied without a second approver (`applied_without_second_approver` only); null otherwise.'),
   "ibanBefore": zod.string().nullable().describe('The stored IBAN before; for a default switch, the IBAN printed before (null when none was).'),
   "ibanAfter": zod.string().nullable().describe('The IBAN after; for a default switch, the IBAN of the account that becomes the default.'),
-  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'applied_without_second_approver']),
   "requestedBy": zod.number(),
   "requestedByName": zod.string().nullable(),
   "requestedAt": zod.coerce.date(),
   "decidedBy": zod.number().nullable(),
   "decidedByName": zod.string().nullable(),
   "decidedAt": zod.coerce.date().nullable()
-}).describe('Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier\'s IBAN, a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.\n')).describe('Phase 18 R-6 (DR-23): a change of the IBAN held for a second admin (the organisation has two or more usable admins). Empty when the change was written at once, or none was asked for.\n')
+}).describe('A held bank-detail change. 19B S3 (v4 §6.3, D2): a supplier\'s or an employee\'s IBAN — the first and every later one — is ALWAYS held, and approved by a member who can approve bank details (an accountant or an admin) who is not the requester; when the requester is the only member who could ever approve it, it applies at once and is recorded closed as `applied_without_second_approver` with its `reason`. Phase 18 R-6 (DR-23): a company bank account\'s IBAN, or which account is the default (the IBAN printed on future invoices), is held only where the organisation has two or more usable admins, and approved by an admin who is not the requester. Rejected by an approver, or withdrawn by the requester. A decision is final.\n')).describe('19B S3 (v4 §6.3): a change of the IBAN, held for an accountant or admin who did not ask for it. Empty when it applied at once (the fallback), or none was asked for.\n')
 }))
 
 

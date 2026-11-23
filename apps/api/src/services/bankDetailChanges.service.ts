@@ -21,20 +21,23 @@ import { afterCommit } from "../lib/afterCommit";
 import { membersRepository } from "../repositories/members.repository";
 import { bankDetailChangesRepository as repo, type BankDetailChangeRow } from "../repositories/bankDetailChanges.repository";
 import { auditService } from "./audit.service";
-import type { BankDetailChangeKind, vendorsTable, bankAccountsTable } from "@workspace/db";
+import type { BankDetailChangeKind, BankDetailChangeStatus, bankAccountsTable } from "@workspace/db";
+import { securityAuditService } from "./securityAudit.service";
 
-type Vendor = typeof vendorsTable.$inferSelect;
 type BankAccount = typeof bankAccountsTable.$inferSelect;
 
 export type BankDetailChangeOut = {
   id: number;
   kind: BankDetailChangeKind;
   vendorId: number | null;
+  employeeId: number | null;
   bankAccountId: number | null;
   subjectName: string | null;
   ibanBefore: string | null;
   ibanAfter: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: BankDetailChangeStatus;
+  /** 19B S3: why it applied without a second approver (the fallback only). */
+  reason: string | null;
   requestedBy: number;
   requestedByName: string | null;
   requestedAt: string;
@@ -72,11 +75,13 @@ export async function toOut(rows: BankDetailChangeRow[]): Promise<BankDetailChan
     id: r.id,
     kind: r.kind,
     vendorId: r.vendorId,
+    employeeId: r.employeeId,
     bankAccountId: r.bankAccountId,
-    subjectName: r.vendorName ?? r.bankAccountName ?? null,
+    subjectName: r.vendorName ?? r.employeeName ?? r.bankAccountName ?? null,
     ibanBefore: r.ibanBefore,
     ibanAfter: r.ibanAfter,
     status: r.status,
+    reason: r.reason,
     requestedBy: r.requestedBy,
     requestedByName: null,
     requestedAt: iso(r.requestedAt)!,
@@ -99,9 +104,11 @@ export async function toOut(rows: BankDetailChangeRow[]): Promise<BankDetailChan
 async function record(values: {
   kind: BankDetailChangeKind;
   vendorId?: number;
+  employeeId?: number;
   bankAccountId?: number;
   ibanBefore: string | null;
   ibanAfter: string | null;
+  atCreation?: boolean;
 }): Promise<number> {
   const [row] = await repo.insert({ ...values, requestedBy: actor().userId });
   await auditService.created("bank_detail_change_request", row.id, values);
@@ -110,20 +117,80 @@ async function record(values: {
 
 const same = (a: string | null | undefined, b: string | null | undefined) => (a ?? null) === (b ?? null);
 
+/** 19B S3 (v4 §6.3): the fallback's reason, as recorded on the request and in the security trail. */
+export const FALLBACK_REASON = "no other member holds a role that can approve bank details";
+
+/** 19B S3: a record's IBAN state, as the vendor and employee responses carry it (both `standard`). */
+export type PartyIbanView = {
+  ibanPending: boolean;
+  ibanAppliedWithoutSecondApprover: { at: string; byName: string | null } | null;
+};
+
 export const bankDetailChangesService = {
   /**
-   * The supplier PATCH: where two admins exist, a change of the IBAN is held
-   * and removed from the values to write. A second change of the same
-   * supplier's IBAN while one waits is refused by the database's partial unique
-   * index (409 `bank_detail_change_pending`, lib/dbRefusals) and the whole
-   * request rolls back — the index is the rule, so no check here repeats it.
+   * 🔴 19B S3 (v4 §6.3, D2): a supplier's or an employee's IBAN — entered at creation or changed later, by anyone — is
+   * HELD: recorded as a pending request, never written here; the record keeps its IBAN (or none) until an accountant or
+   * admin who is not the requester approves it (`bankDetailChangeDecisions.service`).
+   *
+   * THE FALLBACK: only when the requester is the ONLY member who could ever approve it (their role holds
+   * `bank_detail:approve` and no other active member's does — one blocked by A1 still counts) it applies at once. The
+   * request is written CLOSED, `applied_without_second_approver`, naming who and why; the caller writes the IBAN in the
+   * same transaction (the database checks both, 0170); and the security trail records it after the commit.
+   *
+   * A second change while one waits is refused by the database's partial unique index (409 `bank_detail_change_pending`,
+   * lib/dbRefusals) and the whole request rolls back — the index is the rule, so no check here repeats it.
    */
-  async holdVendorIban<V extends { iban?: string | null }>(before: Vendor, values: V): Promise<{ values: V; held: number[] }> {
-    if (!("iban" in values) || same(values.iban, before.iban)) return { values, held: [] };
-    if (!(await dualControlApplies())) return { values, held: [] };
-    const id = await record({ kind: "vendor_iban", vendorId: before.id, ibanBefore: before.iban ?? null, ibanAfter: values.iban ?? null });
-    const { iban: _held, ...rest } = values;
-    return { values: rest as V, held: [id] };
+  /**
+   * `atCreation`: the IBAN came WITH the record, on its create form — its first. Before S3 that IBAN was written in the
+   * creation and was never a change; it stays out of what reads IBAN changes (H-9 / A23), as before.
+   */
+  async holdPartyIban(kind: "vendor_iban" | "employee_iban", subjectId: number, ibanBefore: string | null, ibanAfter: string | null, opts: { atCreation?: boolean } = {}): Promise<{ held: number[]; applyNow: boolean }> {
+    if (same(ibanBefore, ibanAfter)) return { held: [], applyNow: false };
+    const atCreation = opts.atCreation === true;
+    const { userId, organizationId } = actor();
+    const subject = kind === "vendor_iban" ? { vendorId: subjectId } : { employeeId: subjectId };
+    const approvers = await membersRepository.bankDetailApproverIds(organizationId);
+    if (approvers.includes(userId) && approvers.every((a) => a === userId)) {
+      const [row] = await repo.insertFallback({ kind, ...subject, ibanBefore, ibanAfter, requestedBy: userId, reason: FALLBACK_REASON, atCreation });
+      await auditService.created("bank_detail_change_request", row.id, { kind, ...subject, ibanBefore, ibanAfter, status: "applied_without_second_approver", reason: FALLBACK_REASON, atCreation });
+      const event = () => securityAuditService.record({
+        action: "bank_detail.applied_without_second_approver",
+        actorUserId: userId,
+        organizationId,
+        metadata: { requestId: row.id, kind, [kind === "vendor_iban" ? "vendorId" : "employeeId"]: subjectId, reason: FALLBACK_REASON },
+      });
+      if (!afterCommit(event)) await event();
+      return { held: [], applyNow: true };
+    }
+    return { held: [await record({ kind, ...subject, ibanBefore, ibanAfter, atCreation })], applyNow: false };
+  },
+
+  /** 19B S3: each record's IBAN state — a change waiting, and the last fallback's line ("applied without …"). */
+  async partyIbanViews(kind: "vendor_iban" | "employee_iban", ids: number[]): Promise<Map<number, PartyIbanView>> {
+    const rows = await repo.partyIbanState(kind, ids);
+    const out = new Map<number, PartyIbanView>(ids.map((id) => [id, { ibanPending: false, ibanAppliedWithoutSecondApprover: null }]));
+    // Each fallback line is ONE object, filled in place after the commit — a caller that spread the view into its
+    // response holds the same object, so the name reaches the response (TR-5: names are read after the commit).
+    const fallbacks: { line: { at: string; byName: string | null }; requestedBy: number }[] = [];
+    for (const r of rows) {
+      const v = r.subjectId == null ? undefined : out.get(r.subjectId);
+      if (!v) continue;
+      if (r.status === "pending") v.ibanPending = true;
+      else if (!v.ibanAppliedWithoutSecondApprover) {
+        const line = { at: iso(r.decidedAt)!, byName: null as string | null };
+        v.ibanAppliedWithoutSecondApprover = line;
+        fallbacks.push({ line, requestedBy: r.requestedBy });
+      }
+    }
+    if (fallbacks.length) {
+      const organizationId = actor().organizationId;
+      const fill = async () => {
+        const names = await membersRepository.memberNamesByIds(organizationId, [...new Set(fallbacks.map((f) => f.requestedBy))]);
+        for (const f of fallbacks) f.line.byName = names.get(f.requestedBy) ?? null;
+      };
+      if (!afterCommit(fill)) await fill();
+    }
+    return out;
   },
 
   /**

@@ -82,6 +82,16 @@ export const membersRepository = {
     return Number(rows[0]?.n ?? 0);
   },
 
+  /**
+   * 🔴 19B S3 (v4 §6.3): the members who could EVER approve a supplier's or an employee's IBAN — every active member
+   * whose role holds `bank_detail:approve`, whether or not they can approve today (an A1-blocked one counts). The
+   * database's one definition (org_bank_detail_approver_ids, 0170), which its guard reads too.
+   */
+  async bankDetailApproverIds(orgId: string): Promise<number[]> {
+    const { rows } = await ownerDb.execute<{ id: number }>(sql`SELECT a AS id FROM org_bank_detail_approver_ids(${orgId}::uuid) AS a`);
+    return rows.map((r) => Number(r.id));
+  },
+
   async memberNamesByIds(orgId: string, userIds: number[]): Promise<Map<number, string>> {
     if (userIds.length === 0) return new Map();
     const rows = await ownerDb

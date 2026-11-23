@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EmployeeGosiRegime } from './employeeGosiRegime';
+import type { IbanAppliedWithoutSecondApprover } from './ibanAppliedWithoutSecondApprover';
 
 /**
  * 19B (v4 §4, D4): a field of a class the reader's role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.
@@ -38,6 +39,9 @@ export interface Employee {
   gosiNumber?: string | null;
   /** @nullable */
   iban?: string | null;
+  /** 19B S3 (v4 §6.3): a change of this employee's IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then. */
+  ibanPending?: boolean;
+  ibanAppliedWithoutSecondApprover?: IbanAppliedWithoutSecondApprover | null;
   /** @nullable */
   bank?: string | null;
   /** @nullable */

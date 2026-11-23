@@ -19,6 +19,7 @@ import { PERMISSION_MATRIX, S2A_REMOVALS, fieldGrantAction } from "@workspace/db
 import { primePermissionCache } from "../lib/rbac";
 import { fieldClassSeam, WITHHELD_HEADER } from "../lib/fieldClasses/seam";
 import { g04Harness } from "./helpers/g04Harness";
+import { approveHeldIbans } from "./helpers/approveHeldIbans";
 import { appOriginHeader } from "./helpers/appOrigin";
 
 const url = process.env.DATABASE_URL;
@@ -49,6 +50,8 @@ describeDb("19B S1 — the seam through the application", () => {
     });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     employeeId = created.body.id;
+    // 19B S3 (D2): the IBAN went through the hold (the admin entered it); the accountant approves it, so it is in place
+    expect(await approveHeldIbans(h, "accountant")).toBe(1);
   });
 
   afterAll(async () => {
