@@ -15,8 +15,19 @@
  * limited to the payroll it created itself: DRAFT runs of the `default`
  * organization whose every item belongs to one of its `DEMO-` employees. It
  * used to delete EVERY payroll run of that organization, outside demo mode too.
+ *
+ * 🔴 19B S3 (owner 2026-11-23; v4 §6.3, §13.3): the demo suppliers' IBANs go through the HOLD — requested by the
+ * default organization's admin, approved by a DEMO ACCOUNTANT (the normal path, not the fallback), through
+ * `seedPartyIbanThroughHold`, which the database checks exactly as it checks the product. The accountant is provisioned
+ * the way the base seed provisions its admin, from:
+ *   DEMO_ACCOUNTANT_EMAIL     (required for the accountant and the IBANs)
+ *   DEMO_ACCOUNTANT_PASSWORD  (required; min 8 chars; hashed by the API's one password seam, lib/password.ts)
+ *   DEMO_ACCOUNTANT_NAME      (optional; "Demo Accountant")
+ * The account and its membership are written in ONE transaction; an existing account is never re-hashed, and is used
+ * only if it is already an active accountant of the default organization. Without them the suppliers get no IBAN, and
+ * the run says so.
  */
-import { pool } from "@workspace/db";
+import { pool, seedPartyIbanThroughHold } from "@workspace/db";
 
 const P = "DEMO-";
 const YEAR = new Date().getFullYear();
@@ -43,6 +54,69 @@ function refuseOutsideDemoMode(): void {
  */
 const DEMO_SEED_SOURCE = "demo_seed";
 const SYNTHETIC_SOURCE_SETTING = "app.journal_synthetic_source";
+
+/** The demo suppliers' IBANs (valid Saudi IBANs, stored normalised), in the order the suppliers are created. */
+const DEMO_SUPPLIER_IBANS = ["SA0380000000608010167519", "SA4420000001234567891234"];
+
+/**
+ * 🔴 19B S3: who asks for the demo suppliers' IBANs (the default organization's usable admin) and who approves them (the
+ * demo accountant, provisioned here). Null — with the reason printed — when either is missing: the suppliers then get
+ * no IBAN, never one written another way.
+ */
+async function demoIbanRoles(orgId: string): Promise<{ adminId: number; accountantId: number } | null> {
+  const admin = await pool.query(
+    `SELECT m.user_id AS id FROM organization_memberships m JOIN users u ON u.id = m.user_id
+      WHERE m.organization_id = $1 AND m.role = 'admin' AND m.status = 'active' AND u.is_active ORDER BY m.user_id LIMIT 1`,
+    [orgId],
+  );
+  if (!admin.rows[0]) {
+    console.log("[demo-seed] supplier IBANs SKIPPED: the default organization has no active admin to request them (run the base seed with SEED_ADMIN_*).");
+    return null;
+  }
+  const email = process.env.DEMO_ACCOUNTANT_EMAIL?.trim();
+  const password = process.env.DEMO_ACCOUNTANT_PASSWORD;
+  const name = process.env.DEMO_ACCOUNTANT_NAME?.trim() || "Demo Accountant";
+  if (!email || !password) {
+    console.log("[demo-seed] supplier IBANs SKIPPED: DEMO_ACCOUNTANT_EMAIL and DEMO_ACCOUNTANT_PASSWORD are not set (no accountant to approve them).");
+    return null;
+  }
+  const existing = await pool.query(`SELECT id FROM users WHERE email = $1`, [email]);
+  if (existing.rows[0]) {
+    const id = Number(existing.rows[0].id);
+    const member = await pool.query(
+      `SELECT 1 FROM organization_memberships m JOIN users u ON u.id = m.user_id
+        WHERE m.user_id = $1 AND m.organization_id = $2 AND m.role = 'accountant' AND m.status = 'active' AND u.is_active`,
+      [id, orgId],
+    );
+    if (!member.rows[0]) {
+      console.log("[demo-seed] supplier IBANs SKIPPED: DEMO_ACCOUNTANT_EMAIL is an existing account that is not an active accountant of the default organization — it is left unchanged.");
+      return null;
+    }
+    return { adminId: Number(admin.rows[0].id), accountantId: id };
+  }
+  // The API's one password seam (lib/password.ts), loaded at run time: this package does not compile the API, and a
+  // second KDF here would be a second definition of how a password is stored.
+  const seam = new URL("../../apps/api/src/lib/password.ts", import.meta.url).href;
+  const { hashPassword } = (await import(seam)) as { hashPassword: (password: unknown) => Promise<string> };
+  const passwordHash = await hashPassword(password);
+  // 🔴 G04 zero-membership: the account and its membership in ONE transaction — never an account without the
+  // membership it was made for.
+  const c = await pool.connect();
+  try {
+    await c.query("BEGIN");
+    const user = await c.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1, $2, $3, 'viewer', true) RETURNING id`, [email, name, passwordHash]);
+    const id = Number(user.rows[0].id);
+    await c.query(`INSERT INTO organization_memberships (organization_id, user_id, role, status) VALUES ($1, $2, 'accountant', 'active')`, [orgId, id]);
+    await c.query("COMMIT");
+    console.log(`[demo-seed] demo accountant created: ${email}`);
+    return { adminId: Number(admin.rows[0].id), accountantId: id };
+  } catch (e) {
+    await c.query("ROLLBACK");
+    throw e;
+  } finally {
+    c.release();
+  }
+}
 
 async function main() {
   refuseOutsideDemoMode();
@@ -157,14 +231,30 @@ async function main() {
     ["Gulf Office Supplies", "الخليج للأدوات المكتبية"],
     ["Najd Facilities Services", "نجد للخدمات"],
   ] as const).entries()) {
-    // 🔴 19B S3: a supplier's IBAN enters only through the hold (approved by an accountant or admin who did not enter
-    // it) — the database refuses one written with the row (0170). This raw-row seed writes none; enter one in the app.
+    // 🔴 19B S3: a supplier's IBAN is never written with the row (the database refuses it, 0170) — it is given below,
+    // through the hold.
     const r = await q(
       `INSERT INTO vendors (organization_id, name, name_ar, tax_number, city, payment_terms_days)
        VALUES ($1,$2,$3,$4,$5,'30') RETURNING id`,
       [orgId, `${P}${name}`, ar, `31099999${i}00003`, "Riyadh"],
     );
     vendors.push(Number(r.rows[0].id));
+  }
+  // 🔴 19B S3: the suppliers' IBANs, through the hold — the admin asks, the demo accountant approves.
+  const ibanRoles = await demoIbanRoles(orgId);
+  if (ibanRoles) {
+    for (const [i, vendorId] of vendors.entries()) {
+      const c = await pool.connect();
+      try {
+        await seedPartyIbanThroughHold(c, {
+          kind: "vendor_iban", organizationId: orgId, companyId, subjectId: vendorId, iban: DEMO_SUPPLIER_IBANS[i]!,
+          requestedBy: ibanRoles.adminId, approvedBy: ibanRoles.accountantId, atCreation: true,
+        });
+      } finally {
+        c.release();
+      }
+    }
+    console.log(`[demo-seed] supplier IBANs: ${vendors.length}, each requested by the admin and approved by the demo accountant`);
   }
 
   // ── invoices: 5 awaiting approval, and 60 PENDING drafts (the old cap was 50) ────
