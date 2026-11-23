@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp, numeric, uuid, index, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, numeric, uuid, index, integer, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -65,7 +65,12 @@ export const employeesTable = pgTable(
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("employees_org_idx").on(t.organizationId)],
+  (t) => [
+    index("employees_org_idx").on(t.organizationId),
+    // 🔴 G04 / 19B S3 (0170): the TARGET of the held IBAN change's tenant-keyed foreign key — a request naming an
+    // employee carries the organization, so another tenant's employee cannot be named.
+    unique("employees_org_id_unq").on(t.organizationId, t.id),
+  ],
 );
 
 export const insertEmployeeSchema = createInsertSchema(employeesTable)

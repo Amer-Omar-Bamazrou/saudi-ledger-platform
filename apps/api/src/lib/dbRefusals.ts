@@ -262,6 +262,32 @@ export const BANK_DETAIL_REFUSALS = {
     error: "In an organisation with two or more admins, a bank-detail change waits for a second admin's approval. Make the change again so it is recorded as a request.",
     errorAr: "في المنشأة التي لها مسؤولان أو أكثر، ينتظر تغيير البيانات البنكية موافقة مسؤول ثانٍ. أعِد إجراء التغيير ليُسجَّل طلباً.",
   },
+  // 🔴 19B S3 (v4 §6.3): a supplier's or employee's IBAN — approved by a member who can approve bank details.
+  pendingParty: {
+    code: "bank_detail_change_pending",
+    error: "A change of this IBAN already waits for approval. An accountant or admin who did not ask for it approves or rejects it in Company settings → Bank-detail changes first; nothing in this request was saved.",
+    errorAr: "يوجد تغيير على هذا الآيبان بانتظار الاعتماد. يعتمده أو يرفضه أولاً محاسب أو مسؤول لم يطلبه، من إعدادات الشركة ← تغييرات البيانات البنكية؛ لم يُحفظ شيء من هذا الطلب.",
+  },
+  secondApprover: {
+    code: "second_admin_required",
+    error: "An IBAN change is approved by a second person who can approve bank details (an accountant or an admin), never by the person who asked for it. You can withdraw it.",
+    errorAr: "يعتمد تغيير الآيبان شخصٌ ثانٍ ممن يحق لهم اعتماد البيانات البنكية (محاسب أو مسؤول)، ولا يعتمده من طلبه. ويمكنك سحب الطلب.",
+  },
+  companyAccountAdminOnly: {
+    code: "bank_detail_change_admin_only",
+    error: "A change of the company's own bank details (an account's IBAN, or which account prints on invoices) is decided by an admin. An admin of this organisation decides it.",
+    errorAr: "يبتّ في تغيير البيانات البنكية للشركة نفسها (آيبان أحد حساباتها، أو الحساب المطبوع على الفواتير) مسؤولُ النظام. يبتّ فيه مسؤول في هذه المنشأة.",
+  },
+  ibanHeld: {
+    code: "bank_detail_iban_held",
+    error: "A supplier's or employee's IBAN is entered through the hold: it waits for an accountant or admin who did not ask for it. Enter it again so it is recorded as a request.",
+    errorAr: "يُدخَل آيبان المورد أو الموظف عبر التعليق: ينتظر اعتماد محاسب أو مسؤول لم يطلبه. أدخِله مجدداً ليُسجَّل طلباً.",
+  },
+  fallbackRefused: {
+    code: "bank_detail_fallback_refused",
+    error: "This IBAN cannot apply without a second approver: another member of this organisation can approve bank details, so it waits for them.",
+    errorAr: "لا يُطبَّق هذا الآيبان دون معتمِد ثانٍ: في المنشأة عضو آخر يحق له اعتماد البيانات البنكية، فينتظر اعتماده.",
+  },
 } as const;
 
 export function translateDbRefusal(err: unknown): DbRefusal | null {
@@ -299,9 +325,15 @@ export function translateDbRefusal(err: unknown): DbRefusal | null {
   // 🔴 R-11b (DR-20, 0155): a bookkeeper's cash, tax or equity posting where the organisation has two or more approvers
   // is an approver's act — an AUTHORITY refusal (403), in the database's words naming what the entry touches.
   if (pgCode === "23514" && constraint === "journal_entry_posting_needs_approver") return { status: 403, body: { code: "approver_required", error: pgMessage } };
+  if (pgCode === "23505" && constraint && /^bank_detail_change_pending_(vendor|employee)_unq$/.test(constraint)) {
+    return { status: 409, body: { ...BANK_DETAIL_REFUSALS.pendingParty } as DbRefusal["body"] };
+  }
   if (pgCode === "23505" && constraint && /^bank_detail_change_pending_/.test(constraint)) {
     return { status: 409, body: { ...BANK_DETAIL_REFUSALS.pending } as DbRefusal["body"] };
   }
+  // 🔴 19B S3 (0170): a party IBAN written around the hold, or a fallback another approver makes impossible
+  if (pgCode === "23514" && constraint === "party_iban_hold") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.ibanHeld } as DbRefusal["body"] };
+  if (pgCode === "23514" && constraint === "bank_detail_fallback_not_sole_approver") return { status: 409, body: { ...BANK_DETAIL_REFUSALS.fallbackRefused } as DbRefusal["body"] };
 
   if (pgCode === "23514" && constraint) {
     const status = BUDGET_TRIGGER_STATUS[constraint] ?? TAX_TREASURY_TRIGGER_STATUS[constraint];

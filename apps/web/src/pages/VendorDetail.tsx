@@ -17,6 +17,7 @@ import { residencyLabel, whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
 import { useUpdateVendor, type VendorInputFields } from "@workspace/api-client-react";
 import { computeAging, toFetched, DETAIL_FETCH_LIMIT, type FetchedDocs } from "@/lib/partyDetail";
 import type { Paged } from "@/lib/pagedList";
+import { PartyIbanLine } from "@/components/PartyIbanLine";
 
 /**
  * One vendor, everything about them — the mirror of CustomerDetail.
@@ -252,7 +253,7 @@ export default function VendorDetail() {
         <StatTile label={t("Bills", "الفواتير")} value={String(vendor.billCount)} />
       </div>
 
-      {(vendor.phone || vendor.email || vendor.address || vendor.city || vendor.iban) && (
+      {(vendor.phone || vendor.email || vendor.address || vendor.city || vendor.iban || vendor.ibanPending || vendor.ibanAppliedWithoutSecondApprover) && (
         <Card>
           <CardHeader><CardTitle className="text-base">{t("Contact", "بيانات الاتصال")}</CardTitle></CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2 text-sm">
@@ -261,6 +262,7 @@ export default function VendorDetail() {
             {vendor.address && <p><span className="text-muted-foreground">{t("Address", "العنوان")}: </span>{vendor.address}</p>}
             {vendor.city && <p><span className="text-muted-foreground">{t("City", "المدينة")}: </span>{vendor.city}</p>}
             {vendor.iban && <p className="font-mono text-xs"><span className="text-muted-foreground font-sans">{t("IBAN", "الآيبان")}: </span>{vendor.iban}</p>}
+            <PartyIbanLine record={vendor} testId="vendor-detail-iban" />
           </CardContent>
         </Card>
       )}

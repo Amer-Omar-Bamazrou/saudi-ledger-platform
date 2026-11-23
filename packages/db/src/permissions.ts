@@ -175,6 +175,13 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   // `delete` (L1, 2026-09-14) covers exactly one route today — removing the
   // company LOGO — and is admin-only for the same reason update is.
   companies: { read: READ_ALL, update: ADMIN_ONLY, delete: ADMIN_ONLY },
+  /**
+   * 🔴 19B S3 (v4 §6.3, D2): held bank-detail changes. READ: every role sees the list (as under `companies` before; each
+   * IBAN in it is withheld by its own record's grants). APPROVE: deciding a held change — an accountant or an admin who
+   * is not the requester approves a supplier's or an employee's IBAN; the database reads this grant LIVE
+   * (org_bank_detail_approver_ids, 0170), and the company's own bank accounts stay an admin's (DR-23, enforced there).
+   */
+  bank_detail: { read: READ_ALL, approve: APPROVE },
 
   /**
    * ZATCA onboarding (M12.4). Read is open so any role can see the prerequisite

@@ -743,7 +743,7 @@ export const CONTROLS: readonly Control[] = [
   },
   {
     id: "DR-23",
-    title: "A bank-detail change is held for a second admin where two usable admins exist — never one the requester created, re-activated or reset within 30 days (owner A1); the database refuses it otherwise",
+    title: "A change of the company's own bank details (an account's IBAN, or the account printed on invoices) is held for a second admin where two usable admins exist — never one the requester created, re-activated or reset within 30 days (owner A1); the database refuses it otherwise. A supplier's IBAN moved to 19B-S3 (0170)",
     answers: ["G30", "G33"],
     type: "approval",
     activation: { kind: "organisation_fact", fact: "two or more usable admins" },
@@ -758,7 +758,7 @@ export const CONTROLS: readonly Control[] = [
     ],
     points: [
       trigger("bank_detail_change_requests", "bank_detail_change_requests_guard_trg"),
-      trigger("vendors", "vendors_bank_detail_dual_control_trg"),
+      // 19B S3 (0170): the supplier IBAN left DR-23 for 19B-S3 (held always) — vendors_bank_detail_dual_control_trg was dropped
       trigger("bank_accounts", "bank_accounts_bank_detail_dual_control_trg"),
       check("bank_detail_change_requests", "bank_detail_change_kind_chk"),
       check("bank_detail_change_requests", "bank_detail_change_status_chk"),
@@ -1063,6 +1063,27 @@ export const CONTROLS: readonly Control[] = [
       code(`${API}/services/securitySettings.service.ts`, "weakens"),
     ],
     provingTests: ["phase19a-security-settings.test.ts"],
+  },
+  {
+    id: "19B-S3",
+    title: "A supplier's or an employee's IBAN — the first and every later one, whoever enters it — is HELD for a member whose role holds bank_detail:approve (an accountant or an admin), never the requester, nor one the requester created, re-activated or reset, nor one whose second factor was reset, within 30 days; only when the requester is the only member who could ever approve it does it apply at once, recorded closed with its reason, on the record and in the security trail; the database refuses an IBAN inserted with the record, and an IBAN change without that request in the same transaction; an IBAN entered with the record is marked so, and — as before S3 — is not a change for the change-then-pay finding (Phase 19B S3, v4 §6.3, D2, migration 0170; an internal control of the platform)",
+    answers: ["DR-23"],
+    type: "approval",
+    activation: ALWAYS,
+    refusalCodes: [
+      "bank_detail_change_pending", "second_admin_required", "bank_detail_change_stale", "bank_detail_change_decided",
+      "bank_detail_change_admin_only", "bank_detail_iban_held", "bank_detail_fallback_refused", "bank_detail_approver_linked",
+    ],
+    points: [
+      trigger("vendors", "vendors_party_iban_hold_trg"),
+      trigger("employees", "employees_party_iban_hold_trg"),
+      trigger("bank_detail_change_requests", "bank_detail_change_requests_guard_trg"),
+      check("bank_detail_change_requests", "bank_detail_change_fallback_chk"),
+      check("bank_detail_change_requests", "bank_detail_change_at_creation_chk"),
+      code(`${API}/services/bankDetailChanges.service.ts`, "holdPartyIban"),
+      code(`${API}/services/bankDetailChangeDecisions.service.ts`, "bankDetailChangeDecisionsService"),
+    ],
+    provingTests: ["s3-party-iban-hold.test.ts"],
   },
   {
     id: "19B-S0",

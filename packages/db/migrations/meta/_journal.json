@@ -1191,6 +1191,13 @@
       "when": 1795370978824,
       "tag": "0169_19b_s2a_pay_not_set",
       "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1795442556857,
+      "tag": "0170_19b_s3_party_iban_hold",
+      "breakpoints": true
     }
   ]
 }

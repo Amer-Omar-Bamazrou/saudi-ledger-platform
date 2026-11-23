@@ -18,6 +18,7 @@ import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 
 import type { CreateVendorInput, PartyTotals, VendorWithBalance } from "@workspace/api-client-react";
 import { whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
+import { PartyIbanLine, ibanSaveNotice } from "@/components/PartyIbanLine";
 
 
 /**
@@ -62,7 +63,8 @@ export default function Vendors() {
 
   const createMut = useMutation({
     mutationFn: (body: CreateVendorInput) => apiFetch("/vendors", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["vendors"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Vendor created", "تم إنشاء المورد") }); },
+    // 19B S3: an IBAN given with the supplier is HELD for an accountant or admin who did not enter it (or applied at once, the fallback)
+    onSuccess: (res: unknown, body: CreateVendorInput) => { qc.invalidateQueries({ queryKey: ["vendors"] }); setOpen(false); setForm(emptyForm); toast(ibanSaveNotice(res, !!body.iban, t) ?? { title: t("Vendor created", "تم إنشاء المورد") }); },
     onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
@@ -171,7 +173,7 @@ export default function Vendors() {
                   </td>
                   <td className="py-3 pe-4 text-muted-foreground">{v.city||"—"}</td>
                   <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.taxNumber||"—"}</td>
-                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.iban ? `${v.iban.slice(0,12)}...` : "—"}</td>
+                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.iban ? `${v.iban.slice(0,12)}...` : "—"}<PartyIbanLine record={v} testId={`vendor-iban-${v.id}`} /></td>
                   <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(v.totalBilled??0)}</td>
                   <td className="py-3 pe-4"><span className={`font-mono font-medium ${(v.balance??0)>0?"text-negative":"text-positive"}`}>{fmtNum(v.balance??0)}</span></td>
                   <td className="py-3"><Link href={`/vendors/${v.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>

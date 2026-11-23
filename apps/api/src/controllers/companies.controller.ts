@@ -66,10 +66,13 @@ export const companiesController = {
     res.json(await bankDetailChangesService.list());
   },
 
-  /** Phase 18 R-6 (DR-23): approve or reject one (admin only, by the matrix; never the requester's approval). */
+  /**
+   * Phase 18 R-6 (DR-23) → 19B S3: approve or reject one — a `bank_detail:approve` holder (the route's grant); a
+   * company account's change an admin's only; never the requester's approval.
+   */
   async decideBankDetailChange(req: Request, res: Response) {
     const body = DecideBankDetailChangeBody.safeParse(req.body);
     if (!body.success) throw new BadRequestError(body.error.message);
-    res.json(await bankDetailChangeDecisionsService.decide(requireIdParam(req), body.data.decision));
+    res.json(await bankDetailChangeDecisionsService.decide(requireIdParam(req), body.data.decision, req.tenant?.role));
   },
 };

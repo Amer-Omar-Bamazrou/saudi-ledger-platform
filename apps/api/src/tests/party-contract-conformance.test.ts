@@ -113,8 +113,10 @@ describeMaybe("party contract conformance — customers, vendors, bills list on 
       )
     ).rows[0].id;
     await pool.query(`INSERT INTO customers (organization_id, name) VALUES ($1,'Bare Customer')`, [orgId]);
+    // 19B S3: the database refuses a supplier INSERTED with its IBAN (it enters through the hold, 0170). This fixture is
+    // a supplier whose IBAN was approved — a state the product reaches — planted in replica mode, triggers aside.
     vendorId = (
-      await pool.query(
+      await replica(pool).query(
         `INSERT INTO vendors (organization_id, name, name_ar, tax_number, cr_number, phone, email, address, city, iban, payment_terms_days)
          VALUES ($1,'Filled Vendor','مورد','311111111111113','1010000002','+966511111111','v@x.sa','2 St','Jeddah','SA0380000000608010167519','30') RETURNING id`,
         [orgId],

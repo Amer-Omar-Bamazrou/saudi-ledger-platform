@@ -142,6 +142,7 @@ import type {
   DisposeAssetInput,
   Employee,
   EmployeeInputFields,
+  EmployeeWriteResult,
   EndUserSessionsInput,
   ErrorResponse,
   ExpensesPage,
@@ -14415,9 +14416,9 @@ export const getCreateEmployeeUrl = () => {
   return `/api/employees`
 }
 
-export const createEmployee = async (createEmployeeInput: CreateEmployeeInput, options?: RequestInit): Promise<Employee> => {
+export const createEmployee = async (createEmployeeInput: CreateEmployeeInput, options?: RequestInit): Promise<EmployeeWriteResult> => {
 
-  return customFetch<Employee>(getCreateEmployeeUrl(),
+  return customFetch<EmployeeWriteResult>(getCreateEmployeeUrl(),
   {
     ...options,
     method: 'POST',
@@ -14629,9 +14630,9 @@ export const getUpdateEmployeeUrl = (id: number,) => {
 }
 
 export const updateEmployee = async (id: number,
-    employeeInputFields: EmployeeInputFields, options?: RequestInit): Promise<Employee> => {
+    employeeInputFields: EmployeeInputFields, options?: RequestInit): Promise<EmployeeWriteResult> => {
 
-  return customFetch<Employee>(getUpdateEmployeeUrl(id),
+  return customFetch<EmployeeWriteResult>(getUpdateEmployeeUrl(id),
   {
     ...options,
     method: 'PATCH',

@@ -72,10 +72,16 @@ describeMaybe("Phase 18 H-8 — DR-23: an IBAN is validated, and a change of it 
     expect(v.status).toBe(201);
     const u = await h.api("admin", "PATCH", `/vendors/${v.body.id}`, { iban: VALID_B });
     expect(u.status, JSON.stringify(u.body)).toBe(200);
-    const rec = (await pool.query(
+    // 🔴 Restated for 19B S3 (v4 §6.3): the IBAN entered with the supplier is applied AFTER its creation (here the sole
+    // admin's fallback), so it has an update record of its own; the change is the next one. Read in time order — the
+    // old `ORDER BY id DESC LIMIT 1` ordered by a UUID, which picked either record once there were two.
+    const recs = (await pool.query(
       `SELECT user_id, created_at, before_state->>'iban' AS before, after_state->>'iban' AS after FROM audit_logs
-        WHERE organization_id = $1 AND entity_type = 'vendor' AND entity_id = $2 AND action = 'update' ORDER BY id DESC LIMIT 1`, [orgId, String(v.body.id)])).rows[0];
-    expect(rec).toMatchObject({ before: VALID, after: VALID_B });
+        WHERE organization_id = $1 AND entity_type = 'vendor' AND entity_id = $2 AND action = 'update'
+          AND before_state->>'iban' IS DISTINCT FROM after_state->>'iban' ORDER BY created_at, id`, [orgId, String(v.body.id)])).rows;
+    expect(recs.map((r) => [r.before, r.after])).toEqual([[null, VALID], [VALID, VALID_B]]);
+    const rec = recs[1]!;
     expect(rec.user_id).not.toBeNull();
+    expect(rec.created_at).toBeInstanceOf(Date);
   });
 });

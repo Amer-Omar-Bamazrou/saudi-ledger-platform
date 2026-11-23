@@ -25,6 +25,7 @@ import { FIELD_CLASS_TABLE } from "../lib/fieldClasses/classTable";
 import type { Shape } from "../lib/fieldClasses/shapes";
 import { EXPORTABLE_REPORTS } from "../services/reporting/reportExport.service";
 import { g04Harness } from "./helpers/g04Harness";
+import { approveHeldIbans } from "./helpers/approveHeldIbans";
 
 const pdfHtml = vi.hoisted(() => [] as string[]);
 vi.mock("../services/document/htmlToPdf", async (importOriginal) => {
@@ -74,6 +75,8 @@ describeDb("19B S2a — money aggregates over employees, with the twelve removed
       secrets.push(...money(e.basicSalary), ...money(gross(e)));
     }
     secrets.push(...money(SOLO.housingAllowance), SOLO.nationalId, OPS1.nationalId, SOLO.iban, SOLO.iban.slice(0, -4));
+    // 19B S3 (D2): SOLO's IBAN went through the hold (the accountant entered it); the admin approves it, so it is in place
+    expect(await approveHeldIbans(h, "admin")).toBe(1);
     for (const code of ["SALARIES", "SALARIES_PAYABLE", "GOSI_PAYABLE", "GOSI_EXPENSE"]) {
       account[code] = (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = $2`, [orgId, code])).rows[0].id;
     }

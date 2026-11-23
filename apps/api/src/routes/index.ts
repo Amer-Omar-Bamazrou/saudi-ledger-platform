@@ -14,6 +14,7 @@ import onboarding from "./onboarding.js";
 import invitations from "./invitations.js";
 import operator from "./operator.js";
 import companies from "./companies.js";
+import bankDetailChanges from "./bankDetailChanges.js";
 import zatcaOnboarding from "./zatcaOnboarding.js";
 import transactions from "./transactions.js";
 import categories from "./categories.js";
@@ -122,6 +123,9 @@ router.use(requestBudget);
 // (GET→read, POST→create, PATCH/PUT→update, DELETE→delete), and checks it
 // against the seeded role→resource→action mapping. Fail-closed. This replaces
 // the old blanket method guard and the ad-hoc requireTenantRole guards.
+// 🔴 19B S3: the held bank-detail changes have their own resource (read: every role; the decision: `approve`, an
+// accountant or admin) — mounted BEFORE `/companies`, whose `update` is admin-only.
+router.use("/companies/current/bank-detail-changes", requirePermission("bank_detail"), bankDetailChanges);
 router.use("/companies", requirePermission("companies"), companies);
 router.use(
   "/zatca/onboarding",

@@ -15,6 +15,14 @@
  * the isolation case shows each organisation its own request (presence,
  * absence, movement).
  *
+ * 🔴 Restated for 19B S3 (v4 §6.3, D2; 2026-11-23): a SUPPLIER's IBAN left this
+ * rule. It is held ALWAYS — at creation too — for a member who can approve bank
+ * details (an accountant or admin), never the requester; with ONE usable admin
+ * (the only member who could approve it) it applies at once as S3's FALLBACK,
+ * recorded closed with its reason; and the database refuses a supplier's IBAN
+ * written without that request whatever the number of admins (party_iban_hold).
+ * The company's own bank accounts below keep DR-23 unchanged.
+ *
  * DB-backed (sl_test / CI); skips on the DB-free placeholder.
  */
 process.env.PORT ??= "3216";
@@ -49,9 +57,19 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
   )).rows[0].n);
   const storedIban = async (vendorId: number) => (await pool.query(`SELECT iban FROM vendors WHERE id = $1`, [vendorId])).rows[0].iban as string | null;
   const account = async (id: number) => (await pool.query(`SELECT iban, is_default FROM bank_accounts WHERE id = $1`, [id])).rows[0] as { iban: string | null; is_default: boolean };
-  const mkVendor = async (who: string, name: string, iban: string) => {
+  /**
+   * A supplier WITH its IBAN in place. 19B S3: the IBAN given at creation is held — `approver` (another member who can
+   * approve) approves it; where the requester is the only possible approver it applied at once (the fallback).
+   */
+  const mkVendor = async (who: string, name: string, iban: string, approver?: string) => {
     const r = await h.api(who, "POST", "/vendors", { name, residency: "resident", iban });
     expect(r.status, JSON.stringify(r.body)).toBe(201);
+    const held = (r.body.pendingBankDetailChanges ?? []) as Array<{ id: number }>;
+    if (held.length) {
+      expect(approver, `${name}: held, so it needs an approver`).toBeTruthy();
+      expect((await h.api(approver!, "PUT", `${CHANGES}/${held[0]!.id}/decision`, { decision: "approve" })).status).toBe(200);
+    }
+    expect((await pool.query(`SELECT iban FROM vendors WHERE id = $1`, [r.body.id])).rows[0].iban).toBe(iban);
     return r.body.id as number;
   };
   const mkAccount = async (who: string, name: string, extra: Record<string, unknown> = {}) => {
@@ -86,11 +104,15 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
   }, 120_000);
   afterAll(async () => { await h.stop(); await h.cleanup(); });
 
-  it("control — ONE usable admin: a supplier's IBAN change applies at once, as before", async () => {
+  // Restated for 19B S3: "applies at once, as before" is now S3's FALLBACK — recorded closed, with its reason.
+  it("control — ONE usable admin (the only member who could approve): a supplier's IBAN change applies at once, as S3's fallback, recorded", async () => {
     const v = await mkVendor("solo", "R6 Solo Supplier", IBAN_A);
     const r = await h.api("solo", "PATCH", `/vendors/${v}`, { iban: IBAN_B });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
-    expect([r.body.iban, await storedIban(v)]).toEqual([IBAN_B, IBAN_B]);
+    expect([r.body.iban, await storedIban(v), pendingOf(r.body)]).toEqual([IBAN_B, IBAN_B, []]);
+    expect(r.body.ibanAppliedWithoutSecondApprover).toEqual({ at: expect.any(String), byName: expect.any(String) });
+    const rows = (await pool.query(`SELECT status, reason FROM bank_detail_change_requests WHERE vendor_id = $1 ORDER BY id`, [v])).rows;
+    expect(rows.map((x) => x.status)).toEqual(["applied_without_second_approver", "applied_without_second_approver"]);
   });
 
   it("the database's count of usable admins is G03's, on every planted state (one, two, one usable of two)", async () => {
@@ -111,7 +133,7 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
     let requestId = 0;
 
     it("🔴 the change WAITS: the stored IBAN is unchanged, the other field is written, and one pending request is recorded and listed", async () => {
-      v = await mkVendor("pairA", "R6 Pair Supplier", IBAN_A);
+      v = await mkVendor("pairA", "R6 Pair Supplier", IBAN_A, "pairB");
       const r = await h.api("pairA", "PATCH", `/vendors/${v}`, { iban: IBAN_B, city: "Jeddah" });
       expect(r.status, JSON.stringify(r.body)).toBe(200);
       expect([r.body.iban, r.body.city, await storedIban(v)]).toEqual([IBAN_A, "Jeddah", IBAN_A]);
@@ -144,7 +166,7 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
       expect(await storedIban(v)).toBe(IBAN_A);
     });
 
-    it("🔴 a bookkeeper cannot approve (the seeded matrix: company writes are admin-only)", async () => {
+    it("🔴 a bookkeeper cannot approve (the matrix: bank_detail:approve is an accountant's and an admin's — 19B S3)", async () => {
       const r = await decide("pairBk", requestId, "approve");
       expect(r.status).toBe(403);
       expect(await storedIban(v)).toBe(IBAN_A);
@@ -158,9 +180,10 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
       const audit = (await pool.query(
         `SELECT user_id, before_state->>'iban' AS b, after_state->>'iban' AS a FROM audit_logs
           WHERE organization_id = $1 AND entity_type = 'vendor' AND entity_id = $2 AND action = 'update'
-            AND before_state->>'iban' IS DISTINCT FROM after_state->>'iban'`, [orgs.pair, String(v)],
+            AND before_state->>'iban' IS DISTINCT FROM after_state->>'iban' ORDER BY created_at, id`, [orgs.pair, String(v)],
       )).rows;
-      expect(audit.map((x) => [x.user_id, x.b, x.a])).toEqual([[ids.pairB, IBAN_A, IBAN_B]]);
+      // 19B S3: the IBAN entered with the supplier was held too — pairB approved it at creation (its own record) — then this
+      expect(audit.map((x) => [x.user_id, x.b, x.a])).toEqual([[ids.pairB, null, IBAN_A], [ids.pairB, IBAN_A, IBAN_B]]);
     });
 
     it("🔴 a decided request is final: approving or rejecting it again is refused (409)", async () => {
@@ -196,7 +219,7 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
     });
 
     it("a BOOKKEEPER's change waits too, and either admin applies it", async () => {
-      const w = await mkVendor("pairA", "R6 Bookkeeper Supplier", IBAN_A);
+      const w = await mkVendor("pairA", "R6 Bookkeeper Supplier", IBAN_A, "pairB");
       const req = pendingOf((await h.api("pairBk", "PATCH", `/vendors/${w}`, { iban: IBAN_B })).body)[0]!;
       expect([req.kind, req.requestedBy, await storedIban(w)]).toEqual(["vendor_iban", ids.pairBk, IBAN_A]);
       expect((await decide("pairA", req.id, "approve")).status).toBe(200);
@@ -230,16 +253,20 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
       expect([(await account(first.id)).is_default, (await account(second.id)).is_default]).toEqual([false, true]);
     });
 
-    it("🔴 THE WRITE BOUNDARY: a direct UPDATE of a supplier's IBAN as the app role is refused with two usable admins — and applies with one", async () => {
-      const w = await mkVendor("pairA", "R6 Direct Supplier", IBAN_A);
+    // Restated for 19B S3: a supplier's IBAN written without its request is refused WHATEVER the number of admins — the
+    // one-admin organisation's change goes through the fallback's request (the control above), never around it.
+    it("🔴 THE WRITE BOUNDARY: a direct UPDATE of a supplier's IBAN as the app role is refused — with two usable admins and with one (19B S3)", async () => {
+      const w = await mkVendor("pairA", "R6 Direct Supplier", IBAN_A, "pairB");
       const outcome = await h.inTenant(orgs.pair!, cos.pair!, ids.pairA, () =>
         db.update(vendorsTable).set({ iban: IBAN_B }).where(eq(vendorsTable.id, w)),
       ).then(() => "accepted", (e: any) => `refused:${e.constraint ?? e.cause?.constraint}`);
-      expect(outcome).toBe("refused:bank_detail_dual_control");
+      expect(outcome).toBe("refused:party_iban_hold");
       expect(await storedIban(w)).toBe(IBAN_A);
       const s = await mkVendor("solo", "R6 Direct Solo Supplier", IBAN_A);
-      await h.inTenant(orgs.solo!, cos.solo!, ids.solo, () => db.update(vendorsTable).set({ iban: IBAN_B }).where(eq(vendorsTable.id, s)));
-      expect(await storedIban(s)).toBe(IBAN_B);
+      const solo = await h.inTenant(orgs.solo!, cos.solo!, ids.solo, () => db.update(vendorsTable).set({ iban: IBAN_B }).where(eq(vendorsTable.id, s)))
+        .then(() => "accepted", (e: any) => `refused:${e.constraint ?? e.cause?.constraint}`);
+      expect(solo).toBe("refused:party_iban_hold");
+      expect(await storedIban(s)).toBe(IBAN_A);
     });
 
     // Added after the proof commit (register §11.100): each of the database's own rules, with no service in front of it.
@@ -251,7 +278,7 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
       ))).toBe("refused:bank_detail_dual_control");
       expect((await account(acct.id)).is_default).toBe(false);
 
-      const w = await mkVendor("pairA", "R6 Self Approval Supplier", IBAN_A);
+      const w = await mkVendor("pairA", "R6 Self Approval Supplier", IBAN_A, "pairB");
       const req = pendingOf((await h.api("pairA", "PATCH", `/vendors/${w}`, { iban: IBAN_B })).body)[0]!;
       expect(await refusedAs(h.inTenant(orgs.pair!, cos.pair!, ids.pairA, () =>
         db.update(bankDetailChangeRequestsTable).set({ status: "approved", decidedBy: ids.pairA, decidedAt: sql`now()` }).where(eq(bankDetailChangeRequestsTable.id, req.id)),
@@ -269,16 +296,16 @@ describeMaybe("Phase 18 R-6 (DR-23) — dual control on bank details, only where
       } finally { c.release(); }
       expect(await refusedAs(h.inTenant(orgs.pair!, cos.pair!, ids.pairB, () =>
         db.update(vendorsTable).set({ iban: IBAN_B }).where(eq(vendorsTable.id, w)),
-      ))).toBe("refused:bank_detail_dual_control");
+      ))).toBe("refused:party_iban_hold"); // 19B S3: a supplier's IBAN has its own boundary (0170)
       expect(await storedIban(w)).toBe(IBAN_A);
     });
   });
 
   it("🔴 ISOLATION: each organisation lists only its own requests, each has one, and another's request cannot be decided", async () => {
-    const ov = await mkVendor("othA", "R6 Other Supplier", IBAN_A);
+    const ov = await mkVendor("othA", "R6 Other Supplier", IBAN_A, "othB");
     const theirs = pendingOf((await h.api("othA", "PATCH", `/vendors/${ov}`, { iban: IBAN_C })).body)[0]!;
     expect(theirs?.status).toBe("pending");
-    const pv = await mkVendor("pairA", "R6 Pair Iso Supplier", IBAN_A);
+    const pv = await mkVendor("pairA", "R6 Pair Iso Supplier", IBAN_A, "pairB");
     const ours = pendingOf((await h.api("pairA", "PATCH", `/vendors/${pv}`, { iban: IBAN_D })).body)[0]!;
     const pairIds = ((await h.api("pairB", "GET", CHANGES)).body.items as any[]).map((x) => x.id);
     const otherIds = ((await h.api("othB", "GET", CHANGES)).body.items as any[]).map((x) => x.id);

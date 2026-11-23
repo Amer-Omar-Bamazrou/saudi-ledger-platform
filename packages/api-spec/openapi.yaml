@@ -3784,7 +3784,7 @@ paths:
           description: The employee
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Employee" }
+              schema: { $ref: "#/components/schemas/EmployeeWriteResult" }
         "400":
           description: Body failed validation
 
@@ -3827,7 +3827,7 @@ paths:
           description: The employee
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Employee" }
+              schema: { $ref: "#/components/schemas/EmployeeWriteResult" }
         "400":
           description: Body failed validation
     delete:
@@ -4533,10 +4533,11 @@ paths:
       responses:
         "200":
           description: >
-            The updated vendor. Phase 18 R-6 (DR-23): where the organisation has
-            two or more usable admins, a change of the IBAN is not written — it
-            is held for a second admin and listed in `pendingBankDetailChanges`;
-            the other fields are written.
+            The updated vendor. 19B S3 (v4 §6.3): a change of the IBAN is not
+            written — it is held for an accountant or admin who did not ask for
+            it and listed in `pendingBankDetailChanges` (or applied at once when
+            the requester is the only member who could approve it); the other
+            fields are written.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VendorUpdateResult" }
@@ -9158,24 +9159,33 @@ components:
     BankDetailChange:
       type: object
       description: >
-        Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin
-        — a supplier's IBAN, a company bank account's IBAN, or which account is
-        the default (the IBAN printed on future invoices). Recorded only where
-        the organisation has two or more usable admins; approved by an admin
-        who is not the requester, or rejected (by an admin, or withdrawn by the
-        requester). A decision is final.
-      required: [id, kind, vendorId, bankAccountId, subjectName, ibanBefore, ibanAfter, status,
+        A held bank-detail change. 19B S3 (v4 §6.3, D2): a supplier's or an
+        employee's IBAN — the first and every later one — is ALWAYS held, and
+        approved by a member who can approve bank details (an accountant or an
+        admin) who is not the requester; when the requester is the only member
+        who could ever approve it, it applies at once and is recorded closed as
+        `applied_without_second_approver` with its `reason`. Phase 18 R-6
+        (DR-23): a company bank account's IBAN, or which account is the default
+        (the IBAN printed on future invoices), is held only where the
+        organisation has two or more usable admins, and approved by an admin who
+        is not the requester. Rejected by an approver, or withdrawn by the
+        requester. A decision is final.
+      required: [id, kind, vendorId, employeeId, bankAccountId, subjectName, ibanBefore, ibanAfter, status, reason,
                  requestedBy, requestedByName, requestedAt, decidedBy, decidedByName, decidedAt]
       properties:
         id: { type: integer }
         kind:
           type: string
-          enum: [vendor_iban, bank_account_iban, default_bank_account]
+          enum: [vendor_iban, employee_iban, bank_account_iban, default_bank_account]
         vendorId: { type: ["integer", "null"] }
+        employeeId: { type: ["integer", "null"] }
         bankAccountId: { type: ["integer", "null"] }
         subjectName:
           type: ["string", "null"]
-          description: The supplier's or the bank account's name.
+          description: The supplier's, the employee's or the bank account's name.
+        reason:
+          type: ["string", "null"]
+          description: "19B S3: why the IBAN applied without a second approver (`applied_without_second_approver` only); null otherwise."
         ibanBefore:
           type: ["string", "null"]
           description: The stored IBAN before; for a default switch, the IBAN printed before (null when none was).
@@ -9184,7 +9194,7 @@ components:
           description: The IBAN after; for a default switch, the IBAN of the account that becomes the default.
         status:
           type: string
-          enum: [pending, approved, rejected]
+          enum: [pending, approved, rejected, applied_without_second_approver]
         requestedBy: { type: integer }
         requestedByName: { type: ["string", "null"] }
         requestedAt: { type: string, format: date-time }
@@ -9260,9 +9270,9 @@ components:
             pendingBankDetailChanges:
               type: array
               description: >
-                Phase 18 R-6 (DR-23): a change of the IBAN held for a second
-                admin (the organisation has two or more usable admins). Empty
-                when the change was written at once, or none was asked for.
+                19B S3 (v4 §6.3): a change of the IBAN, held for an accountant or
+                admin who did not ask for it. Empty when it applied at once (the
+                fallback), or none was asked for.
               items:
                 $ref: "#/components/schemas/BankDetailChange"
 
@@ -13994,6 +14004,11 @@ components:
         country: { type: ["string", "null"] }
         currency: { type: ["string", "null"] }
         iban: { type: ["string", "null"] }
+        ibanPending:
+          type: boolean
+          description: "19B S3 (v4 §6.3): a change of this supplier's IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then."
+        ibanAppliedWithoutSecondApprover:
+          $ref: "#/components/schemas/IbanAppliedWithoutSecondApprover"
         paymentTermsDays: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         isActive: { type: boolean }
@@ -14028,11 +14043,34 @@ components:
       allOf:
         - { $ref: "#/components/schemas/Vendor" }
         - type: object
-          required: [created]
+          required: [created, pendingBankDetailChanges]
           properties:
             created:
               type: boolean
               description: Always true here; lets a caller that also matches tell "created" from "existed".
+            pendingBankDetailChanges:
+              type: array
+              description: "19B S3: the IBAN given with the supplier, held for an accountant or admin who did not ask for it. Empty when none was given, or when it applied at once (the fallback)."
+              items: { $ref: "#/components/schemas/BankDetailChange" }
+
+    IbanAppliedWithoutSecondApprover:
+      type: ["object", "null"]
+      description: "19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as 'IBAN applied without a second approver on {at}, entered by {byName}'. Null when none did."
+      required: [at, byName]
+      properties:
+        at: { type: string, format: date-time }
+        byName: { type: ["string", "null"] }
+
+    EmployeeWriteResult:
+      allOf:
+        - { $ref: "#/components/schemas/Employee" }
+        - type: object
+          required: [pendingBankDetailChanges]
+          properties:
+            pendingBankDetailChanges:
+              type: array
+              description: "19B S3: an IBAN entered or changed, held for an accountant or admin who did not ask for it. Empty when none was, or when it applied at once (the fallback)."
+              items: { $ref: "#/components/schemas/BankDetailChange" }
 
     VendorInputFields:
       description: The allow-listed, user-settable vendor fields.
@@ -15055,6 +15093,11 @@ components:
         otherAllowances: { type: number }
         gosiNumber: { type: ["string", "null"] }
         iban: { type: ["string", "null"] }
+        ibanPending:
+          type: boolean
+          description: "19B S3 (v4 §6.3): a change of this employee's IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then."
+        ibanAppliedWithoutSecondApprover:
+          $ref: "#/components/schemas/IbanAppliedWithoutSecondApprover"
         bank: { type: ["string", "null"] }
         joiningDate: { type: ["string", "null"] }
         endDate: { type: ["string", "null"] }

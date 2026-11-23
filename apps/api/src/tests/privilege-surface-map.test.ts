@@ -116,8 +116,11 @@ beforeAll(async () => {
       return;
     }
     // Recover the mount prefix by asking the layer what it matches — the
-    // runtime's own answer, not a re-derivation of the source.
-    const prefix = prefixes.find((p) => {
+    // runtime's own answer, not a re-derivation of the source. 🔴 19B S3: a mount
+    // also matches every path BELOW it, so with a nested mount
+    // (`/companies/current/bank-detail-changes` beside `/companies`) a layer
+    // matches more than one declared prefix; its own is the SHORTEST it matches.
+    const prefix = [...prefixes].sort((a, b) => a.length - b.length).find((p) => {
       try {
         return !!layer.matchers?.[0]?.(p);
       } catch {

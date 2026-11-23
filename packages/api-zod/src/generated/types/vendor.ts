@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { IbanAppliedWithoutSecondApprover } from './ibanAppliedWithoutSecondApprover';
 import type { VendorResidency } from './vendorResidency';
 
 export interface Vendor {
@@ -30,6 +31,9 @@ export interface Vendor {
   currency: string | null;
   /** @nullable */
   iban: string | null;
+  /** 19B S3 (v4 §6.3): a change of this supplier's IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then. */
+  ibanPending?: boolean;
+  ibanAppliedWithoutSecondApprover?: IbanAppliedWithoutSecondApprover | null;
   /** @nullable */
   paymentTermsDays: string | null;
   /** @nullable */

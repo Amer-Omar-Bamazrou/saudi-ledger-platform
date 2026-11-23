@@ -641,6 +641,7 @@ export type BankDetailChangeKind = typeof BankDetailChangeKind[keyof typeof Bank
 
 export const BankDetailChangeKind = {
   vendor_iban: 'vendor_iban',
+  employee_iban: 'employee_iban',
   bank_account_iban: 'bank_account_iban',
   default_bank_account: 'default_bank_account',
 } as const;
@@ -652,10 +653,11 @@ export const BankDetailChangeStatus = {
   pending: 'pending',
   approved: 'approved',
   rejected: 'rejected',
+  applied_without_second_approver: 'applied_without_second_approver',
 } as const;
 
 /**
- * Phase 18 R-6 (DR-23): a change of a bank detail held for a second admin — a supplier's IBAN, a company bank account's IBAN, or which account is the default (the IBAN printed on future invoices). Recorded only where the organisation has two or more usable admins; approved by an admin who is not the requester, or rejected (by an admin, or withdrawn by the requester). A decision is final.
+ * A held bank-detail change. 19B S3 (v4 §6.3, D2): a supplier's or an employee's IBAN — the first and every later one — is ALWAYS held, and approved by a member who can approve bank details (an accountant or an admin) who is not the requester; when the requester is the only member who could ever approve it, it applies at once and is recorded closed as `applied_without_second_approver` with its `reason`. Phase 18 R-6 (DR-23): a company bank account's IBAN, or which account is the default (the IBAN printed on future invoices), is held only where the organisation has two or more usable admins, and approved by an admin who is not the requester. Rejected by an approver, or withdrawn by the requester. A decision is final.
  */
 export interface BankDetailChange {
   id: number;
@@ -663,12 +665,19 @@ export interface BankDetailChange {
   /** @nullable */
   vendorId: number | null;
   /** @nullable */
+  employeeId: number | null;
+  /** @nullable */
   bankAccountId: number | null;
   /**
-     * The supplier's or the bank account's name.
+     * The supplier's, the employee's or the bank account's name.
      * @nullable
      */
   subjectName: string | null;
+  /**
+     * 19B S3: why the IBAN applied without a second approver (`applied_without_second_approver` only); null otherwise.
+     * @nullable
+     */
+  reason: string | null;
   /**
      * The stored IBAN before; for a default switch, the IBAN printed before (null when none was).
      * @nullable
@@ -753,6 +762,16 @@ export interface BankDetailChangeDecisionInput {
 }
 
 /**
+ * 19B S3 (v4 §6.3, the fallback): the last IBAN that applied without a second approver — because the person who entered it was the only member who could approve bank details. Shown on the record as 'IBAN applied without a second approver on {at}, entered by {byName}'. Null when none did.
+ * @nullable
+ */
+export type IbanAppliedWithoutSecondApprover = {
+  at: string;
+  /** @nullable */
+  byName: string | null;
+} | null;
+
+/**
  * Where the supplier is resident — the input every withholding question starts from (Income Tax Law Art. 68). Phase 16: a payment to a `non_resident` withholds at the pay paths, at the rate of the payment's DECLARED nature. `unknown` is the default and is first-class: a payment to it withholds nothing and is listed as a WHT exception, because "resident" must never be assumed.
  */
 export type VendorResidency = typeof VendorResidency[keyof typeof VendorResidency];
@@ -787,6 +806,9 @@ export interface Vendor {
   currency: string | null;
   /** @nullable */
   iban: string | null;
+  /** 19B S3 (v4 §6.3): a change of this supplier's IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then. */
+  ibanPending?: boolean;
+  ibanAppliedWithoutSecondApprover?: IbanAppliedWithoutSecondApprover | null;
   /** @nullable */
   paymentTermsDays: string | null;
   /** @nullable */
@@ -808,7 +830,7 @@ export interface Vendor {
 }
 
 export type VendorUpdateResult = Vendor & {
-  /** Phase 18 R-6 (DR-23): a change of the IBAN held for a second admin (the organisation has two or more usable admins). Empty when the change was written at once, or none was asked for. */
+  /** 19B S3 (v4 §6.3): a change of the IBAN, held for an accountant or admin who did not ask for it. Empty when it applied at once (the fallback), or none was asked for. */
   pendingBankDetailChanges: BankDetailChange[];
 };
 
@@ -6375,6 +6397,111 @@ export type VendorDetail = VendorWithBalance & {
 export type VendorCreated = Vendor & {
   /** Always true here; lets a caller that also matches tell "created" from "existed". */
   created: boolean;
+  /** 19B S3: the IBAN given with the supplier, held for an accountant or admin who did not ask for it. Empty when none was given, or when it applied at once (the fallback). */
+  pendingBankDetailChanges: BankDetailChange[];
+};
+
+/**
+ * GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.
+ * @nullable
+ */
+export type EmployeeGosiRegime = typeof EmployeeGosiRegime[keyof typeof EmployeeGosiRegime] | null;
+
+
+export const EmployeeGosiRegime = {
+  law_1421h: 'law_1421h',
+  law_2024: 'law_2024',
+} as const;
+
+/**
+ * 19B (v4 §4, D4): a field of a class the reader's role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.
+ */
+export interface Employee {
+  id: number;
+  employeeNumber: string;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  /** @nullable */
+  nationalId?: string | null;
+  /** @nullable */
+  nationality?: string | null;
+  /** @nullable */
+  jobTitle: string | null;
+  /** @nullable */
+  jobTitleAr: string | null;
+  /** @nullable */
+  department: string | null;
+  /**
+     * Null = pay not set (19B S2a, D8 O2): see payNotSet.
+     * @nullable
+     */
+  basicSalary?: number | null;
+  housingAllowance?: number;
+  transportAllowance?: number;
+  otherAllowances?: number;
+  /** @nullable */
+  gosiNumber?: string | null;
+  /** @nullable */
+  iban?: string | null;
+  /** 19B S3 (v4 §6.3): a change of this employee's IBAN waits for an accountant or admin who did not ask for it. The IBAN above is the current one (or none) until then. */
+  ibanPending?: boolean;
+  ibanAppliedWithoutSecondApprover?: IbanAppliedWithoutSecondApprover | null;
+  /** @nullable */
+  bank?: string | null;
+  /** @nullable */
+  joiningDate: string | null;
+  /** @nullable */
+  endDate: string | null;
+  status: string;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  /** 19B S2a (D8 O2): the employee has no basic salary yet. Shown as 'pay not set' wherever the employee appears; a payroll run leaves the employee out and names it (PayrollRun.leftOut), never computing it at zero. Standard: every role sees it, a role that cannot read pay included. */
+  payNotSet: boolean;
+  /**
+     * DERIVED — basic + the three allowances. Null when pay is not set (never a computed zero).
+     * @nullable
+     */
+  grossSalary?: number | null;
+  /**
+     * DERIVED (Phase 18): the current period's employee rate for the employee's GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.
+     * @nullable
+     */
+  gosiEmployee?: number | null;
+  /**
+     * DERIVED: the current period's employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.
+     * @nullable
+     */
+  gosiEmployer?: number | null;
+  /**
+     * DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.
+     * @nullable
+     */
+  gosiWageBase?: number | null;
+  /**
+     * GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.
+     * @nullable
+     */
+  gosiRegime?: EmployeeGosiRegime;
+  /** @nullable */
+  gosiRegimeSetBy?: number | null;
+  /** @nullable */
+  gosiRegimeSetAt?: string | null;
+  /**
+     * What the statement rests on, e.g. the GOSI contribution certificate.
+     * @nullable
+     */
+  gosiRegimeBasis?: string | null;
+  /** GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage. */
+  gosiInKindHousing?: boolean;
+  /** GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing. */
+  gosiInKindHousingExempt?: boolean;
+}
+
+export type EmployeeWriteResult = Employee & {
+  /** 19B S3: an IBAN entered or changed, held for an accountant or admin who did not ask for it. Empty when none was, or when it applied at once (the fallback). */
+  pendingBankDetailChanges: BankDetailChange[];
 };
 
 /**
@@ -7857,101 +7984,6 @@ export interface PayPayrollRunGosiInput {
      * @nullable
      */
   gosiInvoiceReference?: string | null;
-}
-
-/**
- * GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.
- * @nullable
- */
-export type EmployeeGosiRegime = typeof EmployeeGosiRegime[keyof typeof EmployeeGosiRegime] | null;
-
-
-export const EmployeeGosiRegime = {
-  law_1421h: 'law_1421h',
-  law_2024: 'law_2024',
-} as const;
-
-/**
- * 19B (v4 §4, D4): a field of a class the reader's role may not read is ABSENT — never null, never zero — and the X-Withheld response header names it ({ path, class, level }); an IBAN the role may read only in part is served as its last four digits. So only the standard fields are required.
- */
-export interface Employee {
-  id: number;
-  employeeNumber: string;
-  name: string;
-  /** @nullable */
-  nameAr: string | null;
-  /** @nullable */
-  nationalId?: string | null;
-  /** @nullable */
-  nationality?: string | null;
-  /** @nullable */
-  jobTitle: string | null;
-  /** @nullable */
-  jobTitleAr: string | null;
-  /** @nullable */
-  department: string | null;
-  /**
-     * Null = pay not set (19B S2a, D8 O2): see payNotSet.
-     * @nullable
-     */
-  basicSalary?: number | null;
-  housingAllowance?: number;
-  transportAllowance?: number;
-  otherAllowances?: number;
-  /** @nullable */
-  gosiNumber?: string | null;
-  /** @nullable */
-  iban?: string | null;
-  /** @nullable */
-  bank?: string | null;
-  /** @nullable */
-  joiningDate: string | null;
-  /** @nullable */
-  endDate: string | null;
-  status: string;
-  /** @nullable */
-  notes?: string | null;
-  createdAt: string;
-  /** 19B S2a (D8 O2): the employee has no basic salary yet. Shown as 'pay not set' wherever the employee appears; a payroll run leaves the employee out and names it (PayrollRun.leftOut), never computing it at zero. Standard: every role sees it, a role that cannot read pay included. */
-  payNotSet: boolean;
-  /**
-     * DERIVED — basic + the three allowances. Null when pay is not set (never a computed zero).
-     * @nullable
-     */
-  grossSalary?: number | null;
-  /**
-     * DERIVED (Phase 18): the current period's employee rate for the employee's GOSI law, on the contributory wage. Null for a Saudi employee whose law is not stated.
-     * @nullable
-     */
-  gosiEmployee?: number | null;
-  /**
-     * DERIVED: the current period's employer rate (non-Saudi: 2% occupational hazards). Null for a Saudi employee whose law is not stated.
-     * @nullable
-     */
-  gosiEmployer?: number | null;
-  /**
-     * DERIVED: basic + cash housing + the value of in-kind housing (GO-13), capped at SAR 45,000. Null where the GOSI figures are.
-     * @nullable
-     */
-  gosiWageBase?: number | null;
-  /**
-     * GOSI (Phase 18): the Social Insurance law a Saudi employee contributes under, stated by the employer from contribution history (never the hire date). Null = not stated: payroll is refused for that employee.
-     * @nullable
-     */
-  gosiRegime?: EmployeeGosiRegime;
-  /** @nullable */
-  gosiRegimeSetBy?: number | null;
-  /** @nullable */
-  gosiRegimeSetAt?: string | null;
-  /**
-     * What the statement rests on, e.g. the GOSI contribution certificate.
-     * @nullable
-     */
-  gosiRegimeBasis?: string | null;
-  /** GO-13: housing is provided in kind; its value (basic × 2 ÷ 12 a month, an interpretation) counts in the GOSI contributory wage. */
-  gosiInKindHousing?: boolean;
-  /** GO-13: the in-kind housing is a case the GOSI Governor has exempted, so it adds nothing. Only with gosiInKindHousing. */
-  gosiInKindHousingExempt?: boolean;
 }
 
 export interface EmployeeTotals {

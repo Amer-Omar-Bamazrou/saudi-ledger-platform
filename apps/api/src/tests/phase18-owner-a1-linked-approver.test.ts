@@ -29,7 +29,6 @@ const describeMaybe = REAL_DB ? describe : describe.skip;
 const PW = "OwnerA1LinkedApproverPw1!";
 const SET = "OwnerA1SetByAdminPw2!";
 const MINE = "OwnerA1MyOwnPassword3!";
-const IBAN_A = "SA0380000000608010167519";
 const IBAN_B = "SA1310000000111122223333";
 const CHANGES = "/companies/current/bank-detail-changes";
 const CODE = "bank_detail_approver_linked";
@@ -46,7 +45,8 @@ describeMaybe("Phase 18 owner decision A1 — the approver of a held bank-detail
   };
   /** A held change, requested by the requester: a vendor's IBAN, held because the organisation has two or more admins. */
   const heldChange = async (name: string) => {
-    const v = (await ok("requester", "POST", "/vendors", { name, residency: "resident", iban: IBAN_A })).id as number;
+    // 19B S3: created WITHOUT an IBAN — an IBAN given at creation is itself held (v4 §6.3); the held change under test is the PATCH
+    const v = (await ok("requester", "POST", "/vendors", { name, residency: "resident" })).id as number;
     const r = await ok("requester", "PATCH", `/vendors/${v}`, { iban: IBAN_B });
     const pending = (r.pendingBankDetailChanges ?? []) as Array<{ id: number }>;
     expect(pending.length, "the change is held for a second admin").toBe(1);
