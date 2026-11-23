@@ -77,7 +77,7 @@ test.beforeAll(async () => {
   for (const e of [SOLO, OPS]) {
     const r = await api.accountant.post("/api/employees", { data: e });
     expect(r.status(), await r.text()).toBe(201);
-    secrets.push(...shown(e.basicSalary), ...shown(e.basicSalary + (e.housingAllowance ?? 0)), e.nationalId);
+    secrets.push(...shown(e.basicSalary), ...shown(e.basicSalary + (e === SOLO ? SOLO.housingAllowance : 0)), e.nationalId);
   }
   secrets.push(...shown(SOLO.housingAllowance));
   const run = await api.accountant.post("/api/payroll", { data: { period: PERIOD } });
