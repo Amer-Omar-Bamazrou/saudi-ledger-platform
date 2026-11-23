@@ -109,6 +109,9 @@ describeDb("19B S4 — the journal-lines dataset, and the refusal events", () =>
     const alone = await h.api("viewer", "GET", `${ROWS}?date_from=2026-10-01&date_to=2026-10-31&columns=description`);
     expect(alone.body.columns.map((c: { key: string }) => c.key)).toEqual(["description", "sourceType"]);
     expect((alone.body.rows as Record<string, unknown>[]).filter((x) => "description" in x).map((x) => [x.sourceType, x.description])).toEqual([["manual", TYPED_TEXT], ["manual", TYPED_TEXT]]);
+    // a filter id past the column's range is a 400 by name, never a database error
+    const huge = await h.api("viewer", "GET", `${ROWS}?account_id=99999999999`);
+    expect([huge.status, huge.body.code]).toEqual([400, "report_bad_filter"]);
     const sorted = await h.api("viewer", "GET", `${ROWS}?sort=description`);
     expect([sorted.status, sorted.body.code, sorted.body.fields]).toEqual([403, "report_field_withheld", [{ field: "description", class: "bank_narrative", use: "sort" }]]);
     expect(await events()).toEqual([]); // a refused RUN is not a refusal event (D6)

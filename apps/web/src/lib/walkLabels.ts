@@ -43,6 +43,7 @@ const AUDIT_ACTIONS: Record<string, [string, string]> = {
   reject: ["Rejected", "رفض"],
   send_back: ["Sent back", "إعادة للتعديل"],
   export: ["Exported", "تصدير"],
+  field_write: ["Field change refused", "رُفض تعديل حقل"], // 19B S4: a refusal event (D6)
   allocate: ["Allocated", "تخصيص"],
   unallocate: ["Allocation undone", "إلغاء التخصيص"],
   reverse_allocation: ["Allocation reversed", "عكس التخصيص"],
@@ -139,6 +140,7 @@ const AUDIT_ENTITIES: Record<string, [string, string]> = {
   company_control_settings: ["Control settings", "إعدادات الضوابط"],
   recurring_rule: ["Recurring rule", "قاعدة متكررة"],
   report_export: ["Report export", "تصدير تقرير"],
+  report_dataset_export: ["Report data export", "تصدير بيانات تقرير"], // 19B S4
   finding: ["Finding", "ملاحظة"],
   findings_run: ["Findings run", "فحص الملاحظات"],
   finding_schedule: ["Findings schedule", "جدول فحص الملاحظات"],

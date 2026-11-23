@@ -20,6 +20,7 @@ import { reportDatasetsRepository, type JournalLinesFilter, type JournalLinesSor
 import { refusalEventsService } from "../refusalEvents.service";
 import { DATASET_EXPORT_MAX_ROWS, exportDatasetCsv, type DatasetDocument, type ExportColumn, type ExportRow } from "./reportExport.service";
 import { DATASETS } from "../../lib/reports/datasets";
+import { MAX_ID } from "../reports.service";
 
 export interface DatasetActor { userId: number | null; organizationId: string; companyId: string | null }
 type Query = Record<string, string | undefined>;
@@ -46,7 +47,8 @@ function parseRequest(ds: DatasetDef, q: Query, paged: boolean) {
   if (q.date_to) { if (!DATE.test(q.date_to)) throw badRequest("date_to must be a date (YYYY-MM-DD).", "يجب أن يكون date_to تاريخاً (YYYY-MM-DD)."); filter.dateTo = q.date_to; }
   if (q.account_id) {
     const n = Number(q.account_id);
-    if (!Number.isInteger(n) || n <= 0) throw badRequest("account_id must be a positive whole number.", "يجب أن يكون account_id عدداً صحيحاً موجباً.");
+    // the column's range, not only the sign (Phase 18 A3): an id past int4 would reach the database as a 500
+    if (!Number.isSafeInteger(n) || n <= 0 || n > MAX_ID) throw badRequest("account_id must be a positive whole number.", "يجب أن يكون account_id عدداً صحيحاً موجباً.");
     filter.accountId = n;
   }
   if (q.source_type) filter.sourceType = q.source_type;

@@ -8,6 +8,7 @@
 --  · APPEND-ONLY for every role, the owner included (0132's function); replica
 --    mode is the only bypass, as for the audit tables.
 --  · Its time is the database's (0159's rule for audit rows).
+--  · Row-level security with the tenant isolation policy, like every tenant table.
 -- A new table; no existing row is read or changed.
 -- ═══════════════════════════════════════════════════════════════════════════
 CREATE TABLE "permission_refusal_events" (
@@ -43,6 +44,13 @@ BEGIN
   END LOOP;
   REVOKE ALL ON TABLE public.permission_refusal_events FROM PUBLIC;
 END $$;--> statement-breakpoint
+-- 🔴 A TENANT TABLE: row-level security and the isolation policy, as every table carrying organization_id has —
+-- the application's role holds no grant today (above); this binds the reader S6 adds to its own organisation.
+ALTER TABLE public.permission_refusal_events ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+DROP POLICY IF EXISTS "tenant_isolation" ON public.permission_refusal_events;--> statement-breakpoint
+CREATE POLICY "tenant_isolation" ON public.permission_refusal_events
+  USING ( (organization_id)::text = current_setting('app.current_org_id', true) )
+  WITH CHECK ( (organization_id)::text = current_setting('app.current_org_id', true) );--> statement-breakpoint
 -- 🔴 The time is the database's: a writer cannot name when a refusal happened.
 CREATE OR REPLACE FUNCTION permission_refusal_events_time() RETURNS trigger
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$

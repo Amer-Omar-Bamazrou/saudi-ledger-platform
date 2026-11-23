@@ -47,6 +47,8 @@ export const reportsController = {
     if (lang !== "en" && lang !== "ar") throw new BadRequestError("lang must be 'en' or 'ar'.");
     const t = req.tenant!;
     const out = await reportDatasetsService.journalLinesExport(JOURNAL_LINES, hasFor(req), { userId: t.userId, organizationId: t.organizationId, companyId: t.companyId }, q(req), lang, deciderFor(t.role, peekPermissions()));
+    // never cached: an export is report data, and the browser's cache is no place to keep it
+    res.setHeader("Cache-Control", "no-store");
     res
       .status(200)
       .type(out.contentType)
