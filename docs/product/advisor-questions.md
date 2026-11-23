@@ -881,7 +881,10 @@ entries, and no run's status is changed to make a reversal look resolved (owner,
 **What exists.**
 - **At receipt: no VAT.** An identified customer's receipt of unknown purpose is classified
   `unknown`, on `UNIDENTIFIED_RECEIPTS`. An unknown payer's money reaches the same account
-  through a bank line, or a manual line that states why there is no customer (A20).
+  only through a manual line that states why there is no customer (A20). *(Corrected
+  2026-11-23: it does not arrive through a bank line — a bank line categorised to that
+  account is refused `category_needs_party`, and it stays in Suspense until a document
+  exists.)*
 - **When it is identified as an advance** (classification `advance`, VAT category S), one
   reclassification entry moves the balance to `CUSTOMER_DEPOSITS`, dated the
   classification's effective date. It still posts no VAT.
@@ -914,6 +917,24 @@ entries, and no run's status is changed to make a reversal look resolved (owner,
 - **If the identification's period:** the 386's tax point for an identified unknown receipt
   becomes the identification date, and the 423 refusal no longer applies to it.
 
+**🔴 Answered 2026-11-23 — the receipt's period, as today.** Who: **to be stated by the owner**
+(the two answer documents are the owner's; this public file names no adviser). Status:
+**settled in principle**. Source status: **READING** — two research answers, not a ruling
+(the second says so); the tax-point rule and Art. 63 they rest on are the texts already
+pinned and read (Art. 63(3) in the Tenth Edition, 2026-11-19).
+- The VAT belongs to the month the money was received, when the receipt was already
+  consideration for a taxable supply; identifying it later does not move the tax point. A
+  filed return is corrected under Art. 63: SAR 15,000 or more by correcting the original
+  return, less in the return for the period of discovery. The threshold decides the
+  correction route, not the tax point.
+- **This confirms what the platform does** (the 386 dated at the receipt; the 423 naming
+  Art. 63).
+- **Still open: K4's own finding** — a receipt recorded by a manual journal has no path to
+  its VAT. A design (the journal line identified as a receipt, then the existing 386 path)
+  went to the owner on 2026-11-23; nothing is built.
+- Evidence the answers say to keep: the bank receipt date, the contract or purchase order
+  linking the payment to the supply, and the record of when it was identified.
+
 ---
 
 ## Block L — five amended VAT articles our records still read the old way (added 2026-11-20)
@@ -925,6 +946,28 @@ entries, and no run's status is changed to make a reversal look resolved (owner,
 - **L3 — Art. 40(10)–(11), amended (Res. 01-06-24):** a buyer's input VAT on a purchase still not paid in full twelve months after the month following the supply's month is reversed in the return for the month in which those twelve months end, except goods under financing contracts (finance lease, murabaha, lease ending in ownership) paid in periodic instalments under the stated conditions — is that the reading, and what must a buyer hold to use the exception?
 - **L4 — Art. 9(5), amended (Res. 1-4-23):** a government body is outside economic activity only when all three conditions hold (a legal instrument authorises the activity, it is not run on economic or commercial criteria, and it is exclusive to government) — do the statutory fees a business pays to government still carry no VAT under that test?
 - **L5 — Art. 40(7)(d), amended (Res. 1-4-23):** for bad-debt relief ZATCA may accept other supporting documents in place of the certified accountant's certificate from a supplier not obliged to appoint an auditor — what evidence is accepted in practice?
+
+**🔴 Answered 2026-11-23.** Who: **to be stated by the owner** (the documents are the
+owner's; this file names no adviser). Source status:
+- **VERIFIED** — Art. 40(7)(a)–(e) and 40(8) (by the owner against the primary text, and
+  read here in the Arabic Tenth Edition pinned in `docs/zatca/specs/`), and Labor Law
+  Art. 147 (by the owner).
+- **CITED-NOT-READ** — ZATCA's worked examples (Examples 10, 18 and 20), the Input Tax
+  Guideline and Dariba, as the answers cite them.
+- **READING** — the answers themselves: research, not a ruling.
+
+| # | The answer | Status | What the platform does today |
+| --- | --- | --- | --- |
+| **L1** | Only cover a law obliges the employer to provide is deductible — chiefly the Cooperative Health Insurance Law's mandatory medical cover for employees and the dependants it covers. Voluntary enhancements, benefits beyond the statutory minimum and life insurance are blocked. | settled in principle | Employees' medical insurance has no category of its own: it is booked to `INSURANCE` (standard, not blocked), so its VAT is claimed in full. |
+| **L2** | Meals stay blocked except where a law obliges them at the workplace — chiefly Labor Law Art. 147 (work remote from towns, mines, quarries, oil exploration). Voluntary meals, team dinners and office catering stay blocked. | settled in principle | `FOOD_MEALS` is blocked always; there is no exception. |
+| **L3** | The reading is confirmed. The reversal is the VAT on the UNPAID portion only, in the return for the month the twelve months end; a later payment restores it. The financing exception needs ALL its conditions and the supplier's written certificate. | settled | Nothing detects or reverses it; the posting waits on Block M. |
+| **L4** | A government body's statutory fee is outside the scope of VAT when all three conditions hold: no VAT, so no input VAT. A government body's commercial supply can be taxable and is analysed on its own. | settled in principle | `GOVT_FEES` and `GOSI_EXPENSE` are seeded outside scope (`O`), but that treatment is read only on the bank-line path. |
+| **L5** | Where the supplier is not obliged to appoint an auditor, ZATCA **may** accept other evidence, at its discretion; there is no official list; the other conditions still apply. | settled in principle | The write-off takes the certificate as a text reference only; there is no alternative-evidence route. |
+
+**Designs only** (the category split and what the user states, the meals exception, the
+40(10) detection, the government-fee treatment on bills, and an alternative-evidence route
+reviewed by the accountant and never shown as accepted) went to the owner on 2026-11-23.
+Nothing is built.
 
 ---
 
