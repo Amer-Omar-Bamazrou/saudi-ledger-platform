@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import type { PartyPickerItem } from "@workspace/api-client-react";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "wouter";
 import { submittedToast } from "@/components/SubmittedToast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { InvoiceDocumentLink } from "@/components/InvoiceDocumentLink";
 import { statusLabel } from "@/lib/statusLabel";
 import { FilterScope } from "@/components/FilterScope";
 import { INVOICE_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFilters";
@@ -203,7 +205,7 @@ export default function Invoices() {
       ),
   });
 
-  const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({ queryKey: ["customers", "picker"], queryFn: () => fetchPickerOptions<Customer>("/customers") });
+  const { data: customersPage } = useQuery<{ items: PartyPickerItem[]; total: number }>({ queryKey: ["customers", "picker"], queryFn: () => fetchPickerOptions<PartyPickerItem>("/customers/picker") });
   const customers = customersPage?.items ?? [];
 
   const createMut = useMutation({
@@ -765,16 +767,16 @@ export default function Invoices() {
                       {inv.isOpening && <OpeningRecordNote />}
                       {!inv.isOpening && inv.status !== "draft" && inv.status !== "submitted" && (
                         <>
-                          <a href={`/api/invoices/${inv.id}/document?lang=ar`} download
+                          <InvoiceDocumentLink invoiceId={inv.id} lang="ar"
                             className="inline-flex items-center gap-1 text-xs h-7 px-2 rounded hover:bg-secondary/60 text-primary"
                             title={t("Download the tax invoice (Arabic PDF)", "تنزيل الفاتورة الضريبية (PDF عربي)")}>
                             <FileDown className="h-3.5 w-3.5" />PDF
-                          </a>
-                          <a href={`/api/invoices/${inv.id}/document?lang=en`} download
+                          </InvoiceDocumentLink>
+                          <InvoiceDocumentLink invoiceId={inv.id} lang="en"
                             className="inline-flex items-center gap-1 text-xs h-7 px-2 rounded hover:bg-secondary/60 text-muted-foreground"
                             title={t("Download the English translation — not the tax invoice", "تنزيل الترجمة الإنجليزية — ليست الفاتورة الضريبية")}>
                             EN
-                          </a>
+                          </InvoiceDocumentLink>
                         </>
                       )}
                       {/* A3 (hub decision: automation woven into the page) —

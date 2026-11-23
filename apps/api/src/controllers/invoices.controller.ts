@@ -7,7 +7,9 @@ import { invoiceCorrectionsService } from "../services/invoiceCorrections.servic
 import { can } from "../lib/rbac";
 import { requireIdParam } from "../lib/httpParams";
 import { BadRequestError, BusinessRuleError } from "../lib/errors";
-import { buildInvoiceDocModel, findSignedXml, renderInvoicePdf, buildInvoiceIssueView } from "../services/invoiceDocument/invoiceDocument.service";
+import { buildInvoiceDocModel, findSignedXml, renderInvoicePdf, buildInvoiceIssueView, refuseWithheldDocument } from "../services/invoiceDocument/invoiceDocument.service";
+import { peekPermissions } from "../lib/rbac";
+import { deciderFor } from "../lib/fieldClasses/seam";
 
 /**
  * 🔴 Contract batch 3: bodies are validated against the GENERATED schemas, so
@@ -105,6 +107,9 @@ export const invoicesController = {
     }
     const model = await buildInvoiceDocModel(id, langRaw);
     const xml = await findSignedXml(id);
+    // 🔴 19B S2b (B2): served whole or refused by the classes it carries — before anything is rendered
+    const t = req.tenant!;
+    await refuseWithheldDocument(model, xml, deciderFor(t.role, peekPermissions()), { userId: t.userId, organizationId: t.organizationId, companyId: t.companyId });
     const pdf = await renderInvoicePdf(model, xml);
     res
       .status(200)

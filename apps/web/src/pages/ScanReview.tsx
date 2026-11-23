@@ -22,6 +22,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import type { PartyPickerItem } from "@workspace/api-client-react";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import type { ParsedReceipt } from "@/lib/receiptParser";
 import { loadAndClearScanData } from "@/lib/scanReviewStore";
@@ -129,9 +130,9 @@ export default function ScanReview() {
   const activeBanks = bankAccounts.filter((b) => b.isActive);
 
   // ── vendors dropdown (for manual override) ────────────────────────────────
-  const { data: vendorsPage } = useQuery<{ items: Vendor[]; total: number }>({
+  const { data: vendorsPage } = useQuery<{ items: PartyPickerItem[]; total: number }>({
     queryKey: ["vendors", "picker"],
-    queryFn: () => fetchPickerOptions<Vendor>("/vendors"),
+    queryFn: () => fetchPickerOptions<PartyPickerItem>("/vendors/picker"),
   });
   const allVendors = vendorsPage?.items ?? [];
 

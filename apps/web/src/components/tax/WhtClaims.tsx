@@ -11,9 +11,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useListWhtRefundClaims, useCreateWhtRefundClaim, useAddWhtRefundClaimEvent, getListWhtRefundClaimsQueryKey,
-  useListWhtInstalmentRequests, useCreateWhtInstalmentRequest, useAddWhtInstalmentRequestEvent, getListWhtInstalmentRequestsQueryKey,
-  useListVendors, type WhtRefundChecklist,
+  useListWhtRefundClaims, useCreateWhtRefundClaim, useAddWhtRefundClaimEvent, getListWhtRefundClaimsQueryKey, useListWhtInstalmentRequests, useCreateWhtInstalmentRequest, useAddWhtInstalmentRequestEvent, getListWhtInstalmentRequestsQueryKey, type WhtRefundChecklist, useListVendorPicker,
 } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 import { fmtNum } from "@/lib/api";
@@ -46,7 +44,7 @@ export function WhtClaims({ canRecord }: { canRecord: boolean }) {
   const fail = (e: unknown) => toast({ title: t("Not recorded", "لم يُسجَّل"), description: refusalOf(e).words, variant: "destructive" });
   const claims = useListWhtRefundClaims();
   const requests = useListWhtInstalmentRequests();
-  const vendors = useListVendors({ limit: 200 });
+  const vendors = useListVendorPicker({ limit: 200 });
   const refreshClaims = () => qc.invalidateQueries({ queryKey: getListWhtRefundClaimsQueryKey() });
   const refreshRequests = () => qc.invalidateQueries({ queryKey: getListWhtInstalmentRequestsQueryKey() });
 

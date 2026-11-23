@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-client-react";
 import { DualDate } from "@/components/DualDate";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { InvoiceDocumentLink } from "@/components/InvoiceDocumentLink";
 import { fmtNum } from "@/lib/api";
 import { statusLabel } from "@/lib/statusLabel";
 import { Badge } from "@/components/ui/badge";
@@ -125,15 +126,15 @@ export default function InvoiceDetail() {
             {seller?.qrImage && (
               <img src={seller.qrImage} alt={t("The invoice's ZATCA QR code", "رمز QR للفاتورة")} width={180} height={180} data-testid="invoice-detail-qr" />
             )}
-            <a
-              href={`/api/invoices/${inv.id}/document?lang=ar`}
-              download
-              data-testid="invoice-detail-pdf"
+            <InvoiceDocumentLink
+              invoiceId={inv.id}
+              lang="ar"
+              testId="invoice-detail-pdf"
               className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
             >
               <FileDown className="h-4 w-4" />
               {t("Download the tax invoice (PDF)", "تنزيل الفاتورة الضريبية (PDF)")}
-            </a>
+            </InvoiceDocumentLink>
           </CardContent>
         </Card>
       ) : (

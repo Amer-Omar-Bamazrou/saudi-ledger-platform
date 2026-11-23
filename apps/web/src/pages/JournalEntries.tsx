@@ -25,6 +25,7 @@ import { useListUnclassifiedJournalEntries, getListUnclassifiedJournalEntriesQue
 import { Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import type { PartyPickerItem } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 
 /** Request bodies go through the GENERATED input types (contract batch 4): a request the server does not accept is a compile error here. */
@@ -94,9 +95,9 @@ export default function JournalEntries() {
    * say WHO the receivable/payable is with (the server refuses it otherwise),
    * so the pickers load as soon as the form can express such a line.
    */
-  const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({ queryKey: ["customers", "picker"], queryFn: () => fetchPickerOptions<Customer>("/customers") });
+  const { data: customersPage } = useQuery<{ items: PartyPickerItem[]; total: number }>({ queryKey: ["customers", "picker"], queryFn: () => fetchPickerOptions<PartyPickerItem>("/customers/picker") });
   const customers = customersPage?.items ?? [];
-  const { data: vendorsPage } = useQuery<{ items: Vendor[]; total: number }>({ queryKey: ["vendors", "picker"], queryFn: () => fetchPickerOptions<Vendor>("/vendors") });
+  const { data: vendorsPage } = useQuery<{ items: PartyPickerItem[]; total: number }>({ queryKey: ["vendors", "picker"], queryFn: () => fetchPickerOptions<PartyPickerItem>("/vendors/picker") });
   const vendors = vendorsPage?.items ?? [];
   const systemCodeOf = (accountId?: number) => categories.find((c) => c.id === accountId)?.systemCode ?? null;
   /**

@@ -3,7 +3,9 @@
  * Async throws propagate to the centralized errorHandler (Express 5).
  */
 import type { Request, Response } from "express";
-import { CreateCustomerBody, UpdateCustomerBody } from "@workspace/api-zod";
+import { CreateCustomerBody, ListCustomerPickerQueryParams, UpdateCustomerBody } from "@workspace/api-zod";
+import { peekPermissions } from "../lib/rbac";
+import { fieldAccess } from "../lib/fieldClasses/access";
 import { customersService } from "../services/customers.service";
 import { paymentsService } from "../services/payments.service";
 import { customerStatementService } from "../services/customerStatement.service";
@@ -12,6 +14,17 @@ import { pageParams, requireIdParam } from "../lib/httpParams";
 import { BadRequestError } from "../lib/errors";
 
 export const customersController = {
+  /** 19B S2b (v4 D9 (a)): a picker's rows — id, name, Arabic name and VAT number only. */
+  async picker(req: Request, res: Response) {
+    const q = ListCustomerPickerQueryParams.safeParse(req.query);
+    if (!q.success) throw new BadRequestError(q.error.message);
+    const { is_active, ...rest } = q.data;
+    res.json(await customersService.picker({ ...rest, isActive: is_active }));
+  },
+  /** 19B S2b: the reader role's read level and write ability for each customer field (never a value). */
+  fieldAccess(req: Request, res: Response) {
+    res.json(fieldAccess("customers", req.tenant!.role, peekPermissions()));
+  },
   async list(req: Request, res: Response) {
     const { search, is_active } = req.query as Record<string, string>;
     res.json(

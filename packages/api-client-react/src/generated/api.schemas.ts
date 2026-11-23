@@ -646,6 +646,31 @@ export interface DeploymentBanner {
   nextResetAt?: string | null;
 }
 
+export type DocumentFieldWithheldCode = typeof DocumentFieldWithheldCode[keyof typeof DocumentFieldWithheldCode];
+
+
+export const DocumentFieldWithheldCode = {
+  document_field_withheld: 'document_field_withheld',
+} as const;
+
+export type DocumentFieldWithheldClassesItem = typeof DocumentFieldWithheldClassesItem[keyof typeof DocumentFieldWithheldClassesItem];
+
+
+export const DocumentFieldWithheldClassesItem = {
+  contact: 'contact',
+  identity: 'identity',
+} as const;
+
+/**
+ * 19B S2b (v4 §11): the invoice PDF refused by the protected classes it carries. Names the classes, never a value.
+ */
+export interface DocumentFieldWithheld {
+  error: string;
+  errorAr?: string;
+  code: DocumentFieldWithheldCode;
+  classes: DocumentFieldWithheldClassesItem[];
+}
+
 export interface ErrorResponse {
   error: string;
 }
@@ -5605,6 +5630,8 @@ export type FieldAccessRecord = typeof FieldAccessRecord[keyof typeof FieldAcces
 export const FieldAccessRecord = {
   employees: 'employees',
   payroll: 'payroll',
+  customers: 'customers',
+  vendors: 'vendors',
 } as const;
 
 export type FieldAccessEntryClass = typeof FieldAccessEntryClass[keyof typeof FieldAccessEntryClass];
@@ -5645,6 +5672,18 @@ export type FieldAccessFields = {[key: string]: FieldAccessEntry};
 export interface FieldAccess {
   record: FieldAccessRecord;
   fields: FieldAccessFields;
+}
+
+/**
+ * 19B S2b (v4 D9 (a)): what a picker needs to offer a customer or supplier — and nothing else.
+ */
+export interface PartyPickerItem {
+  id: number;
+  name: string;
+  /** @nullable */
+  nameAr: string | null;
+  /** @nullable */
+  taxNumber: string | null;
 }
 
 /**
@@ -14876,6 +14915,25 @@ export type ListCustomers200 = {
   totals: CustomerTotals;
 };
 
+export type ListCustomerPickerParams = {
+search?: string;
+is_active?: boolean;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListCustomerPicker200 = {
+  items: PartyPickerItem[];
+  page: PageInfo;
+};
+
 export type GetCustomerStatementParams = {
 /**
  * YYYY-MM-DD; events before it are folded into `opening`
@@ -14905,6 +14963,38 @@ export type ListVendors200 = {
   items: VendorWithBalance[];
   page: PageInfo;
   totals: PartyTotals;
+};
+
+export type ListVendorPickerParams = {
+search?: string;
+is_active?: boolean;
+/**
+ * Only suppliers of this withholding-tax residency (the treaty-relief and contract pickers offer non-residents only).
+ */
+residency?: ListVendorPickerResidency;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListVendorPickerResidency = typeof ListVendorPickerResidency[keyof typeof ListVendorPickerResidency];
+
+
+export const ListVendorPickerResidency = {
+  resident: 'resident',
+  non_resident: 'non_resident',
+  unknown: 'unknown',
+} as const;
+
+export type ListVendorPicker200 = {
+  items: PartyPickerItem[];
+  page: PageInfo;
 };
 
 export type ListBillsParams = {

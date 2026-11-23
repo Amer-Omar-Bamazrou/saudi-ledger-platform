@@ -68,6 +68,20 @@ export const customersRepository = {
   },
 
   /** Rows matching the filter — not rows on this page. */
+  /**
+   * 🔴 19B S2b (v4 D9 (a)): a PICKER's rows — id, name, Arabic name and VAT number only, never a contact, identity or
+   * bank field, for every role. The list's own predicate and order, so the picker offers the set the list would.
+   */
+  picker(filter: CustomerListFilter) {
+    return db
+      .select({ id: customersTable.id, name: customersTable.name, nameAr: customersTable.nameAr, taxNumber: customersTable.taxNumber })
+      .from(customersTable)
+      .where(customerListConditions(filter))
+      .orderBy(customersTable.name)
+      .limit(filter.limit ?? DEFAULT_PAGE)
+      .offset(filter.offset ?? 0);
+  },
+
   async listCount(filter: CustomerListFilter) {
     const [row] = await db
       .select({ total: sql<number>`count(*)::int` })

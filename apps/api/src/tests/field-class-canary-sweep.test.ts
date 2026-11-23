@@ -6,7 +6,9 @@
  * named fields).
  *
  *  - Which role may read a canary is the MATRIX's answer (`field.<class>.read` on its resource), so the same sweep runs
- *    for S2a's classes now and — primed with S2b's and S2c's planned removals — for theirs (`SWEEP_MATRICES`).
+ *    for S2a's classes now and — primed with S2b's and S2c's planned removals — for theirs (`SWEEP_MATRICES`). S2b's
+ *    are primed (S2B_PENDING_REMOVALS), with a supplier paid with tax withheld so the withholding-tax routes carry its
+ *    address (D9 d).
  *  - 🔴 NOT VACUOUS: every canary must be FOUND by the admin on at least one route (a canary nobody can see proves no
  *    withholding), and the sweep must have exercised a floor of routes; the routes it could not fill (a path
  *    parameter it has no record for) are counted and printed — the frame beside the result.
@@ -20,7 +22,7 @@ process.env.SESSION_SECRET ??= "field-class-canary-sweep-000000001";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { pool, PERMISSION_MATRIX, fieldGrantAction, type PermissionRow, type ProtectedFieldClass } from "@workspace/db";
+import { pool, PERMISSION_MATRIX, S2B_PENDING_REMOVALS, fieldGrantAction, type PermissionRow, type ProtectedFieldClass } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { CONTRACT } from "../lib/fieldClasses/contractShapes.generated";
 import { OUTSIDE_CONTRACT_ROUTES } from "../lib/fieldClasses/outsideContract";
@@ -55,15 +57,22 @@ const CANARIES: Canary[] = [
   { what: "customer phone", value: "+966500071399", cls: "contact", resource: "customers" },
   { what: "customer email", value: "canary.customer.88@example.sa", cls: "contact", resource: "customers" },
   { what: "customer address", value: "CANARY-STREET-77120", cls: "contact", resource: "customers" },
+  { what: "customer street (printed on the invoice)", value: "CANARY-CUST-STREET-55121", cls: "contact", resource: "customers" },
   { what: "supplier phone", value: "+966500082411", cls: "contact", resource: "vendors" },
   { what: "supplier email", value: "canary.supplier.41@example.sa", cls: "contact", resource: "vendors" },
+  { what: "supplier address (on the withholding-tax return)", value: "CANARY-SUPP-ADDR-66120", cls: "contact", resource: "vendors" },
   { what: "supplier IBAN", value: SUP_IBAN, cls: "bank_account", resource: "vendors", also: [SUP_IBAN.slice(0, -4)] },
   // S2c — the bank's own text
   { what: "bank line text", value: "CANARY-BANKTEXT-33917", cls: "bank_narrative", resource: "journal_entries" },
 ];
 
 /** The matrices the sweep runs under: today's (S2a's classes switched on). S2b and S2c add their planned removals. */
-const SWEEP_MATRICES: Array<{ name: string; rows: PermissionRow[] }> = [{ name: "the current matrix (S2a)", rows: PERMISSION_MATRIX }];
+const S2B_PENDING = new Set(S2B_PENDING_REMOVALS.map((r) => `${r.role}:${r.resource}:${r.action}`));
+const SWEEP_MATRICES: Array<{ name: string; rows: PermissionRow[] }> = [
+  { name: "the current matrix (S2a)", rows: PERMISSION_MATRIX },
+  // 19B S2b: its seven planned removals primed (still granted until the owner approves each environment)
+  { name: "S2b's planned removals", rows: PERMISSION_MATRIX.filter((r) => !S2B_PENDING.has(`${r.role}:${r.resource}:${r.action}`)) },
+];
 
 const ROLES_SWEPT = ["viewer", "bookkeeper"] as const;
 const SKIP = [/\/logout/, /\/llm\//, /\/pdf/, /\/document(\/|$)/, /\/stream/, /\/download/];
@@ -99,7 +108,7 @@ describeDb("19B — the canary sweep: no protected value reaches a role that may
     await ok("accountant", "POST", "/employees", { employeeNumber: "CAN-E2", name: "Ordinary Employee", jobTitle: "Driver", department: "Ops", nationality: "SA", gosiRegime: "law_1421h", gosiRegimeBasis: "certificate", nationalId: "1022334455", basicSalary: 4000, housingAllowance: 1000, transportAllowance: 300, joiningDate: "2025-01-01" });
     ids.run = (await ok("accountant", "POST", "/payroll", { period: "2026-10" })).id;
     // customers and suppliers
-    ids.cust = (await ok("accountant", "POST", "/customers", { name: "Canary Customer", nationalId: c("customer national ID"), phone: c("customer phone"), email: c("customer email"), address: c("customer address") })).id;
+    ids.cust = (await ok("accountant", "POST", "/customers", { name: "Canary Customer", nationalId: c("customer national ID"), phone: c("customer phone"), email: c("customer email"), address: c("customer address"), street: c("customer street (printed on the invoice)"), city: "Riyadh" })).id;
     ids.vendor = (await ok("accountant", "POST", "/vendors", { name: "Canary Supplier", residency: "resident", phone: c("supplier phone"), email: c("supplier email"), iban: SUP_IBAN })).id;
     expect(await approveHeldIbans(h, "admin")).toBe(2); // the employee's and the supplier's IBANs, held at entry (S3)
     // documents that name them: a draft invoice to the canary customer, a draft bill from the canary supplier
@@ -109,6 +118,13 @@ describeDb("19B — the canary sweep: no protected value reaches a role that may
     const acct = async (code: string) => (await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = $2 AND is_posting`, [orgId, code])).rows[0].id as number;
     ids.bank = (await ok("admin", "POST", "/bank-accounts", { name: "Canary Ops", bankName: "SNB", currency: "SAR" })).id;
     ids.txn = (await ok("admin", "POST", "/transactions", { date: "2026-10-10", description: c("bank line text"), amount: 120, currency: "SAR", type: "debit", categoryId: await acct("RENT_UTILITIES"), bankAccountId: ids.bank })).id;
+    // 19B S2b (D9 d): a non-resident supplier with an address, paid with tax withheld — so the withholding-tax return,
+    // schedule, annual return, beneficiary statement and the withholding itself all name its address
+    ids.overseas = (await ok("accountant", "POST", "/vendors", { name: "Canary Overseas", residency: "non_resident", whtDefaultPaymentType: "technical_consulting", country: "GB", address: c("supplier address (on the withholding-tax return)"), city: "London" })).id;
+    const wBill = await ok("admin", "POST", "/bills", { supplierDocumentKind: "tax_invoice", vendorReference: "CAN-R-W", billNumber: "CAN-B-W", date: "2026-10-12", dueDate: "2026-10-12", vendorId: ids.overseas, items: [{ description: "Consulting", quantity: 1, unitPrice: 10_000, vatRate: 0 }] });
+    await ok("admin", "POST", `/bills/${wBill.id}/approve`, {});
+    await ok("admin", "POST", `/bills/${wBill.id}/pay`, { amount: 10_000, paidAt: "2026-10-12", bankAccountId: ids.bank });
+    ids.wht = (await pool.query(`SELECT id FROM wht_withholdings WHERE bill_id = $1`, [wBill.id])).rows[0].id;
     ids.je = (await pool.query(`SELECT id FROM journal_entries WHERE organization_id = $1 AND source_type = 'bank_transaction' LIMIT 1`, [orgId])).rows[0].id;
 
     // every GET route: the contract's and those outside it, each path parameter filled from the planted records
@@ -124,7 +140,9 @@ describeDb("19B — the canary sweep: no protected value reaches a role that may
       [/^\/orgs\//, { orgId: () => orgId }],
       [/^\/invoices\//, { id: () => ids.inv! }],
       [/^\/bills\//, { id: () => ids.bill! }],
-      [/^\/tax\/wht\/beneficiaries\//, { vendorId: () => ids.vendor! }],
+      [/^\/tax\/wht\/beneficiaries\//, { vendorId: () => ids.overseas! }],
+      [/^\/tax\/wht\/returns\//, { period: () => "2026-10" }],
+      [/^\/tax\/wht\/withholdings\//, { id: () => ids.wht! }],
     ];
     const keys = [
       ...CONTRACT.operations.filter((op) => op.method === "GET").map((op) => op.path),

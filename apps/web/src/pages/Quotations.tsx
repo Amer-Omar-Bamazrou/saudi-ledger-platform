@@ -18,6 +18,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import type { PartyPickerItem } from "@workspace/api-client-react";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
@@ -98,9 +99,9 @@ export default function Quotations() {
       ),
   });
   const quotations = quotationsPage?.items ?? [];
-  const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({
+  const { data: customersPage } = useQuery<{ items: PartyPickerItem[]; total: number }>({
     queryKey: ["customers", "picker"],
-    queryFn: () => fetchPickerOptions<Customer>("/customers"),
+    queryFn: () => fetchPickerOptions<PartyPickerItem>("/customers/picker"),
   });
   const customers = customersPage?.items ?? [];
 

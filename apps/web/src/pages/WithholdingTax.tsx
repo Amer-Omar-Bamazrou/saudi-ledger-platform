@@ -10,9 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useGetWhtOverview, useGetWhtReturn, useGetWhtAnnual, useListWhtExceptions, useListWhtReliefs, useListWhtRates, useListVendors,
-  useRemitWht, useReverseWhtRemittance, useCreateWhtRelief, useApproveWhtRelief, useRevokeWhtRelief, useDeleteWhtRelief,
-  getGetWhtReturnQueryKey, getListWhtExceptionsQueryKey,
+  useGetWhtOverview, useGetWhtReturn, useGetWhtAnnual, useListWhtExceptions, useListWhtReliefs, useListWhtRates, useRemitWht, useReverseWhtRemittance, useCreateWhtRelief, useApproveWhtRelief, useRevokeWhtRelief, useDeleteWhtRelief, getGetWhtReturnQueryKey, getListWhtExceptionsQueryKey, useListVendorPicker,
 } from "@workspace/api-client-react";
 import { fmtDate, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -390,8 +388,9 @@ function Reliefs({ onChanged }: { onChanged: () => void }) {
   const list = useListWhtReliefs();
   // the supplier picker searches the server (the vendor list is paged): only non-residents can hold a relief
   const [vendorSearch, setVendorSearch] = useState("");
-  const vendors = useListVendors({ search: vendorSearch.trim() || undefined, limit: 200 });
-  const vendorItems = (vendors.data?.items ?? []).filter((v) => v.residency === "non_resident");
+  // 19B S2b (D9 (a)): the server filters to non-residents; the picker rows carry no residency (and the total is theirs)
+  const vendors = useListVendorPicker({ search: vendorSearch.trim() || undefined, residency: "non_resident", limit: 200 });
+  const vendorItems = vendors.data?.items ?? [];
   const vendorsCapped = (vendors.data?.page.total ?? 0) > (vendors.data?.items.length ?? 0);
   // 🔴 The reduced rate starts EMPTY. It used to start at "0" — a full exemption one approval away from every
   // payment to that supplier withholding nothing (QA 2026-10-04). A rate is a declaration the person types,

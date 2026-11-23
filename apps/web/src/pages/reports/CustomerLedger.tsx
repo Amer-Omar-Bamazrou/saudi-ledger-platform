@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import type { PartyPickerItem } from "@workspace/api-client-react";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,9 +110,9 @@ function CustomerLedgerInner({ range }: { range: ReportDefaultRange }) {
   const [dateTo,     setDateTo]     = useState(range.to);
   const [applied,    setApplied]    = useState({ customerId: initialCustomer, from: range.from, to: range.to });
 
-  const { data: customersPage } = useQuery<{ items: Customer[]; total: number }>({
+  const { data: customersPage } = useQuery<{ items: PartyPickerItem[]; total: number }>({
     queryKey: ["customers", "picker"],
-    queryFn: () => fetchPickerOptions<Customer>("/customers"),
+    queryFn: () => fetchPickerOptions<PartyPickerItem>("/customers/picker"),
   });
   const customers = customersPage?.items ?? [];
 

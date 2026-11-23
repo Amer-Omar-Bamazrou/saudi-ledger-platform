@@ -17,7 +17,7 @@ import { DualDate } from "@/components/DualDate";
 import { ReportExportButtons } from "@/components/reports/ReportExport";
 import { journalEntryHref } from "@/lib/reportDrill";
 
-import { useListCustomers, useListVendors, type Category, type GeneralLedgerReport } from "@workspace/api-client-react";
+import { type Category, type GeneralLedgerReport, useListCustomerPicker, useListVendorPicker } from "@workspace/api-client-react";
 import { ReportFilterRow } from "@/components/reports/ReportFilterRow";
 
 type PartyType = "none" | "customer" | "vendor";
@@ -71,8 +71,8 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
     queryKey: ["categories"],
     queryFn: () => apiFetch("/categories"),
   });
-  const customers = useListCustomers({ search: partySearch || undefined, limit: 50 }, { query: { enabled: draft.partyType === "customer" } as never });
-  const vendors = useListVendors({ search: partySearch || undefined, limit: 50 }, { query: { enabled: draft.partyType === "vendor" } as never });
+  const customers = useListCustomerPicker({ search: partySearch || undefined, limit: 50 }, { query: { enabled: draft.partyType === "customer" } as never });
+  const vendors = useListVendorPicker({ search: partySearch || undefined, limit: 50 }, { query: { enabled: draft.partyType === "vendor" } as never });
   const partyList = draft.partyType === "customer" ? customers.data : draft.partyType === "vendor" ? vendors.data : undefined;
 
   const queryParams = (a: Applied) => {

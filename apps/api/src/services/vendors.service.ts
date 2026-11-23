@@ -60,6 +60,12 @@ export const vendorsService = {
    * not, so "Total AP" and "Total Billed" read 0.00 for every tenant. Two
    * queries, not N+1: the balances come back grouped and are matched in memory.
    */
+  /** 19B S2b (v4 D9 (a)): a picker's page — id, name, Arabic name and VAT number, and the total that matches. */
+  async picker(filter: VendorListFilter) {
+    const [items, total] = await Promise.all([vendorsRepository.picker(filter), vendorsRepository.listCount(filter)]);
+    return { items, page: { limit: filter.limit ?? DEFAULT_PAGE, offset: filter.offset ?? 0, total } };
+  },
+
   async list(filter: VendorListFilter) {
     const [rows, balances, total, totals] = await Promise.all([
       vendorsRepository.list(filter),

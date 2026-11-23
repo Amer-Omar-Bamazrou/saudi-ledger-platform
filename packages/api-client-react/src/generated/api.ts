@@ -140,6 +140,7 @@ import type {
   DepreciateAssetInput,
   DiscardResult,
   DisposeAssetInput,
+  DocumentFieldWithheld,
   Employee,
   EmployeeInputFields,
   EmployeeWriteResult,
@@ -244,6 +245,8 @@ import type {
   ListBillsParams,
   ListBudgetsParams,
   ListControlFlagsParams,
+  ListCustomerPicker200,
+  ListCustomerPickerParams,
   ListCustomers200,
   ListCustomersParams,
   ListEmployees200,
@@ -277,6 +280,8 @@ import type {
   ListTaxComputationsParams,
   ListTransactionsParams,
   ListUnclassifiedJournalEntriesParams,
+  ListVendorPicker200,
+  ListVendorPickerParams,
   ListVendors200,
   ListVendorsParams,
   ListWhtContractsParams,
@@ -16415,6 +16420,167 @@ export const useCreateCustomer = <TError = ErrorType<void>,
       return useMutation(getCreateCustomerMutationOptions(options));
     }
 
+export const getListCustomerPickerUrl = (params?: ListCustomerPickerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/customers/picker?${stringifiedParams}` : `/api/customers/picker`
+}
+
+/**
+ * @summary 19B S2b (v4 D9 (a)): a PICKER's customers — id, name, Arabic name and VAT number only, never a contact, identity or bank field. The list's own predicate and order.
+ */
+export const listCustomerPicker = async (params?: ListCustomerPickerParams, options?: RequestInit): Promise<ListCustomerPicker200> => {
+
+  return customFetch<ListCustomerPicker200>(getListCustomerPickerUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCustomerPickerQueryKey = (params?: ListCustomerPickerParams,) => {
+    return [
+    `/api/customers/picker`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCustomerPickerQueryOptions = <TData = Awaited<ReturnType<typeof listCustomerPicker>>, TError = ErrorType<unknown>>(params?: ListCustomerPickerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomerPicker>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCustomerPickerQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomerPicker>>> = ({ signal }) => listCustomerPicker(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCustomerPicker>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCustomerPickerQueryResult = NonNullable<Awaited<ReturnType<typeof listCustomerPicker>>>
+export type ListCustomerPickerQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 19B S2b (v4 D9 (a)): a PICKER's customers — id, name, Arabic name and VAT number only, never a contact, identity or bank field. The list's own predicate and order.
+ */
+
+export function useListCustomerPicker<TData = Awaited<ReturnType<typeof listCustomerPicker>>, TError = ErrorType<unknown>>(
+ params?: ListCustomerPickerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomerPicker>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCustomerPickerQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCustomerFieldAccessUrl = () => {
+
+
+
+
+  return `/api/customers/field-access`
+}
+
+/**
+ * @summary What the reader's role may read and write of each customer field (19B S2b)
+ */
+export const getCustomerFieldAccess = async ( options?: RequestInit): Promise<FieldAccess> => {
+
+  return customFetch<FieldAccess>(getGetCustomerFieldAccessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomerFieldAccessQueryKey = () => {
+    return [
+    `/api/customers/field-access`
+    ] as const;
+    }
+
+
+export const getGetCustomerFieldAccessQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerFieldAccess>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerFieldAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomerFieldAccessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomerFieldAccess>>> = ({ signal }) => getCustomerFieldAccess({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomerFieldAccess>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomerFieldAccessQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomerFieldAccess>>>
+export type GetCustomerFieldAccessQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary What the reader's role may read and write of each customer field (19B S2b)
+ */
+
+export function useGetCustomerFieldAccess<TData = Awaited<ReturnType<typeof getCustomerFieldAccess>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerFieldAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomerFieldAccessQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetCustomerUrl = (id: number,) => {
 
 
@@ -17103,6 +17269,167 @@ export const useMatchVendor = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getMatchVendorMutationOptions(options));
     }
+
+export const getListVendorPickerUrl = (params?: ListVendorPickerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/vendors/picker?${stringifiedParams}` : `/api/vendors/picker`
+}
+
+/**
+ * @summary 19B S2b (v4 D9 (a)): a PICKER's suppliers — id, name, Arabic name and VAT number only, never a contact, identity or bank field. The list's own predicate and order.
+ */
+export const listVendorPicker = async (params?: ListVendorPickerParams, options?: RequestInit): Promise<ListVendorPicker200> => {
+
+  return customFetch<ListVendorPicker200>(getListVendorPickerUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVendorPickerQueryKey = (params?: ListVendorPickerParams,) => {
+    return [
+    `/api/vendors/picker`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListVendorPickerQueryOptions = <TData = Awaited<ReturnType<typeof listVendorPicker>>, TError = ErrorType<unknown>>(params?: ListVendorPickerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVendorPicker>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVendorPickerQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVendorPicker>>> = ({ signal }) => listVendorPicker(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVendorPicker>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVendorPickerQueryResult = NonNullable<Awaited<ReturnType<typeof listVendorPicker>>>
+export type ListVendorPickerQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 19B S2b (v4 D9 (a)): a PICKER's suppliers — id, name, Arabic name and VAT number only, never a contact, identity or bank field. The list's own predicate and order.
+ */
+
+export function useListVendorPicker<TData = Awaited<ReturnType<typeof listVendorPicker>>, TError = ErrorType<unknown>>(
+ params?: ListVendorPickerParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVendorPicker>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVendorPickerQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetVendorFieldAccessUrl = () => {
+
+
+
+
+  return `/api/vendors/field-access`
+}
+
+/**
+ * @summary What the reader's role may read and write of each supplier field (19B S2b)
+ */
+export const getVendorFieldAccess = async ( options?: RequestInit): Promise<FieldAccess> => {
+
+  return customFetch<FieldAccess>(getGetVendorFieldAccessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVendorFieldAccessQueryKey = () => {
+    return [
+    `/api/vendors/field-access`
+    ] as const;
+    }
+
+
+export const getGetVendorFieldAccessQueryOptions = <TData = Awaited<ReturnType<typeof getVendorFieldAccess>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVendorFieldAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVendorFieldAccessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVendorFieldAccess>>> = ({ signal }) => getVendorFieldAccess({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVendorFieldAccess>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVendorFieldAccessQueryResult = NonNullable<Awaited<ReturnType<typeof getVendorFieldAccess>>>
+export type GetVendorFieldAccessQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary What the reader's role may read and write of each supplier field (19B S2b)
+ */
+
+export function useGetVendorFieldAccess<TData = Awaited<ReturnType<typeof getVendorFieldAccess>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVendorFieldAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVendorFieldAccessQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetVendorUrl = (id: number,) => {
 
@@ -23490,7 +23817,7 @@ export const getGetInvoiceDocumentQueryKey = (id: number,
     }
 
 
-export const getGetInvoiceDocumentQueryOptions = <TData = Awaited<ReturnType<typeof getInvoiceDocument>>, TError = ErrorType<void>>(id: number,
+export const getGetInvoiceDocumentQueryOptions = <TData = Awaited<ReturnType<typeof getInvoiceDocument>>, TError = ErrorType<DocumentFieldWithheld | void>>(id: number,
     params?: GetInvoiceDocumentParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvoiceDocument>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -23510,14 +23837,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetInvoiceDocumentQueryResult = NonNullable<Awaited<ReturnType<typeof getInvoiceDocument>>>
-export type GetInvoiceDocumentQueryError = ErrorType<void>
+export type GetInvoiceDocumentQueryError = ErrorType<DocumentFieldWithheld | void>
 
 
 /**
  * @summary L1 — the rendered PDF/A-3 document. lang=ar (default) is THE tax invoice; lang=en is a labelled translation and says so on its face.
  */
 
-export function useGetInvoiceDocument<TData = Awaited<ReturnType<typeof getInvoiceDocument>>, TError = ErrorType<void>>(
+export function useGetInvoiceDocument<TData = Awaited<ReturnType<typeof getInvoiceDocument>>, TError = ErrorType<DocumentFieldWithheld | void>>(
  id: number,
     params?: GetInvoiceDocumentParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvoiceDocument>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 

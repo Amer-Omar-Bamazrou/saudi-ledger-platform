@@ -4432,6 +4432,46 @@ paths:
         "400":
           description: Body failed validation
 
+  /customers/picker:
+    get:
+      operationId: listCustomerPicker
+      tags: [customers]
+      summary: "19B S2b (v4 D9 (a)): a PICKER's customers — id, name, Arabic name and VAT number only, never a contact, identity or bank field. The list's own predicate and order."
+      parameters:
+        - { in: query, name: search, schema: { type: string } }
+        - { in: query, name: is_active, schema: { type: boolean } }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page of picker rows, and the total that matches (so a cut list says so)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/PartyPickerItem" }
+                  page: { $ref: "#/components/schemas/PageInfo" }
+
+  /customers/field-access:
+    get:
+      operationId: getCustomerFieldAccess
+      tags: [customers]
+      summary: What the reader's role may read and write of each customer field (19B S2b)
+      responses:
+        "200":
+          description: Per field, its class, the read level and whether the role may write it
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FieldAccess" }
+
   /customers/{id}:
     parameters:
       - { in: path, name: id, required: true, schema: { type: integer } }
@@ -4590,6 +4630,50 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VendorMatchResult" }
+
+  /vendors/picker:
+    get:
+      operationId: listVendorPicker
+      tags: [vendors]
+      summary: "19B S2b (v4 D9 (a)): a PICKER's suppliers — id, name, Arabic name and VAT number only, never a contact, identity or bank field. The list's own predicate and order."
+      parameters:
+        - { in: query, name: search, schema: { type: string } }
+        - { in: query, name: is_active, schema: { type: boolean } }
+        - in: query
+          name: residency
+          description: "Only suppliers of this withholding-tax residency (the treaty-relief and contract pickers offer non-residents only)."
+          schema: { type: string, enum: [resident, non_resident, unknown] }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: One page of picker rows, and the total that matches (so a cut list says so)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/PartyPickerItem" }
+                  page: { $ref: "#/components/schemas/PageInfo" }
+
+  /vendors/field-access:
+    get:
+      operationId: getVendorFieldAccess
+      tags: [vendors]
+      summary: What the reader's role may read and write of each supplier field (19B S2b)
+      responses:
+        "200":
+          description: Per field, its class, the read level and whether the role may write it
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FieldAccess" }
 
   /vendors/{id}:
     parameters:
@@ -6638,6 +6722,11 @@ paths:
           content:
             application/pdf:
               schema: { type: string, format: binary }
+        "403":
+          description: "19B S2b (v4 §11, B2) — document_field_withheld: the PDF carries a class the role may not read (the buyer's address, contact; the buyer's national ID in the attached XML, identity). Refused by name, before anything is rendered; there is no cut-down PDF."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentFieldWithheld" }
         "409":
           description: "Draft/submitted — only an issued document renders (no QR, no legal existence yet)."
         "503":
@@ -9195,6 +9284,17 @@ components:
       required:
         - demoMode
 
+    DocumentFieldWithheld:
+      type: object
+      description: "19B S2b (v4 §11): the invoice PDF refused by the protected classes it carries. Names the classes, never a value."
+      required: [error, code, classes]
+      properties:
+        error: { type: string }
+        errorAr: { type: string }
+        code: { type: string, enum: [document_field_withheld] }
+        classes:
+          type: array
+          items: { type: string, enum: [contact, identity] }
     ErrorResponse:
       type: object
       properties:
@@ -13339,10 +13439,20 @@ components:
       description: "19B S2a (v4 §4): what the reader's role may do with each field of one kind of record, from the one class table and the one matrix — so a page shows only what the role may write, and marks what it may not read. Never a field's value."
       required: [record, fields]
       properties:
-        record: { type: string, enum: [employees, payroll] }
+        record: { type: string, enum: [employees, payroll, customers, vendors] }
         fields:
           type: object
           additionalProperties: { $ref: "#/components/schemas/FieldAccessEntry" }
+
+    PartyPickerItem:
+      type: object
+      description: "19B S2b (v4 D9 (a)): what a picker needs to offer a customer or supplier — and nothing else."
+      required: [id, name, nameAr, taxNumber]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        nameAr: { type: ["string", "null"] }
+        taxNumber: { type: ["string", "null"] }
 
     FieldAccessEntry:
       type: object

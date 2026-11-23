@@ -12,4 +12,6 @@ export type FieldAccessRecord = typeof FieldAccessRecord[keyof typeof FieldAcces
 export const FieldAccessRecord = {
   employees: 'employees',
   payroll: 'payroll',
+  customers: 'customers',
+  vendors: 'vendors',
 } as const;

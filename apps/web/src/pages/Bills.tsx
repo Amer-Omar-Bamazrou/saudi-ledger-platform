@@ -3,6 +3,7 @@ import { useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import type { PartyPickerItem } from "@workspace/api-client-react";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -226,9 +227,9 @@ export default function Bills() {
       ),
   });
 
-  const { data: vendorsPage } = useQuery<{ items: Vendor[]; total: number }>({
+  const { data: vendorsPage } = useQuery<{ items: PartyPickerItem[]; total: number }>({
     queryKey: ["vendors", "picker"],
-    queryFn: () => fetchPickerOptions<Vendor>("/vendors"),
+    queryFn: () => fetchPickerOptions<PartyPickerItem>("/vendors/picker"),
   });
   const vendors = vendorsPage?.items ?? [];
   // FA-B: the DRAFT fixed assets this bill could be buying (an asset in service
