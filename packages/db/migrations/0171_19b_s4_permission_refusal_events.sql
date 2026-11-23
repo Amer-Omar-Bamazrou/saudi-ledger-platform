@@ -44,13 +44,20 @@ BEGIN
   END LOOP;
   REVOKE ALL ON TABLE public.permission_refusal_events FROM PUBLIC;
 END $$;--> statement-breakpoint
--- 🔴 A TENANT TABLE: row-level security and the isolation policy, as every table carrying organization_id has —
+-- 🔴 A TENANT TABLE: row-level security and the isolation policy, with the company arm and — company_id being
+-- nullable — its NULL arm (N1, 0065's variant), as every table carrying organization_id and company_id has —
 -- the application's role holds no grant today (above); this binds the reader S6 adds to its own organisation.
 ALTER TABLE public.permission_refusal_events ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 DROP POLICY IF EXISTS "tenant_isolation" ON public.permission_refusal_events;--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON public.permission_refusal_events
-  USING ( (organization_id)::text = current_setting('app.current_org_id', true) )
-  WITH CHECK ( (organization_id)::text = current_setting('app.current_org_id', true) );--> statement-breakpoint
+  USING ( (organization_id)::text = current_setting('app.current_org_id', true)
+          AND ( COALESCE(current_setting('app.current_company_id', true), '') = ''
+                OR (company_id)::text = current_setting('app.current_company_id', true)
+                OR company_id IS NULL ) )
+  WITH CHECK ( (organization_id)::text = current_setting('app.current_org_id', true)
+          AND ( COALESCE(current_setting('app.current_company_id', true), '') = ''
+                OR (company_id)::text = current_setting('app.current_company_id', true)
+                OR company_id IS NULL ) );--> statement-breakpoint
 -- 🔴 The time is the database's: a writer cannot name when a refusal happened.
 CREATE OR REPLACE FUNCTION permission_refusal_events_time() RETURNS trigger
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
