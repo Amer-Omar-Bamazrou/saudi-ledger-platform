@@ -278,7 +278,7 @@ export async function refuseWithheldDocument(
   throw new BusinessRuleError(403, {
     code: "document_field_withheld",
     error: `This invoice's PDF carries ${en}, which your role may not see. The invoice stays available in the app; an accountant or admin can download the PDF.`,
-    errorAr: `يتضمن ملف PDF لهذه الفاتورة ${ar}، وهي غير متاحة لدورك. تبقى الفاتورة متاحة في التطبيق، ويمكن للمحاسب أو المدير تنزيل ملف PDF.`,
+    errorAr: `يتضمن ملف PDF لهذه الفاتورة ${ar}، وهي غير متاحة لدورك. تبقى الفاتورة متاحة في التطبيق، ويمكن للمحاسب أو المسؤول تنزيل ملف PDF.`,
     classes: withheld,
   });
 }
