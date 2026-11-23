@@ -76,6 +76,17 @@ function runRefusal(e: Error, t: (en: string, ar: string) => string): { title: s
       ),
     };
   }
+  // 🔴 19B S2a (D8 O2): an accountant or admin prepares and submits a run; a bookkeeper's Generate or Submit is refused by
+  // the route grant (payroll create; submit resolves to create). Explained here with the step that exists.
+  if (e.code === "requires_approval_authority" && e.body?.resource === "payroll" && e.body?.action === "create") {
+    return {
+      title: t("An accountant or admin prepares payroll", "يُعِدّ مسير الرواتب محاسبٌ أو مسؤول"),
+      description: t(
+        "Payroll runs are generated and submitted by an accountant or admin, who can read pay. Your role can see each run and who it leaves out, without the pay figures. Nothing was changed.",
+        "يُنشئ مسيرات الرواتب ويقدّمها للاعتماد محاسبٌ أو مسؤول ممن يطّلعون على الرواتب. ويتيح لك دورك رؤية كل مسير ومن استُبعد منه، دون أرقام الرواتب. لم يتغيّر شيء.",
+      ),
+    };
+  }
   if (e.code === "payroll_nobody_payable") {
     const left = (e.body?.leftOut ?? []) as PayrollLeftOutEmployee[];
     return {
@@ -136,6 +147,13 @@ export default function Payroll() {
   const { data: activeTotals } = useQuery<{ totals: EmployeeTotals }>({ queryKey: ["employees", "active-totals"], queryFn: () => apiFetch("/employees?status=active&limit=1"), enabled: open });
   const payCell = (item: PayrollItem, f: "basicSalary" | "gosiEmployee" | "gosiEmployer" | "netPay") =>
     item[f] === undefined ? <Withheld cls={access?.fields[f]?.class ?? "compensation"} testId={`payroll-withheld-${f}-${item.id}`} /> : fmtNum(item[f] as number);
+  /**
+   * 🔴 19B S2a (owner item 2): a run's basic/allowances SPLIT is pay (the ledger posts gross only; with one person drawing
+   * allowances it is that person's figure), so the server withholds it from a role without pay read — marked, never 0.
+   * Gross, net and both GOSI totals stay: the run's journal entry carries them (D1).
+   */
+  const runTotal = (run: { id: number; totalBasicSalary: number; totalAllowances: number }, f: "totalBasicSalary" | "totalAllowances") =>
+    run[f] === undefined ? <Withheld cls="compensation" testId={`payroll-withheld-${f}-${run.id}`} /> : fmtNum(run[f]);
 
   const generateMut = useMutation({
     mutationFn: (p: string) => apiFetch("/payroll", { method: "POST", body: json.create({ period: p }) }),
@@ -242,8 +260,8 @@ export default function Payroll() {
           const last = runs[0];
           return [
             [t("Net Pay", "صافي الراتب"), fmtNum(last.totalNetPay), "text-primary"],
-            [t("Basic Salary", "الراتب الأساسي"), fmtNum(last.totalBasicSalary), "text-foreground"],
-            [t("Allowances", "البدلات"), fmtNum(last.totalAllowances), "text-muted-foreground"],
+            [t("Basic Salary", "الراتب الأساسي"), runTotal(last, "totalBasicSalary"), "text-foreground"],
+            [t("Allowances", "البدلات"), runTotal(last, "totalAllowances"), "text-muted-foreground"],
             [t("GOSI (Employee)", "GOSI (الموظف)"), fmtNum(last.totalGosiEmployee), "text-attention"],
             [t("GOSI (Employer)", "GOSI (صاحب العمل)"), fmtNum(last.totalGosiEmployer), "text-negative"],
           ].map(([l,v,c])=>(
@@ -308,7 +326,7 @@ export default function Payroll() {
                 <tfoot>
                   <tr className="border-t border-border font-semibold text-sm">
                     <td className="py-2 text-muted-foreground">{t("Total", "الإجمالي")}</td>
-                    <td className="py-2 font-mono">{fmtNum(detail.totalBasicSalary)}</td>
+                    <td className="py-2 font-mono">{runTotal(detail, "totalBasicSalary")}</td>
                     <td className="py-2 font-mono text-attention">{fmtNum(detail.totalGosiEmployee)}</td>
                     <td className="py-2 font-mono text-negative">{fmtNum(detail.totalGosiEmployer)}</td>
                     <td className="py-2 font-mono text-positive">{fmtNum(detail.totalNetPay)}</td>

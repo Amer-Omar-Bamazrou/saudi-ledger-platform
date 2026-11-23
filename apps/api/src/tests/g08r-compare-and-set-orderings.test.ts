@@ -77,7 +77,9 @@ describeMaybe("G08 residuals, PR A — the other ordering of every race, and unf
       return { id: r.body.id, entry: no };
     }
     const period = `2023-${String((month++ % 12) + 1).padStart(2, "0")}`;
-    const r = await h.api("bookkeeper", "POST", "/payroll", { period });
+    // 🔴 Restated for 19B S2a (D8 O2, 2026-11-23): an accountant prepares (and submits) a payroll run; a bookkeeper no
+    // longer may. The races asserted below are unchanged.
+    const r = await h.api("accountant", "POST", "/payroll", { period });
     expect([200, 201], JSON.stringify(r.body)).toContain(r.status);
     return { id: r.body.id, entry: `PAY-${period}-R${r.body.id}` };
   }
@@ -85,7 +87,7 @@ describeMaybe("G08 residuals, PR A — the other ordering of every race, and unf
     approve: (k: Kind, id: number) => () => h.api("admin", "POST", `${ROUTE[k]}/${id}/approve`, {}),
     reject: (k: Kind, id: number) => () => h.api("accountant", "POST", `${ROUTE[k]}/${id}/reject`, {}),
     del: (k: Kind, id: number) => () => h.api("admin", "DELETE", `${ROUTE[k]}/${id}`),
-    submit: (k: Kind, id: number) => () => h.api("bookkeeper", "POST", `${ROUTE[k]}/${id}/submit`, {}),
+    submit: (k: Kind, id: number) => () => h.api(k === "payroll" ? "accountant" : "bookkeeper", "POST", `${ROUTE[k]}/${id}/submit`, {}), // D8 O2
     sendBack: (k: Kind, id: number) => () => h.api("accountant", "POST", `${ROUTE[k]}/${id}/send-back`, { note: "correct it" }),
   };
   const statusOf = async (k: Kind, id: number) => ((await pool.query(`SELECT status FROM "${TABLE[k]}" WHERE id = $1`, [id])).rows[0]?.status as string | undefined) ?? null;

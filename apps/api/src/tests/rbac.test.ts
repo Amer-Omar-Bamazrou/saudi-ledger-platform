@@ -162,12 +162,14 @@ describe("requirePermission — activation routes require `approve` (not create)
     expect(approve.statusCode).toBe(403);
   });
 
-  it("payroll: a bookkeeper CAN create + submit a run but cannot approve it", async () => {
-    expect((await run("bookkeeper", "POST", "payroll", "/")).nextCalled).toBe(true);
-    expect((await run("bookkeeper", "POST", "payroll", "/5/submit")).nextCalled).toBe(true);
-    const approve = await run("bookkeeper", "POST", "payroll", "/5/approve");
-    expect(approve.nextCalled).toBe(false);
-    expect(approve.statusCode).toBe(403);
+  // 🔴 Reversed by the owner's decision D8 O2 (19B S2a, 2026-11-23): an accountant or admin PREPARES a payroll run. A
+  // bookkeeper no longer creates or submits one (submit resolves to create), and still cannot approve it.
+  it("payroll (D8 O2): a bookkeeper can NOT create, submit or approve a run; an accountant can do all three", async () => {
+    for (const path of ["/", "/5/submit", "/5/approve"]) {
+      const r = await run("bookkeeper", "POST", "payroll", path);
+      expect([path, r.nextCalled, r.statusCode]).toEqual([path, false, 403]);
+    }
+    for (const path of ["/", "/5/submit", "/5/approve"]) expect((await run("accountant", "POST", "payroll", path)).nextCalled, path).toBe(true);
   });
 });
 

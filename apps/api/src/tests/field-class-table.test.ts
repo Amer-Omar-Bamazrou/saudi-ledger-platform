@@ -74,8 +74,16 @@ describe("the class table against the contract (19B S1)", () => {
       "Employee.basicSalary": "compensation", "Employee.gosiRegime": "compensation", "Employee.notes": "compensation",
       "Employee.iban": "bank_account", "Employee.bank": "bank_account",
       "Employee.name": "standard", "Employee.status": "standard", "Employee.joiningDate": "standard", "Employee.endDate": "standard",
-      "PayrollItem.netPay": "compensation", "PayrollItem.employeeName": "standard", "PayrollItem.gosiEmployeeRate": "standard",
-      "PayrollRun.totalNetPay": "standard", "EmployeeTotals.grossSalary": "standard",
+      // 🔴 Restated by owner item 2 (2026-11-23; v4 §5.2 amended): a payslip's GOSI rates state the employee's GOSI law
+      // and so their nationality; a money total over a set the caller chooses is pay, and the Saudi count narrowed to
+      // one person is their nationality; a run's basic/allowances split is not in the ledger. Gross, net, both GOSI
+      // totals and the counts stay standard (D1).
+      "PayrollItem.netPay": "compensation", "PayrollItem.employeeName": "standard", "PayrollItem.gosiEmployeeRate": "compensation",
+      "PayrollItem.gosiEmployerRate": "compensation",
+      "PayrollRun.totalNetPay": "standard", "PayrollRun.totalGosiEmployee": "standard", "PayrollRun.totalGosiEmployer": "standard",
+      "PayrollRun.totalBasicSalary": "compensation", "PayrollRun.totalAllowances": "compensation",
+      "EmployeeTotals.grossSalary": "compensation", "EmployeeTotals.gosiEmployer": "compensation", "EmployeeTotals.gosiUnstatedCount": "compensation",
+      "EmployeeTotals.saudiCount": "identity", "EmployeeTotals.payNotSetCount": "standard",
       "Customer.nationalId": "identity", "Customer.phone": "contact", "Customer.province": "contact", "Customer.notes": "contact",
       "Customer.country": "standard", "Customer.taxNumber": "standard",
       "Vendor.iban": "bank_account", "Vendor.email": "contact", "Vendor.foreignTaxId": "standard", "Vendor.country": "standard",

@@ -25,6 +25,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
  */
 import type { PayrollRunListItem } from "@workspace/api-client-react";
 import { ReportFilterRow } from "@/components/reports/ReportFilterRow";
+import { Withheld } from "@/components/Withheld";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-secondary text-muted-foreground",
@@ -129,7 +130,8 @@ function PayrollReportInner({ range }: { range: ReportDefaultRange }) {
                     <td className="py-2 pe-3 font-mono">{fmtNum(r.grossSalary)}</td>
                     <td className="py-2 pe-3 font-mono text-attention">{fmtNum(r.totalGosiEmployer)}</td>
                     <td className="py-2 pe-3 font-mono text-attention">{fmtNum(r.totalGosiEmployee)}</td>
-                    <td className="py-2 pe-3 font-mono text-positive">{fmtNum(r.totalAllowances)}</td>
+                    {/* 🔴 19B S2a (owner item 2): the allowances total is pay (not in the ledger; one person's figure when one draws allowances) — marked when withheld, never 0 */}
+                    <td className="py-2 pe-3 font-mono text-positive">{r.totalAllowances === undefined ? <Withheld cls="compensation" testId={`payroll-report-withheld-totalAllowances-${r.id}`} /> : fmtNum(r.totalAllowances)}</td>
                     <td className="py-2 pe-3 font-mono text-negative">{fmtNum(r.totalDeductions)}</td>
                     <td className="py-2 pe-3 font-mono font-semibold">{fmtNum(r.totalNetPay)}</td>
                     <td className="py-2"><Badge className={`text-xs ${STATUS_STYLES[r.status] ?? ""}`}>{r.status}</Badge></td>

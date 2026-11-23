@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,10 +68,14 @@ export default function Employees() {
   const payNotSetCount = paged?.totals.payNotSetCount ?? 0;
 
   // From the server, over every matching employee — never over the page.
-  const totalPayroll = paged?.totals.grossSalary ?? 0;
-  const totalGOSIEr = paged?.totals.gosiEmployer ?? 0;
-  const saudiCount = paged?.totals.saudiCount ?? 0;
   const headcount = paged?.page.total ?? 0;
+  /**
+   * 🔴 19B S2a (owner item 2, 2026-11-23): a money total over the employees a filter chooses is pay — one person's pay
+   * when the filter narrows to one — and the Saudi count states one person's nationality; the server withholds them from
+   * a role without that read. Marked here with the class the field-access answer gives, never shown as 0.
+   */
+  const total = (f: "grossSalary" | "gosiEmployer" | "saudiCount", cls: string | undefined, show: (v: number) => string) =>
+    !paged ? "—" : paged.totals[f] === undefined ? <Withheld cls={cls} testId={`employees-total-withheld-${f}`} /> : show(paged.totals[f]);
   const canEdit = !!access && Object.values(access.fields).some((f) => f.write);
 
   /**
@@ -96,8 +100,8 @@ export default function Employees() {
       {editing && <EmployeeForm mode="edit" employee={editing} access={access} open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }} />}
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        {[[t("Headcount","إجمالي الموظفين"), headcount, "text-primary"],[t("Saudi Nationals","المواطنون السعوديون"), `${saudiCount} / ${headcount}`, "text-attention"],[t("Monthly Payroll","الرواتب الشهرية"), fmtNum(totalPayroll), "text-foreground"],[t("Monthly GOSI (Employer)","التأمين الاجتماعي الشهري (صاحب العمل)"), fmtNum(totalGOSIEr), "text-negative"]].map(([l,v,c])=>(
-          <Card key={String(l)} className="border-border bg-card"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
+        {([[t("Headcount","إجمالي الموظفين"), headcount, "text-primary", "employees-card-headcount"],[t("Saudi Nationals","المواطنون السعوديون"), total("saudiCount", cls("nationality"), (v) => `${v} / ${headcount}`), "text-attention", "employees-card-saudi"],[t("Monthly Payroll","الرواتب الشهرية"), total("grossSalary", cls("grossSalary"), fmtNum), "text-foreground", "employees-card-payroll"],[t("Monthly GOSI (Employer)","التأمين الاجتماعي الشهري (صاحب العمل)"), total("gosiEmployer", cls("gosiEmployer"), fmtNum), "text-negative", "employees-card-gosi"]] as [string, ReactNode, string, string][]).map(([l,v,c,id])=>(
+          <Card key={String(l)} className="border-border bg-card" data-testid={id}><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{l}</CardTitle></CardHeader><CardContent><div className={`text-xl font-bold font-mono ${c}`}>{v}</div></CardContent></Card>
         ))}
       </div>
 
