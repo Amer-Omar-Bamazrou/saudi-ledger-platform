@@ -28,6 +28,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { db, permissionsTable, type PermissionAction } from "@workspace/db";
 import { fieldWriteRefusal } from "./fieldClasses/writeCheck";
+import { refusalEventsService } from "../services/refusalEvents.service";
 
 /** HTTP method → permission action. */
 const METHOD_ACTION: Record<string, PermissionAction> = {
@@ -222,6 +223,18 @@ export function requirePermission(resource: string) {
       // sets a protected field this role may not write is refused by name, never silently dropped.
       const fieldRefusal = fieldWriteRefusal(req.method, req.originalUrl, req.body, (r, a) => permissions.has(permKey(role, r, a)));
       if (fieldRefusal) {
+        // 🔴 19B S4 (D6, v4 §8): the refused field write is RECORDED — the fields' names and classes, never what was typed —
+        // on its own connection (this request's transaction rolls back). A failed record is alarmed; the refusal stands.
+        await refusalEventsService.record({
+          action: "field_write",
+          actorUserId: req.tenant?.userId ?? null,
+          organizationId: req.tenant!.organizationId,
+          companyId: req.tenant?.companyId ?? null,
+          resource: [...new Set(fieldRefusal.fields.map((f) => f.resource))].join(","),
+          refusalCode: fieldRefusal.code,
+          fieldNames: fieldRefusal.fields.map((f) => f.field),
+          fieldClasses: fieldRefusal.fields.map((f) => f.class),
+        });
         res.status(403).json(fieldRefusal);
         return;
       }

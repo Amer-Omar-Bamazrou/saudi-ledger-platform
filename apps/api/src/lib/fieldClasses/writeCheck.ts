@@ -8,8 +8,9 @@
  * guard (tests/privilege-surface-map.test.ts), so no route writes around it. Only fields the CONTRACT declares for the
  * operation's body are checked: a key the contract does not declare is the route's own validation's to refuse.
  *
- * 🔴 S1: every role holds every class's write grant, so nothing is refused. (D6's refusal event for a refused field
- * write arrives with the refusal-event table, S4; until a removal switches a class on, no write can be refused.)
+ * 🔴 S1: every role held every class's write grant; S2a's removals switched the employee classes on. 🔴 S4 (D6): a refused
+ * field write is RECORDED as a refusal event — the fields' names and classes, never their values (lib/rbac.ts,
+ * services/refusalEvents.service.ts).
  */
 import type { ProtectedFieldClass } from "@workspace/db";
 import { fieldGrantAction } from "@workspace/db";

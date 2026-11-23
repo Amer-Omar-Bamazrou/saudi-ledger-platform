@@ -113,6 +113,7 @@ import ReportsHub from '@/pages/ReportsHub';
 import FinanceHub from '@/pages/FinanceHub';
 import Analytics from '@/pages/Analytics';
 import JournalReport from '@/pages/reports/JournalReport';
+import JournalLinesDataset from '@/pages/reports/JournalLinesDataset';
 import AccountStatement from '@/pages/reports/AccountStatement';
 import AccountSummary from '@/pages/reports/AccountSummary';
 import GeneralLedger from '@/pages/reports/GeneralLedger';
@@ -354,6 +355,7 @@ function Router() {
               <Route path="/analytics" component={Analytics} />
               {/* New report pages under /reports/* */}
               <Route path="/reports/journal-report" component={JournalReport} />
+              <Route path="/reports/journal-lines" component={JournalLinesDataset} />
               <Route path="/reports/account-statement" component={AccountStatement} />
               <Route path="/reports/account-summary" component={AccountSummary} />
               <Route path="/reports/general-ledger" component={GeneralLedger} />

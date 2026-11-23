@@ -1065,6 +1065,23 @@ export const CONTROLS: readonly Control[] = [
     provingTests: ["phase19a-security-settings.test.ts"],
   },
   {
+    id: "19B-S4",
+    title: "Report data is decided by one function, decide(), from the one matrix: a report dataset runs or exports only for a role holding that act on it AND read on its native resources (a dataset never widens a role); a column the role may not read is withheld (absent, listed), and filtering, grouping or sorting by it is refused by name; a refused export, and a refused field write, are recorded as refusal events — names and classes, never a value — on their own connection, in an owner-only, append-only table whose time the database sets; a failed record is alarmed and the refusal stands (Phase 19B S4, v4 §4, §8; migration 0171; an internal control of the platform)",
+    answers: [],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: ["report_dataset_not_granted", "report_act_not_granted", "report_field_withheld", "field_write_not_granted"],
+    points: [
+      trigger("permission_refusal_events", "permission_refusal_events_time"),
+      trigger("permission_refusal_events", "zz_permission_refusal_events_append_only"),
+      trigger("permission_refusal_events", "zz_permission_refusal_events_no_truncate"),
+      check("permission_refusal_events", "permission_refusal_events_action_chk"),
+      code(`${API}/lib/reports/decide.ts`, "decide"),
+      code(`${API}/services/refusalEvents.service.ts`, "refusalEventsService"),
+    ],
+    provingTests: ["s4-report-decide.test.ts", "s4-report-datasets-http.test.ts"],
+  },
+  {
     id: "19B-S3",
     title: "A supplier's or an employee's IBAN — the first and every later one, whoever enters it — is HELD for a member whose role holds bank_detail:approve (an accountant or an admin), never the requester, nor one the requester created, re-activated or reset, nor one whose second factor was reset, within 30 days; only when the requester is the only member who could ever approve it does it apply at once, recorded closed with its reason, on the record and in the security trail; the database refuses an IBAN inserted with the record, and an IBAN change without that request in the same transaction; an IBAN entered with the record is marked so, and — as before S3 — is not a change for the change-then-pay finding (Phase 19B S3, v4 §6.3, D2, migration 0170; an internal control of the platform)",
     answers: ["DR-23"],

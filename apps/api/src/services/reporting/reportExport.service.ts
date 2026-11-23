@@ -596,6 +596,31 @@ export async function exportReport(report: string, q: Q, format: ExportFormat, l
   return out;
 }
 
+/** 19B S4: the most rows a dataset's CSV holds — the fixed reports' CSV limit. Above it the export is refused, never cut. */
+export const DATASET_EXPORT_MAX_ROWS = MAX_ROWS.csv;
+export type DatasetDocument = Omit<ReportDocument, "report">;
+export type ExportBi = Bi;
+export type ExportRow = Row;
+export type ExportColumn = Column;
+
+/**
+ * 🔴 19B S4: a report DATASET'S export — the same withholding, the same CSV rendering and the same audit record (before
+ * the file is sent) as a fixed report's export; no second export path. The caller has already refused a count above
+ * DATASET_EXPORT_MAX_ROWS (refused with the count, never cut short) and dropped every column the role may not read at
+ * all; a conditional column's cells are withheld here, row by row (`subjectTo`).
+ */
+export async function exportDatasetCsv(doc: DatasetDocument, lang: ExportLang, decide: ReadDecider, audit: { dataset: string; params: Record<string, unknown> }): Promise<{ contentType: string; filename: string; body: Buffer }> {
+  const full = doc as ReportDocument; // `report` names a fixed report; rendering never reads it
+  const withheldCells = applyWithholding(full, decide, lang);
+  const rowCount = full.tables.reduce((n, t) => n + t.rows.length, 0);
+  const company = await companiesRepository.findCurrent();
+  const companyName = company ? (lang === "ar" && company.nameAr ? company.nameAr : company.name) : "";
+  const out = { contentType: "text/csv; charset=utf-8", filename: `${full.filenameStem}.csv`, body: Buffer.from("\ufeff" + toCsv(full, lang, companyName, businessToday()), "utf8") };
+  // 🔴 recorded BEFORE the file is sent, as every export is (DR-26)
+  await auditService.record({ action: "export", entityType: "report_dataset_export", entityId: audit.dataset, after: { format: "csv", lang, filename: out.filename, rows: rowCount, params: audit.params, withheldCells } });
+  return out;
+}
+
 // ── rendering ────────────────────────────────────────────────────────────────
 
 function col(en: string, ar: string, kind: ColumnKind, cls: ExportColumnClass): Column { return { label: L(en, ar), kind, class: cls }; }

@@ -105,6 +105,7 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/reports/customer-ledger": "app",
   "/reports/general-ledger": "app",
   "/reports/journal-report": "app",
+  "/reports/journal-lines": "app", // 19B S4: the first report dataset
   "/reports/owner-equity": "app",
   "/reports/tax-journal-entries": "app",
   "/review": "app",
@@ -205,6 +206,7 @@ export const ROWS_EXPECTED: ReadonlySet<string> = new Set([
   // weaken the assertion. An expected-empty page needs its own reason, not a
   // loosened rule.
   "/reports/journal-report",
+  "/reports/journal-lines", // 19B S4: journal lines in the books — the seeded books have them
   "/reports/account-summary",
   "/ar-aging",
   "/ap-aging",

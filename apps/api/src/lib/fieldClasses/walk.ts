@@ -10,7 +10,7 @@
  *    walk is one linear read of the value when every class is granted (S1's state) — the performance budget's basis.
  */
 import type { ProtectedFieldClass } from "@workspace/db";
-import type { FieldClass } from "./classTable";
+import { rowConditionApplies, type FieldClass, type RowCondition } from "./classTable";
 import { hasLeaf, isContainer, isPlainObject, resolve, type Shape } from "./shapes";
 
 export type ReadLevel = "read" | "last4" | "none";
@@ -22,7 +22,7 @@ export type ReadDecider = (cls: ProtectedFieldClass, resource: string) => ReadLe
  * The class table's answer for one field: its class and the resource whose grants govern it — and, 19B S3, the rule that
  * picks the resource per row from one of the row's own fields (classTable.ts, NodeClasses.rowResource).
  */
-export type FieldLookup = (node: string, field: string) => { cls: FieldClass; resource: string | null; rowResource?: { by: string; resources: Record<string, string> } } | undefined;
+export type FieldLookup = (node: string, field: string) => { cls: FieldClass; resource: string | null; rowResource?: { by: string; resources: Record<string, string> }; rowCondition?: RowCondition } | undefined;
 
 export interface Withheld {
   /** Where in the value: `items[].iban`, `customer.nationalId`, `$` for the whole value. */
@@ -112,6 +112,8 @@ export function walkValue(
     // 🔴 19B S3: a per-row resource — the row's own field picks whose grants decide (an employee's held IBAN: employees).
     const resource = spec.rowResource && row ? (spec.rowResource.resources[String(row[spec.rowResource.by])] ?? spec.resource) : spec.resource;
     if (cls === "standard" || cls === "by_entity") return v; // by_entity: each key by the audited entity's node (S2c)
+    // 🔴 19B S4: a class that applies to some rows only — on any other row the field is standard (classTable.ts, rowConditions)
+    if (spec.rowCondition && !rowConditionApplies(spec.rowCondition, row)) return v;
     if (!resource) throw new Error(`class table: ${node}.${field} is ${cls} but its node names no resource`);
     const level = decide(cls, resource);
     if (level === "read") return v;

@@ -1198,6 +1198,13 @@
       "when": 1795442556857,
       "tag": "0170_19b_s3_party_iban_hold",
       "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1795457603814,
+      "tag": "0171_19b_s4_permission_refusal_events",
+      "breakpoints": true
     }
   ]
 }

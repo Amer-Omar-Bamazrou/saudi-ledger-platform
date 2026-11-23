@@ -4,6 +4,9 @@ import { exportReport } from "../services/reporting/reportExport.service";
 import { BadRequestError } from "../lib/errors";
 import { peekPermissions } from "../lib/rbac";
 import { deciderFor } from "../lib/fieldClasses/seam";
+import { JOURNAL_LINES } from "../lib/reports/datasets";
+import type { Has } from "../lib/reports/decide";
+import { reportDatasetsService } from "../services/reporting/reportDatasets.service";
 
 /**
  * 🔴 The error-handling work package (2026-11-17): every failure goes to the central errorHandler. This wrapper used
@@ -24,7 +27,34 @@ export const withReportError =
 
 const q = (req: Request) => req.query as Record<string, string>;
 
+/** 19B S4: the role's grants, as decide() asks them — from the one matrix, the cache `requirePermission` just read. */
+const hasFor = (req: Request): Has => {
+  const role = req.tenant?.role;
+  const grants = peekPermissions();
+  return (resource, action) => !!role && !!grants && grants.has(`${role}:${resource}:${action}`);
+};
+
 export const reportsController = {
+  /** 19B S4: the datasets this role may run, its acts on each, each column's level. */
+  datasets: withReportError(async (req, res) => {
+    res.json(reportDatasetsService.list(hasFor(req)));
+  }),
+  journalLinesRows: withReportError(async (req, res) => {
+    res.json(await reportDatasetsService.journalLinesRows(JOURNAL_LINES, hasFor(req), q(req)));
+  }),
+  journalLinesExport: withReportError(async (req, res) => {
+    const lang = String(req.query.lang ?? "en");
+    if (lang !== "en" && lang !== "ar") throw new BadRequestError("lang must be 'en' or 'ar'.");
+    const t = req.tenant!;
+    const out = await reportDatasetsService.journalLinesExport(JOURNAL_LINES, hasFor(req), { userId: t.userId, organizationId: t.organizationId, companyId: t.companyId }, q(req), lang, deciderFor(t.role, peekPermissions()));
+    // never cached: an export is report data, and the browser's cache is no place to keep it
+    res.setHeader("Cache-Control", "no-store");
+    res
+      .status(200)
+      .type(out.contentType)
+      .setHeader("Content-Disposition", `attachment; filename="${out.filename.replace(/[^A-Za-z0-9._-]/g, "_")}"`)
+      .send(out.body);
+  }),
   /**
    * D14-10 — an export runs the report's OWN service call (see
    * reportExport.service.ts): same permission, same tenant/company

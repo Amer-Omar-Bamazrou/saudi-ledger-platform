@@ -54,7 +54,17 @@ export const FIELD_CLASS_LEVELS: Record<ProtectedFieldClass, readonly FieldLevel
 export type FieldGrantAction = `field.${ProtectedFieldClass}.${FieldLevel}`;
 export const fieldGrantAction = (cls: ProtectedFieldClass, level: FieldLevel): FieldGrantAction => `field.${cls}.${level}`;
 
-export type PermissionAction = "read" | "create" | "update" | "delete" | "approve" | FieldGrantAction;
+/**
+ * 🔴 19B S4 (v4 §4, §6.2) — REPORT DATASET ACTS. A report dataset is a resource `report_dataset.<name>`; what a role may
+ * do with it is one grant per act. `decide()` (apps/api/src/lib/reports/decide.ts) reads them, and a dataset never
+ * widens a role beyond its native resources' read. `schedule` is to oneself; `deliver` is to other members, each
+ * recipient checked against their own grants (S6).
+ */
+export const REPORT_ACTS = ["run", "export", "schedule", "deliver", "save", "share"] as const;
+export type ReportAct = (typeof REPORT_ACTS)[number];
+export const reportDatasetResource = (dataset: string): string => `report_dataset.${dataset}`;
+
+export type PermissionAction = "read" | "create" | "update" | "delete" | "approve" | FieldGrantAction | ReportAct;
 
 export interface PermissionRow {
   role: PermissionRole;
@@ -193,6 +203,13 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
   // Read-only resources.
   reports: { read: READ_ALL },
   summary: { read: READ_ALL },
+
+  /**
+   * 🔴 19B S4 — the first report dataset: journal lines in the books (v4 §14). A VIEWER dataset (D3): a viewer runs it,
+   * exports what it may run, schedules to itself and saves; delivering to others and sharing a definition are not a
+   * viewer's (§6.2). Its native resource is `journal_entries` (read, every role today).
+   */
+  "report_dataset.journal_lines": { run: READ_ALL, export: READ_ALL, schedule: READ_ALL, save: READ_ALL, deliver: WRITE, share: WRITE },
 
   // Categorization proposal (POST only).
   categorize: { create: WRITE },

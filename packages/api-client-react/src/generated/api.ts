@@ -146,6 +146,7 @@ import type {
   EndUserSessionsInput,
   ErrorResponse,
   ExpensesPage,
+  ExportJournalLinesDatasetParams,
   ExportReportParams,
   FieldAccess,
   FileWhtReturnInput,
@@ -220,6 +221,7 @@ import type {
   InvoiceRejectionInput,
   JournalEntry,
   JournalEntryReversal,
+  JournalLinesDatasetRows,
   JournalReport,
   Liquidity,
   ListAssetCategories200,
@@ -359,6 +361,8 @@ import type {
   RefundSupplierPaymentInput,
   ReopenBankReconciliationInput,
   ReplaceBudgetLinesInput,
+  ReportDatasetList,
+  ReportDatasetRefusal,
   ReverseBankTransferInput,
   ReverseJournalEntryInput,
   ReverseMigrationBatchInput,
@@ -366,6 +370,7 @@ import type {
   ReverseSupplierAllocationInput,
   ReverseWithReasonInput,
   RunAssetDepreciationInput,
+  RunJournalLinesDatasetParams,
   RunRecognitionInput,
   SecurityEventPage,
   SendBackInput,
@@ -13233,6 +13238,257 @@ export function useExportReport<TData = Awaited<ReturnType<typeof exportReport>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getExportReportQueryOptions(report,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListReportDatasetsUrl = () => {
+
+
+
+
+  return `/api/reports/datasets`
+}
+
+/**
+ * @summary 19B S4 — the report datasets, and for each what this role may do (its acts) and every column with the level this role reads it at (read, last4, none). Computed by decide(); the screen only displays it.
+
+ */
+export const listReportDatasets = async ( options?: RequestInit): Promise<ReportDatasetList> => {
+
+  return customFetch<ReportDatasetList>(getListReportDatasetsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReportDatasetsQueryKey = () => {
+    return [
+    `/api/reports/datasets`
+    ] as const;
+    }
+
+
+export const getListReportDatasetsQueryOptions = <TData = Awaited<ReturnType<typeof listReportDatasets>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReportDatasets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReportDatasetsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReportDatasets>>> = ({ signal }) => listReportDatasets({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReportDatasets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReportDatasetsQueryResult = NonNullable<Awaited<ReturnType<typeof listReportDatasets>>>
+export type ListReportDatasetsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 19B S4 — the report datasets, and for each what this role may do (its acts) and every column with the level this role reads it at (read, last4, none). Computed by decide(); the screen only displays it.
+
+ */
+
+export function useListReportDatasets<TData = Awaited<ReturnType<typeof listReportDatasets>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReportDatasets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReportDatasetsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunJournalLinesDatasetUrl = (params?: RunJournalLinesDatasetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/datasets/journal_lines/rows?${stringifiedParams}` : `/api/reports/datasets/journal_lines/rows`
+}
+
+/**
+ * @summary 19B S4 — run the journal-lines dataset (journal lines in the books: posted and reversed entries) in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); a filter or a sort on one is refused by name (403 report_field_withheld). The total is the true count.
+
+ */
+export const runJournalLinesDataset = async (params?: RunJournalLinesDatasetParams, options?: RequestInit): Promise<JournalLinesDatasetRows> => {
+
+  return customFetch<JournalLinesDatasetRows>(getRunJournalLinesDatasetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunJournalLinesDatasetQueryKey = (params?: RunJournalLinesDatasetParams,) => {
+    return [
+    `/api/reports/datasets/journal_lines/rows`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunJournalLinesDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runJournalLinesDataset>>, TError = ErrorType<ReportDatasetRefusal>>(params?: RunJournalLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runJournalLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunJournalLinesDatasetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runJournalLinesDataset>>> = ({ signal }) => runJournalLinesDataset(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runJournalLinesDataset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunJournalLinesDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof runJournalLinesDataset>>>
+export type RunJournalLinesDatasetQueryError = ErrorType<ReportDatasetRefusal>
+
+
+/**
+ * @summary 19B S4 — run the journal-lines dataset (journal lines in the books: posted and reversed entries) in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); a filter or a sort on one is refused by name (403 report_field_withheld). The total is the true count.
+
+ */
+
+export function useRunJournalLinesDataset<TData = Awaited<ReturnType<typeof runJournalLinesDataset>>, TError = ErrorType<ReportDatasetRefusal>>(
+ params?: RunJournalLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runJournalLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunJournalLinesDatasetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportJournalLinesDatasetUrl = (params?: ExportJournalLinesDatasetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/datasets/journal_lines/export?${stringifiedParams}` : `/api/reports/datasets/journal_lines/export`
+}
+
+/**
+ * @summary 19B S4 — export the journal-lines dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+export const exportJournalLinesDataset = async (params?: ExportJournalLinesDatasetParams, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportJournalLinesDatasetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportJournalLinesDatasetQueryKey = (params?: ExportJournalLinesDatasetParams,) => {
+    return [
+    `/api/reports/datasets/journal_lines/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportJournalLinesDatasetQueryOptions = <TData = Awaited<ReturnType<typeof exportJournalLinesDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(params?: ExportJournalLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportJournalLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportJournalLinesDatasetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportJournalLinesDataset>>> = ({ signal }) => exportJournalLinesDataset(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportJournalLinesDataset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportJournalLinesDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof exportJournalLinesDataset>>>
+export type ExportJournalLinesDatasetQueryError = ErrorType<ReportDatasetRefusal | void>
+
+
+/**
+ * @summary 19B S4 — export the journal-lines dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+
+export function useExportJournalLinesDataset<TData = Awaited<ReturnType<typeof exportJournalLinesDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(
+ params?: ExportJournalLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportJournalLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportJournalLinesDatasetQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
