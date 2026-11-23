@@ -70,7 +70,8 @@ const SITES: Record<string, Site> = {
   // ── raw COMMIT: NOT covered by B-O6's seam (except the seam itself) ──────
   "packages/db/src/index.ts": rawCommit(1, "`finish(\"COMMIT\")`: THE seam; checks the COMMIT tag since B-O6", "rethrown to the caller (see tenant.ts above)"),
   "apps/api/src/services/demo/demoReset.service.ts": rawCommit(1, "demo reset job (DEMO_MODE)", "ROLLBACK, the run recorded failed; nothing inside catches"),
-  "scripts/src/demo-seed.mts": rawCommit(2, "CLI demo seed", "the first reaches main().catch; the second rolls back and rethrows; nothing inside catches"),
+  "scripts/src/demo-seed.mts": rawCommit(3, "CLI demo seed", "the first reaches main().catch; the second rolls back and rethrows; the third (19B S3: the demo accountant's account and membership, one transaction) rolls back and rethrows to main().catch; nothing inside catches"),
+  "packages/db/src/partyIbanSeed.ts": rawCommit(1, "19B S3: seedPartyIbanThroughHold — the demo seed's supplier IBANs (the request, then the approval and the write)", "ROLLBACK and rethrow to the seed; a refused approval leaves the committed request pending, as the product does; nothing inside catches"),
 };
 
 function walk(dir: string, acc: string[] = []): string[] {
@@ -109,7 +110,7 @@ describe("🔴 every place that commits is in the census, with what reaches it",
 
   it("the sweep is not vacuous: it reads the request seam and a script", () => {
     expect(found["apps/api/src/lib/tenant.ts"]?.beginTenantConnection).toBe(1);
-    expect(found["scripts/src/demo-seed.mts"]?.rawCommit).toBe(2);
+    expect(found["scripts/src/demo-seed.mts"]?.rawCommit).toBe(3); // 19B S3 (2026-11-23): + the demo accountant's transaction
   });
 
   it("🔴 the sites found are exactly the sites pinned, in both directions", () => {
