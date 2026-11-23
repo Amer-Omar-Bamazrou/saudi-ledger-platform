@@ -14,13 +14,14 @@
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
 import { auditService } from "./audit.service";
 import { approvalService } from "./approval";
-import { payrollApprovable } from "./payroll.approvable";
+import { payrollApprovable, payrollAccrualDate } from "./payroll.approvable";
 import { runToOut, itemToOut, toNum } from "./payroll.presenter";
 import { payrollRepository } from "../repositories/payroll.repository";
 import { round2, money2 } from "../lib/money";
 import {
   businessToday, gosiContributoryWage, gosiHazardsMinimumOpen, gosiInKindHousingValue, gosiLineAmounts, gosiRatesFor, gosiServiceDays, type GosiRegime,
 } from "@workspace/shared";
+import type { PayrollLeftOutReason } from "@workspace/db";
 import { postJournalEntry } from "./accounting/glPosting";
 import { assertBankAccount } from "./accounting/bankIdentity";
 import { assertDateString } from "../lib/writeGuards";
@@ -58,22 +59,44 @@ export const payrollService = {
 
   async create(body: { period: string; notes?: string | null }, userId: number | null) {
     const { period, notes } = body;
-    const active = await payrollRepository.activeEmployees();
-    if (active.length === 0) throw new BadRequestError("No active employees found");
+    const periodStart = `${period}-01`;
+    const periodEnd = payrollAccrualDate(period);
+    const candidates = await payrollRepository.payrollCandidates(periodStart, periodEnd);
+    if (candidates.length === 0) throw new BadRequestError("No active employees found");
     /**
-     * 🔴 19B S2a (v4 §10.1, D8 O2): an active employee whose pay is NOT SET is LEFT OUT and NAMED in the run — no
-     * payroll line is written for them, so nothing is ever computed at zero. Setting their pay brings them into the next
-     * run. A run that would leave EVERY active employee out is refused by name: it would pay nobody.
+     * 🔴 Who a run leaves out, NAMED in it — no payroll line is written for them, so nothing is computed at zero:
+     *  - owner item 3 (2026-11-23): an end date BEFORE the period starts is never paid, whatever the status (only an
+     *    active one reaches here, and is named: the record says they left, yet nobody marked them inactive);
+     *  - owner item 3: an end date INSIDE the period (first and last day included) is never paid automatically,
+     *    whatever the status, until the accountant answers how a final part-month is paid (advisor-questions.md
+     *    Block N). Before, an active leaver was paid a full month and an inactive one silently dropped;
+     *  - 19B S2a (v4 §10.1, D8 O2): pay NOT SET. Setting it brings them into the next run.
+     * A run that would leave EVERY candidate out is refused by name: it would pay nobody.
      */
-    const leftOut = active
-      .filter((e) => e.basicSalary == null)
-      .map((e) => ({ employeeId: e.id, employeeNumber: e.employeeNumber, name: e.name, reason: "pay_not_set" as const }));
-    const employees = active.filter((e) => e.basicSalary != null);
-    if (employees.length === 0) {
+    const reasonOf = (e: (typeof candidates)[number]): PayrollLeftOutReason | null =>
+      e.endDate != null && e.endDate < periodStart ? "ended_before_period"
+        : e.endDate != null && e.endDate <= periodEnd ? "ends_in_period"
+          : e.basicSalary == null ? "pay_not_set"
+            : null;
+    const leftOut = candidates
+      .filter((e) => reasonOf(e) !== null)
+      .map((e) => ({ employeeId: e.id, employeeNumber: e.employeeNumber, name: e.name, reason: reasonOf(e)! }));
+    const employees = candidates.filter((e) => reasonOf(e) === null);
+    if (employees.length === 0 && leftOut.every((e) => e.reason === "pay_not_set")) {
       throw new BusinessRuleError(422, {
         code: "payroll_no_pay_set",
         error: `No payroll run for ${period}: the pay of every active employee is not set (${leftOut.map((e) => e.name).join(", ")}). An accountant or admin sets each one's pay on the Employees page. Nothing was created.`,
         errorAr: `لا يُنشأ مسير رواتب لـ ${period}: لم يُحدَّد راتب أي موظف نشط (${leftOut.map((e) => e.name).join("، ")}). يحدّد المحاسب أو المسؤول راتب كل منهم من صفحة الموظفين. لم يُنشأ شيء.`,
+        leftOut,
+      });
+    }
+    if (employees.length === 0) {
+      const en = { ended_before_period: "end date before this month", ends_in_period: "leaves this month", pay_not_set: "pay not set" } as const;
+      const ar = { ended_before_period: "انتهت خدمته قبل هذا الشهر", ends_in_period: "تنتهي خدمته هذا الشهر", pay_not_set: "لم يُحدَّد راتبه" } as const;
+      throw new BusinessRuleError(422, {
+        code: "payroll_nobody_payable",
+        error: `No payroll run for ${period}: it would pay nobody. Left out: ${leftOut.map((e) => `${e.name} (${e.employeeNumber}, ${en[e.reason]})`).join(", ")}. A leaver's final part-month is not paid automatically. Nothing was created.`,
+        errorAr: `لا يُنشأ مسير رواتب لـ ${period}: لن يُصرف فيه لأحد. المستبعدون: ${leftOut.map((e) => `${e.name} (${e.employeeNumber}، ${ar[e.reason]})`).join("، ")}. لا يُصرف الجزء الأخير من شهر المغادر تلقائيًا. لم يُنشأ شيء.`,
         leftOut,
       });
     }

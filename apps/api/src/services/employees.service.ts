@@ -66,6 +66,7 @@ function gosiRegimeFields(
 }
 import { auditService } from "./audit.service";
 import { employeesRepository, type EmployeeListFilter } from "../repositories/employees.repository";
+import { payrollRepository } from "../repositories/payroll.repository";
 import { DEFAULT_PAGE } from "../lib/httpParams";
 import type { employeesTable } from "@workspace/db";
 
@@ -182,8 +183,24 @@ export const employeesService = {
     return toView(row);
   },
 
+  /**
+   * 🔴 Owner item 3 (2026-11-23): an employee on a payroll run — paid, or on a draft — keeps their record: the run's
+   * lines point at it (payroll_items.employee_id, ON DELETE RESTRICT), and the payroll history is the books' evidence.
+   * Refused with a named 409 in both languages, offering the step that exists — Mark inactive — instead of the 500 the
+   * foreign key used to surface. The key stays the backstop (a delete racing a run's generation still cannot orphan it).
+   */
   async remove(id: number) {
     const [before] = await employeesRepository.findById(id);
+    const periods = before ? await payrollRepository.runPeriodsOf(id) : [];
+    if (before && periods.length > 0) {
+      throw new BusinessRuleError(409, {
+        code: "employee_on_payroll_run",
+        error: `${before.name} (${before.employeeNumber}) is on ${periods.length} payroll run(s) (${periods.join(", ")}), so the record is kept with the payroll history and cannot be deleted. Mark the employee inactive instead: no later run pays them.`,
+        errorAr: `الموظف ${before.name} (${before.employeeNumber}) مُدرج في ${periods.length} من مسيرات الرواتب (${periods.join("، ")})، فيُحفظ سجله مع سجل الرواتب ولا يمكن حذفه. اجعل حالته «غير نشط» بدلًا من ذلك، فلا يُصرف له في أي مسير لاحق.`,
+        nextStep: "mark_inactive",
+        payrollRuns: periods,
+      });
+    }
     await employeesRepository.remove(id);
     if (before) await auditService.deleted("employee", id, before);
   },

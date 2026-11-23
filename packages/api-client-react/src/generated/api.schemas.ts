@@ -5359,17 +5359,23 @@ export const PayrollRunStatus = {
   paid: 'paid',
 } as const;
 
+/**
+ * pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23).
+ */
 export type PayrollLeftOutEmployeeReason = typeof PayrollLeftOutEmployeeReason[keyof typeof PayrollLeftOutEmployeeReason];
 
 
 export const PayrollLeftOutEmployeeReason = {
   pay_not_set: 'pay_not_set',
+  ended_before_period: 'ended_before_period',
+  ends_in_period: 'ends_in_period',
 } as const;
 
 export interface PayrollLeftOutEmployee {
   employeeId: number;
   employeeNumber: string;
   name: string;
+  /** pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23). */
   reason: PayrollLeftOutEmployeeReason;
 }
 

@@ -13,6 +13,9 @@
  *    joiner's first month, for the whole year (Art. 21(2)(a),(b)). 2024 law: the
  *    joining and leaving months are charged by days of service (2024 Regulation
  *    Art. 20(2)), divided by the month's actual days (its Arts. 36(1), 53(3)).
+ *    🔴 Owner item 3 (2026-11-23): a leaving month is no longer a payroll line (the
+ *    leaver is named, not paid, until the accountant answers); its day rule is
+ *    held at the functions the run calls.
  *    1421H proration followed (Art. 21(3), owner 2026-10-27 morning; proven in
  *    phase18-gosi-1421h-proration.test.ts); the 2024 texts state no annual wage (G1).
  *  - GO-13, both laws: in-kind housing counts in the contributory wage (1421H
@@ -29,7 +32,7 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
-import { businessToday } from "@workspace/shared";
+import { businessToday, gosiLineAmounts, gosiRatesFor, gosiServiceDays } from "@workspace/shared";
 import { g04Harness } from "./helpers/g04Harness";
 
 const url = process.env.DATABASE_URL;
@@ -157,22 +160,37 @@ describeMaybe("GOSI GO-10..GO-13 — the 1421H floor and fine cap, the year's wa
     expectLines([...jan, ...feb, ...nextJan], want.flat());
   });
 
-  it("🔴 GO-12: a 2024-law joining or leaving month is charged by days of service over the month's actual days; a 1421H-law joiner too (Art. 21(3))", async () => {
+  /**
+   * 🔴 Restated by owner item 3 (2026-11-23): the leaving (P2) and both-in-one (P3) months were lines here, charged
+   * 10/31 and 20/31. An end date inside the period is now named in the run and not paid automatically until the
+   * accountant answers how a final part-month is paid; each is asserted NAMED with no line, and the same independent
+   * figures are asserted at the functions the run calls (gosiServiceDays, gosiLineAmounts).
+   */
+  it("🔴 GO-12: a 2024-law joining month is charged by days of service over the month's actual days, a 1421H-law joiner too (Art. 21(3)); a leaving month is named and not paid (owner item 3), its day rule held at the functions", async () => {
     const base = { basicSalary: 9_300, gosiRegime: "law_2024" };
     await employee("P1-JOIN", { ...base, joiningDate: "2025-10-21" });                      // 21..31 = 11 days
     await employee("P2-LEAVE", { ...base, joiningDate: "2020-03-01", endDate: "2025-10-10" }); // 1..10 = 10 days
     await employee("P3-BOTH", { ...base, joiningDate: "2025-10-05", endDate: "2025-10-24" });  // 5..24 = 20 days
     await employee("P4-FULL", { ...base, joiningDate: "2025-01-01" });
     await employee("P5-1421-JOIN", { basicSalary: 9_300, gosiRegime: "law_1421h", joiningDate: "2025-10-21" });
-    const got = await lines(await run("2025-10")); // October: 31 days (a 30-day divisor would differ)
+    const runId = await run("2025-10"); // October: 31 days (a 30-day divisor would differ)
+    const got = await lines(runId);
     const by = (days: number) => ({
       emp: r2(9_300 * L2024_2025_07.employee * days / 31), er: r2(9_300 * L2024_2025_07.employer * days / 31),
       wage: 9_300, floor: null, inKind: null, days, monthDays: 31, fixedFrom: null,
     });
+    const leftOut = ((await pool.query(`SELECT left_out FROM payroll_runs WHERE id = $1`, [runId])).rows[0].left_out as { employeeNumber: string; reason: string }[])
+      .map((l) => [l.employeeNumber, l.reason]).sort();
+    expect(leftOut).toEqual([["P2-LEAVE", "ends_in_period"], ["P3-BOTH", "ends_in_period"]]);
+    const atFunctions = (joiningDate: string, endDate: string) => {
+      const d = gosiServiceDays("2025-10", joiningDate, endDate);
+      const a = gosiLineAmounts({ rates: gosiRatesFor("law_2024", "2025-10")!, wage: 9_300, serviceDays: d?.serviceDays, periodDays: d?.periodDays });
+      return { emp: r2(a.employee), er: r2(a.employer), days: d?.serviceDays ?? null, monthDays: d?.periodDays ?? null };
+    };
+    const figures = (l: ReturnType<typeof by>) => ({ emp: l.emp, er: l.er, days: l.days, monthDays: l.monthDays });
+    expect([atFunctions("2020-03-01", "2025-10-10"), atFunctions("2025-10-05", "2025-10-24")]).toEqual([figures(by(10)), figures(by(20))]);
     expectLines(got, [
       { num: "P1-JOIN", ...by(11) },
-      { num: "P2-LEAVE", ...by(10) },
-      { num: "P3-BOTH", ...by(20) },
       { num: "P4-FULL", emp: r2(9_300 * L2024_2025_07.employee), er: r2(9_300 * L2024_2025_07.employer), wage: 9_300, ...plain, fixedFrom: null },
       // Was the full month while 1421H proration was held; the owner's decision of 2026-10-27 morning makes it 11 of 31 days.
       { num: "P5-1421-JOIN", emp: r2(9_300 * L1421H.employee * 11 / 31), er: r2(9_300 * L1421H.employer * 11 / 31), wage: 9_300, floor: null, inKind: null, days: 11, monthDays: 31, fixedFrom: "2025-10" },

@@ -1,6 +1,6 @@
 /** Payroll repository — tenant-scoped via RLS. */
 import { db, payrollRunsTable, payrollItemsTable, employeesTable, journalEntriesTable, transactionsTable } from "@workspace/db";
-import { and, asc, desc, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import { companyScoped } from "./companyScope";
 
 /**
@@ -61,8 +61,26 @@ export const payrollRepository = {
       .leftJoin(employeesTable, eq(payrollItemsTable.employeeId, employeesTable.id))
       .where(eq(payrollItemsTable.payrollRunId, runId));
   },
-  activeEmployees() {
-    return db.select().from(employeesTable).where(eq(employeesTable.status, "active"));
+  /**
+   * 🔴 19B S2a (owner item 3, 2026-11-23): who a run for [periodStart, periodEnd] considers — every ACTIVE employee,
+   * and anyone, whatever their status, whose end date falls inside the period (a leaver the run must NAME, never pay
+   * automatically and never silently drop). The service decides who is paid.
+   */
+  payrollCandidates(periodStart: string, periodEnd: string) {
+    return db.select().from(employeesTable).where(or(
+      eq(employeesTable.status, "active"),
+      and(isNotNull(employeesTable.endDate), gte(employeesTable.endDate, periodStart), lte(employeesTable.endDate, periodEnd)),
+    ));
+  },
+  /** The periods of the runs an employee has a line on (a draft's included), oldest first. */
+  async runPeriodsOf(employeeId: number): Promise<string[]> {
+    const rows = await db
+      .selectDistinct({ period: payrollRunsTable.period })
+      .from(payrollItemsTable)
+      .innerJoin(payrollRunsTable, eq(payrollItemsTable.payrollRunId, payrollRunsTable.id))
+      .where(eq(payrollItemsTable.employeeId, employeeId))
+      .orderBy(asc(payrollRunsTable.period));
+    return rows.map((r) => r.period);
   },
   insertRun(values: typeof payrollRunsTable.$inferInsert) {
     return db.insert(payrollRunsTable).values(values).returning();

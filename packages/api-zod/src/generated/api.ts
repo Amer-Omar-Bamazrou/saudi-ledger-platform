@@ -6703,7 +6703,7 @@ export const ListPayrollRunsResponseItem = zod.object({
   "employeeId": zod.number(),
   "employeeNumber": zod.string(),
   "name": zod.string(),
-  "reason": zod.enum(['pay_not_set'])
+  "reason": zod.enum(['pay_not_set', 'ended_before_period', 'ends_in_period']).describe('pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23).')
 })).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 }).and(zod.object({
   "employeeCount": zod.number(),
@@ -6745,7 +6745,7 @@ export const CreatePayrollRunResponse = zod.object({
   "employeeId": zod.number(),
   "employeeNumber": zod.string(),
   "name": zod.string(),
-  "reason": zod.enum(['pay_not_set'])
+  "reason": zod.enum(['pay_not_set', 'ended_before_period', 'ends_in_period']).describe('pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23).')
 })).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 
@@ -6792,7 +6792,7 @@ export const GetPayrollRunResponse = zod.object({
   "employeeId": zod.number(),
   "employeeNumber": zod.string(),
   "name": zod.string(),
-  "reason": zod.enum(['pay_not_set'])
+  "reason": zod.enum(['pay_not_set', 'ended_before_period', 'ends_in_period']).describe('pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23).')
 })).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 }).and(zod.object({
   "items": zod.array(zod.object({
@@ -16269,7 +16269,7 @@ export const SubmitPayrollRunResponse = zod.object({
   "employeeId": zod.number(),
   "employeeNumber": zod.string(),
   "name": zod.string(),
-  "reason": zod.enum(['pay_not_set'])
+  "reason": zod.enum(['pay_not_set', 'ended_before_period', 'ends_in_period']).describe('pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23).')
 })).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 
@@ -16308,7 +16308,7 @@ export const SendBackPayrollRunResponse = zod.object({
   "employeeId": zod.number(),
   "employeeNumber": zod.string(),
   "name": zod.string(),
-  "reason": zod.enum(['pay_not_set'])
+  "reason": zod.enum(['pay_not_set', 'ended_before_period', 'ends_in_period']).describe('pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23).')
 })).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 
@@ -16343,7 +16343,7 @@ export const ApprovePayrollRunResponse = zod.object({
   "employeeId": zod.number(),
   "employeeNumber": zod.string(),
   "name": zod.string(),
-  "reason": zod.enum(['pay_not_set'])
+  "reason": zod.enum(['pay_not_set', 'ended_before_period', 'ends_in_period']).describe('pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23).')
 })).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 
@@ -16385,7 +16385,7 @@ export const PayPayrollRunGosiResponse = zod.object({
   "employeeId": zod.number(),
   "employeeNumber": zod.string(),
   "name": zod.string(),
-  "reason": zod.enum(['pay_not_set'])
+  "reason": zod.enum(['pay_not_set', 'ended_before_period', 'ends_in_period']).describe('pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23).')
 })).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 
@@ -16425,7 +16425,7 @@ export const PayPayrollRunResponse = zod.object({
   "employeeId": zod.number(),
   "employeeNumber": zod.string(),
   "name": zod.string(),
-  "reason": zod.enum(['pay_not_set'])
+  "reason": zod.enum(['pay_not_set', 'ended_before_period', 'ends_in_period']).describe('pay_not_set (19B S2a, D8 O2); ended_before_period: an ACTIVE employee whose end date is before the period, never paid; ends_in_period: an end date inside the period (any status), not paid automatically until the accountant answers how a final part-month is paid (owner item 3, 2026-11-23).')
 })).describe('19B S2a (D8 O2): the active employees this run left out, by name, and why. No payroll line exists for them — nothing is computed at zero. Written when the run was generated.')
 })
 

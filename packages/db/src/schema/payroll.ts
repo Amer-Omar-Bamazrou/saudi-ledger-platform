@@ -6,12 +6,18 @@ import { employeesTable } from "./employees";
 import { organizationsTable } from "./organizations";
 import { companiesTable } from "./companies";
 
+/**
+ * Why a run left an employee out: no pay set (19B S2a, D8 O2); an end date before the period (an ACTIVE leaver), or
+ * inside it (any status; the final part-month waits for the accountant) — owner item 3, 2026-11-23.
+ */
+export type PayrollLeftOutReason = "pay_not_set" | "ended_before_period" | "ends_in_period";
+
 /** One employee a payroll run left out (payroll_runs.left_out). */
 export interface PayrollLeftOutEmployee {
   employeeId: number;
   employeeNumber: string;
   name: string;
-  reason: "pay_not_set";
+  reason: PayrollLeftOutReason;
 }
 
 export const payrollRunsTable = pgTable(
@@ -55,9 +61,9 @@ export const payrollRunsTable = pgTable(
     gosiInvoicedAmount: numeric("gosi_invoiced_amount", { precision: 15, scale: 2 }),
     gosiInvoiceReference: text("gosi_invoice_reference"),
     /**
-     * 🔴 19B S2a (v4 §10.1, D8 O2): the active employees this run LEFT OUT and why — today only `pay_not_set` (no basic
-     * salary). Written once, at generation, as the run saw them; no payroll line exists for them, so nothing is computed
-     * at zero. The run shows them by name.
+     * 🔴 19B S2a (v4 §10.1, D8 O2): the employees this run LEFT OUT and why (PayrollLeftOutReason). Written once, at
+     * generation, as the run saw them; no payroll line exists for them, so nothing is computed at zero. The run shows
+     * them by name.
      */
     leftOut: jsonb("left_out").$type<PayrollLeftOutEmployee[]>().notNull().default(sql`'[]'::jsonb`),
     createdAt: timestamp("created_at").defaultNow().notNull(),
