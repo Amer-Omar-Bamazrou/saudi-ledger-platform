@@ -29,6 +29,7 @@
  * per environment only with the owner's approval of the exact set (D10).
  */
 import { PROTECTED_FIELD_CLASSES, type ProtectedFieldClass } from "@workspace/db";
+import { BANK_DERIVED_SOURCE_TYPES } from "./conditions";
 
 export const FIELD_CLASSES = ["standard", ...PROTECTED_FIELD_CLASSES, "by_entity"] as const;
 export type FieldClass = (typeof FIELD_CLASSES)[number];
@@ -53,7 +54,20 @@ export interface NodeClasses {
    * supplier's IBAN (vendors) and an employee's (employees), each withheld by its own record's grants.
    */
   rowResource?: { by: string; resources: Record<string, string> };
+  /**
+   * 🔴 19B S4: a protected class that applies to SOME ROWS ONLY, decided by one of the row's own fields — per field:
+   * `{ description: { by: "sourceType", in: [...] } }`: `description` is its class only on a row whose `sourceType` is
+   * listed (or ABSENT from the row — a row that does not say is treated as one it applies to, the safe error); on any
+   * other row it is standard. The walk applies it (walk.ts) and the report datasets read it (lib/reports/datasets.ts):
+   * one definition.
+   */
+  rowConditions?: Record<string, RowCondition>;
 }
+
+/** 19B S4: the class applies on rows whose `by` field is one of `in`, or does not say. */
+export interface RowCondition { by: string; in: readonly string[] }
+export const rowConditionApplies = (c: RowCondition, row: Record<string, unknown> | undefined): boolean =>
+  !row || !(c.by in row) || row[c.by] == null || c.in.includes(String(row[c.by]));
 
 export interface FieldSpec {
   cls: FieldClass;
@@ -61,6 +75,8 @@ export interface FieldSpec {
   writeAlsoNeeds: readonly ProtectedFieldClass[];
   /** 19B S3: the per-row resource rule of the field's node (NodeClasses.rowResource), when it has one. */
   rowResource?: { by: string; resources: Record<string, string> };
+  /** 19B S4: the field's per-row condition (NodeClasses.rowConditions), when it has one. */
+  rowCondition?: RowCondition;
 }
 
 /** Every node's fields, by class. Kept in node order; one line per node. */
@@ -343,6 +359,13 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
     } },
   JournalEntryLineInput: { standard: "accountId accountName description debitAmount creditAmount customerId vendorId partyNoneReason" },
   JournalEntryReversal: { standard: "message reversalId" },
+  // 🔴 19B S4: the journal-lines dataset. ONE definition of each column's class: the dataset's columns are this node's fields
+  // (lib/reports/datasets.ts reads them from here; a test fails when they disagree). The line text is the bank's own text
+  // only on an entry built from a bank line, or of unknown origin — applied PER ROW by the dataset (D11 amended).
+  JournalLinesDatasetRow: { resource: "journal_entries", rowConditions: { description: { by: "sourceType", in: BANK_DERIVED_SOURCE_TYPES } }, standard: "lineId date entryNumber status sourceType reference accountId accountCode accountName accountNameAr debit credit", bank_narrative: "description", conditions: {
+      description: "the bank's own text only where the entry came from a bank line (bank_transaction) or its origin is unknown (legacy_unclassified); standard otherwise — applied per row by the dataset",
+    } },
+  JournalLinesDatasetRows: { standard: "dataset total limit offset" },
   JournalReport: { standard: "count grandDebit grandCredit balanced" },
   JournalReportEntry: { standard: "id entryNumber date description reference status totalDebit totalCredit balanced" },
   JournalReportLine: { standard: "id accountName accountId description debit credit" },
@@ -488,6 +511,12 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   "RecognitionRunResult.skipped": { standard: "scheduleId reference code reason" },
   RecognitionSchedule: { standard: "id reference kind description descriptionAr vendorId expenseAccountId balanceAccountId totalAmount periods startPeriod status recognisedAmount remainingAmount postedPeriods plannedPeriods nextPeriod notes cancelReason createdAt" },
   RecognitionScheduleRow: { standard: "id period sequence amount journalEntryId postedAt" },
+  // 🔴 19B S4: a dataset's description and refusals — names, labels and levels, no data.
+  ReportDatasetColumn: { standard: "key label labelAr kind class level conditional filterable sortable" },
+  ReportDatasetSummary: { standard: "name title titleAr acts" },
+  ReportDatasetWithheld: { standard: "path class level rows" },
+  ReportDatasetRefusal: { standard: "code error errorAr dataset act" },
+  "ReportDatasetRefusal.fields": { standard: "field class use" },
   ReconciliationCandidate: { resource: "transactions", standard: "journalLineId journalEntryId entryNumber date lineAmount remaining sourceKind sourceId sourceReference party", bank_narrative: "description", conditions: {
       description: "the bank's own text only where the row is a bank statement line or was built from one; standard otherwise (implemented with the bank_narrative switch, S2c)",
     } },
@@ -788,7 +817,7 @@ export function indexTable(table: Record<string, NodeClasses>): Map<string, Map<
       if (!list) continue;
       for (const field of list.split(" ").filter(Boolean)) {
         if (fields.has(field)) throw new Error(`class table: ${node}.${field} is listed twice`);
-        fields.set(field, { cls, resource: entry.resource ?? null, writeAlsoNeeds: entry.writeAlsoNeeds?.[field] ?? [], ...(entry.rowResource ? { rowResource: entry.rowResource } : {}) });
+        fields.set(field, { cls, resource: entry.resource ?? null, writeAlsoNeeds: entry.writeAlsoNeeds?.[field] ?? [], ...(entry.rowResource ? { rowResource: entry.rowResource } : {}), ...(entry.rowConditions?.[field] ? { rowCondition: entry.rowConditions[field] } : {}) });
       }
     }
     index.set(node, fields);

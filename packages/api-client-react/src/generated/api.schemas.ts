@@ -5,6 +5,148 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+export type ReportDatasetColumnKind = typeof ReportDatasetColumnKind[keyof typeof ReportDatasetColumnKind];
+
+
+export const ReportDatasetColumnKind = {
+  text: 'text',
+  money: 'money',
+  date: 'date',
+  int: 'int',
+} as const;
+
+export type ReportDatasetColumnLevel = typeof ReportDatasetColumnLevel[keyof typeof ReportDatasetColumnLevel];
+
+
+export const ReportDatasetColumnLevel = {
+  read: 'read',
+  last4: 'last4',
+  none: 'none',
+} as const;
+
+/**
+ * 19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).
+ */
+export interface ReportDatasetColumn {
+  key: string;
+  label: string;
+  labelAr: string;
+  kind: ReportDatasetColumnKind;
+  /** The column's field class, from the class table (standard, bank_narrative, …) */
+  class: string;
+  level: ReportDatasetColumnLevel;
+  /** When the class applies only to some rows: which (e.g. a line built from a bank line) */
+  conditional?: string | null;
+  filterable: boolean;
+  sortable: boolean;
+}
+
+export type ReportDatasetSummaryActsItem = typeof ReportDatasetSummaryActsItem[keyof typeof ReportDatasetSummaryActsItem];
+
+
+export const ReportDatasetSummaryActsItem = {
+  run: 'run',
+  export: 'export',
+  schedule: 'schedule',
+  deliver: 'deliver',
+  save: 'save',
+  share: 'share',
+} as const;
+
+export interface ReportDatasetSummary {
+  name: string;
+  title: string;
+  titleAr: string;
+  /** The acts this role may take on the dataset */
+  acts: ReportDatasetSummaryActsItem[];
+  columns: ReportDatasetColumn[];
+}
+
+export interface ReportDatasetList {
+  items: ReportDatasetSummary[];
+}
+
+export type ReportDatasetWithheldLevel = typeof ReportDatasetWithheldLevel[keyof typeof ReportDatasetWithheldLevel];
+
+
+export const ReportDatasetWithheldLevel = {
+  none: 'none',
+  last4: 'last4',
+} as const;
+
+export interface ReportDatasetWithheld {
+  path: string;
+  class: string;
+  level: ReportDatasetWithheldLevel;
+  /** For a conditional class: on how many of the returned rows it was withheld */
+  rows?: number | null;
+}
+
+export type ReportDatasetRefusalCode = typeof ReportDatasetRefusalCode[keyof typeof ReportDatasetRefusalCode];
+
+
+export const ReportDatasetRefusalCode = {
+  report_dataset_not_granted: 'report_dataset_not_granted',
+  report_act_not_granted: 'report_act_not_granted',
+  report_field_withheld: 'report_field_withheld',
+  report_group_not_supported: 'report_group_not_supported',
+  report_unknown_column: 'report_unknown_column',
+  report_bad_filter: 'report_bad_filter',
+} as const;
+
+export type ReportDatasetRefusalFieldsItemUse = typeof ReportDatasetRefusalFieldsItemUse[keyof typeof ReportDatasetRefusalFieldsItemUse];
+
+
+export const ReportDatasetRefusalFieldsItemUse = {
+  filter: 'filter',
+  group: 'group',
+  sort: 'sort',
+} as const;
+
+export type ReportDatasetRefusalFieldsItem = {
+  field: string;
+  class: string;
+  use: ReportDatasetRefusalFieldsItemUse;
+};
+
+export interface ReportDatasetRefusal {
+  code: ReportDatasetRefusalCode;
+  error: string;
+  errorAr: string;
+  dataset?: string;
+  act?: string;
+  fields?: ReportDatasetRefusalFieldsItem[];
+}
+
+/**
+ * 19B S4 — one journal line in the books. Only the shown columns are present; a withheld column's key is absent (D4). The line text is the bank's own text where the entry came from a bank line (bank_narrative).
+ */
+export interface JournalLinesDatasetRow {
+  lineId?: number;
+  date?: string;
+  entryNumber?: string;
+  status?: string;
+  sourceType?: string | null;
+  reference?: string | null;
+  accountId?: number | null;
+  accountCode?: string | null;
+  accountName?: string;
+  accountNameAr?: string | null;
+  description?: string | null;
+  debit?: number;
+  credit?: number;
+}
+
+export interface JournalLinesDatasetRows {
+  dataset: string;
+  columns: ReportDatasetColumn[];
+  rows: JournalLinesDatasetRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  withheld: ReportDatasetWithheld[];
+}
+
 /**
  * 🔴 `advanceBalance`, `depositBalance` and `unidentifiedBalance` are exactly SUPPLIER_ADVANCES, SECURITY_DEPOSITS_PAID and UNIDENTIFIED_PAYMENTS. `payable` and `creditBalance` BOTH live in AP(vendor) — a purchase credit note posts its debit straight into AP — so the GL carries their difference; they are shown separately because "what we owe" and "what they owe us on a note" are different facts.
  */
@@ -14531,6 +14673,62 @@ export type ExportReportPartyType = typeof ExportReportPartyType[keyof typeof Ex
 export const ExportReportPartyType = {
   customer: 'customer',
   vendor: 'vendor',
+} as const;
+
+export type RunJournalLinesDatasetParams = {
+/**
+ * Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.
+ */
+columns?: string;
+date_from?: string;
+date_to?: string;
+account_id?: number;
+source_type?: string;
+/**
+ * A column key; a leading '-' sorts descending (default: date, then entry number).
+ */
+sort?: string;
+/**
+ * Not supported by this dataset (refused 400 report_group_not_supported).
+ */
+group?: string;
+/**
+ * @minimum 1
+ * @maximum 500
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ExportJournalLinesDatasetParams = {
+/**
+ * Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.
+ */
+columns?: string;
+date_from?: string;
+date_to?: string;
+account_id?: number;
+source_type?: string;
+/**
+ * A column key; a leading '-' sorts descending (default: date, then entry number).
+ */
+sort?: string;
+/**
+ * Not supported by this dataset (refused 400 report_group_not_supported).
+ */
+group?: string;
+lang?: ExportJournalLinesDatasetLang;
+};
+
+export type ExportJournalLinesDatasetLang = typeof ExportJournalLinesDatasetLang[keyof typeof ExportJournalLinesDatasetLang];
+
+
+export const ExportJournalLinesDatasetLang = {
+  en: 'en',
+  ar: 'ar',
 } as const;
 
 export type GetTaxJournalEntriesParams = {

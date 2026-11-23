@@ -53,6 +53,7 @@ const CATEGORIES: ReportCategory[] = [
       { label: "Cash Flow",                        labelAr: "التدفق النقدي",                href: "/cash-flow" },
       { label: "Trial Balance",                    labelAr: "ميزان المراجعة",               href: "/trial-balance" },
       { label: "Journal Report",                   labelAr: "تقرير اليومية",                href: "/reports/journal-report" },
+      { label: "Journal Lines",                    labelAr: "سطور القيود",                  href: "/reports/journal-lines", isNew: true },
       { label: "General Ledger",                   labelAr: "دفتر الأستاذ العام",           href: "/reports/general-ledger" },
       { label: "Account Statement",                labelAr: "كشف الحساب",                   href: "/reports/account-statement" },
       { label: "Account Summary",                  labelAr: "ملخص الحساب",                  href: "/reports/account-summary" },

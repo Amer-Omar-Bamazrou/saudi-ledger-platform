@@ -42,7 +42,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { pool, PERMISSION_MATRIX } from "@workspace/db";
+import { pool, PERMISSION_MATRIX, reportDatasetResource } from "@workspace/db";
+import { DATASETS } from "../lib/reports/datasets";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROUTES = join(HERE, "../routes");
@@ -101,7 +102,13 @@ describe("the permission matrix's GRANTS, not its enforcement", () => {
     // read: it decides which of a record's fields the viewer SEES, and changes nothing. A field `write` is not a read,
     // and still fails this assertion (the matrix grants a viewer none; field-class-grants.test.ts pins it too).
     const isRead = (action: string) => action === "read" || /^field\.[a-z_]+\.(read|last4)$/.test(action);
-    const nonRead = rows.filter((r) => r.role === "viewer" && !isRead(r.action));
+    // 🔴 Restated for 19B S4 (v4 §6.2, D3; owner-approved): on a report DATASET a viewer runs, exports, schedules to
+    // itself and saves — each takes the data the viewer may already read, and changes nothing in the books. Delivering to
+    // OTHERS and sharing a definition stay refused (asserted below).
+    const VIEWER_REPORT_ACTS = new Set(["run", "export", "schedule", "save"]);
+    const isViewerReportAct = (r: { resource: string; action: string }) => r.resource.startsWith("report_dataset.") && VIEWER_REPORT_ACTS.has(r.action);
+    const nonRead = rows.filter((r) => r.role === "viewer" && !isRead(r.action) && !isViewerReportAct(r));
+    expect(rows.filter((r) => r.role === "viewer" && r.resource.startsWith("report_dataset.") && (r.action === "deliver" || r.action === "share"))).toEqual([]);
     expect(
       nonRead.map((r) => `${r.resource}:${r.action}`),
       "A viewer holds a non-read grant. The role's entire meaning is that it " +
@@ -231,7 +238,8 @@ describe("the permission matrix's GRANTS, not its enforcement", () => {
 
   it("🔴 no grant exists for a resource nothing guards", () => {
     // a route's requirePermission, or the database's own read of the grant (R-11b, DR-13)
-    const guarded = new Set([...guardedResources(), ...databaseReadResources()]);
+    // 19B S4: a report dataset's grants are read by decide() (lib/reports/decide.ts) on every dataset request
+    const guarded = new Set([...guardedResources(), ...databaseReadResources(), ...Object.keys(DATASETS).map(reportDatasetResource)]);
     /**
      * `users` is the documented exception and stays: those endpoints run BEFORE
      * `resolveTenant`, manage the global identity directory, and are guarded by

@@ -96,8 +96,10 @@ describeDb("19B S2a pre-removal review — with the twelve grants removed", () =
     expect(PERMISSION_MATRIX.filter((r) => REMOVED.has(key(r))).map(key)).toEqual([]);
     expect(REMOVED.size).toBe(12);
     // 19B S3 added the six `bank_detail` grants (read ×4, approve ×2) — additions, outside S2a's set
-    const withoutS3 = PERMISSION_MATRIX.filter((r) => r.resource !== "bank_detail");
-    expect([withoutS3.length, S2A_MATRIX.filter((r) => r.resource !== "bank_detail").length, PERMISSION_MATRIX.length - withoutS3.length]).toEqual([395 - 12, 395 - 12, 6]);
+    // 19B S4 added the 22 report-dataset grants (journal_lines: v4 §6.2) — additions, outside S2a's set too
+    const later = (r: { resource: string }) => r.resource === "bank_detail" || r.resource.startsWith("report_dataset.");
+    const withoutLater = PERMISSION_MATRIX.filter((r) => !later(r));
+    expect([withoutLater.length, S2A_MATRIX.filter((r) => !later(r)).length, PERMISSION_MATRIX.filter((r) => r.resource === "bank_detail").length, PERMISSION_MATRIX.filter((r) => r.resource.startsWith("report_dataset.")).length]).toEqual([395 - 12, 395 - 12, 6, 22]);
   });
 
   // ── B ──

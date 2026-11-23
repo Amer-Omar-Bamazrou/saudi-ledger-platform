@@ -6249,6 +6249,111 @@ export const ExportReportResponse = zod.unknown()
 
 
 /**
+ * @summary 19B S4 — the report datasets, and for each what this role may do (its acts) and every column with the level this role reads it at (read, last4, none). Computed by decide(); the screen only displays it.
+
+ */
+export const ListReportDatasetsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "name": zod.string(),
+  "title": zod.string(),
+  "titleAr": zod.string(),
+  "acts": zod.array(zod.enum(['run', 'export', 'schedule', 'deliver', 'save', 'share'])).describe('The acts this role may take on the dataset'),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "kind": zod.enum(['text', 'money', 'date', 'int']),
+  "class": zod.string().describe('The column\'s field class, from the class table (standard, bank_narrative, …)'),
+  "level": zod.enum(['read', 'last4', 'none']),
+  "conditional": zod.string().nullish().describe('When the class applies only to some rows: which (e.g. a line built from a bank line)'),
+  "filterable": zod.boolean(),
+  "sortable": zod.boolean()
+}).describe('19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).'))
+}))
+})
+
+
+/**
+ * @summary 19B S4 — run the journal-lines dataset (journal lines in the books: posted and reversed entries) in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); a filter or a sort on one is refused by name (403 report_field_withheld). The total is the true count.
+
+ */
+export const runJournalLinesDatasetQueryLimitMax = 500;
+
+export const runJournalLinesDatasetQueryOffsetMin = 0;
+
+
+
+export const RunJournalLinesDatasetQueryParams = zod.object({
+  "columns": zod.coerce.string().optional().describe('Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.'),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "account_id": zod.coerce.number().optional(),
+  "source_type": zod.coerce.string().optional(),
+  "sort": zod.coerce.string().optional().describe('A column key; a leading \'-\' sorts descending (default: date, then entry number).'),
+  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "limit": zod.coerce.number().min(1).max(runJournalLinesDatasetQueryLimitMax).optional(),
+  "offset": zod.coerce.number().min(runJournalLinesDatasetQueryOffsetMin).optional()
+})
+
+export const RunJournalLinesDatasetResponse = zod.object({
+  "dataset": zod.string(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "kind": zod.enum(['text', 'money', 'date', 'int']),
+  "class": zod.string().describe('The column\'s field class, from the class table (standard, bank_narrative, …)'),
+  "level": zod.enum(['read', 'last4', 'none']),
+  "conditional": zod.string().nullish().describe('When the class applies only to some rows: which (e.g. a line built from a bank line)'),
+  "filterable": zod.boolean(),
+  "sortable": zod.boolean()
+}).describe('19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).')),
+  "rows": zod.array(zod.object({
+  "lineId": zod.number().optional(),
+  "date": zod.coerce.date().optional(),
+  "entryNumber": zod.string().optional(),
+  "status": zod.string().optional(),
+  "sourceType": zod.string().nullish(),
+  "reference": zod.string().nullish(),
+  "accountId": zod.number().nullish(),
+  "accountCode": zod.string().nullish(),
+  "accountName": zod.string().optional(),
+  "accountNameAr": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "debit": zod.number().optional(),
+  "credit": zod.number().optional()
+}).describe('19B S4 — one journal line in the books. Only the shown columns are present; a withheld column\'s key is absent (D4). The line text is the bank\'s own text where the entry came from a bank line (bank_narrative).\n')),
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "withheld": zod.array(zod.object({
+  "path": zod.string(),
+  "class": zod.string(),
+  "level": zod.enum(['none', 'last4']),
+  "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
+}))
+})
+
+
+/**
+ * @summary 19B S4 — export the journal-lines dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+export const ExportJournalLinesDatasetQueryParams = zod.object({
+  "columns": zod.coerce.string().optional().describe('Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.'),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "account_id": zod.coerce.number().optional(),
+  "source_type": zod.coerce.string().optional(),
+  "sort": zod.coerce.string().optional().describe('A column key; a leading \'-\' sorts descending (default: date, then entry number).'),
+  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "lang": zod.enum(['en', 'ar']).optional()
+})
+
+export const ExportJournalLinesDatasetResponse = zod.unknown()
+
+
+/**
  * @summary Journal entries that touch VAT or tax accounts
  */
 export const GetTaxJournalEntriesQueryParams = zod.object({

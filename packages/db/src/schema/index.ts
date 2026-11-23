@@ -50,6 +50,7 @@ export * from "./departments";
 export * from "./memberships";
 export * from "./auditLogs";
 export * from "./securityAuditLog";
+export * from "./permissionRefusalEvents";
 export * from "./platformOperators";
 export * from "./verificationReviews";
 export * from "./verificationDocuments";

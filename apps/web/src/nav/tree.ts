@@ -367,6 +367,7 @@ export const NAV_TREE: readonly NavSection[] = [
         href: "/reports/journal-report", icon: ScrollText,
         children: [
           built("/reports/journal-report", "Journal Report", "تقرير اليومية"),
+          built("/reports/journal-lines", "Journal Lines", "سطور القيود"), // 19B S4: the first report dataset
           built("/reports/general-ledger", "General Ledger", "دفتر الأستاذ العام"),
           // 🔴 THESE FIVE WERE FOUND BY THE COVERAGE CHECK, NOT BY READING.
           // Every one is a real, working report page that the §4 spec never
