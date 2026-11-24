@@ -93,7 +93,10 @@ test("🔴 AR phone: a viewer opens Journal lines, sees the posted lines and the
   await expect(page.getByTestId("journal-lines-row")).toHaveCount(2);
   await expect(page.getByTestId("journal-lines-table")).toContainText(TEXT);
   await expect(page.getByTestId("journal-lines-count")).toHaveText("1–2 من 2 سطراً");
-  await expect(page.getByTestId("journal-lines-col-description")).toHaveAttribute("data-level", "read");
+  // restated for S2c's removal: a viewer holds no bank-text grant, so the description column is WITHHELD for a line that
+  // came from a bank line; these lines are a typed entry's, so their text is still served (the two TEXT checks above and in
+  // the CSV are the presence half)
+  await expect(page.getByTestId("journal-lines-col-description")).toHaveAttribute("data-level", "none");
   await expect(page.getByTestId("journal-lines-no-export"), "a viewer may export a viewer dataset (D3)").toHaveCount(0);
   await fitsAtPhoneWidth(page, "the Journal lines page");
   const exportRequests: string[] = [];

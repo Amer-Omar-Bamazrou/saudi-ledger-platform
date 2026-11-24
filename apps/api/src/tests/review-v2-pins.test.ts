@@ -14,7 +14,7 @@
  * DB-backed; skips on the placeholder.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { pool, PERMISSION_MATRIX, S2C_PENDING_REMOVALS } from "@workspace/db";
+import { pool, PERMISSION_MATRIX, S2C_REMOVALS } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { g04Harness } from "./helpers/g04Harness";
 
@@ -24,7 +24,8 @@ const PW = "review-v2-pins-password-2026";
 const h = g04Harness("rv2pin");
 const ROLES = ["admin", "accountant", "bookkeeper", "viewer"] as const;
 const key = (r: { role: string; resource: string; action: string }) => `${r.role}:${r.resource}:${r.action}`;
-const S2C = new Set(S2C_PENDING_REMOVALS.map(key));
+// restated for S2c's removal: the set is applied in the matrix now, so "today's matrix" and "S2c's removals" are one matrix
+const S2C = new Set(S2C_REMOVALS.map(key));
 
 function saIban(bban: string): string {
   const n = BigInt(`${bban}281000`);

@@ -22,7 +22,7 @@ process.env.SESSION_SECRET ??= "field-class-canary-sweep-000000001";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { pool, PERMISSION_MATRIX, S2B_REMOVALS, S2C_PENDING_REMOVALS, fieldGrantAction, type PermissionRow, type ProtectedFieldClass } from "@workspace/db";
+import { pool, PERMISSION_MATRIX, S2B_REMOVALS, S2C_REMOVALS, fieldGrantAction, type PermissionRow, type ProtectedFieldClass } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { CONTRACT } from "../lib/fieldClasses/contractShapes.generated";
 import { OUTSIDE_CONTRACT_ROUTES } from "../lib/fieldClasses/outsideContract";
@@ -68,13 +68,11 @@ const CANARIES: Canary[] = [
 
 /** The matrices the sweep runs under: today's (S2a's classes switched on). S2b and S2c add their planned removals. */
 const S2B_PENDING = new Set(S2B_REMOVALS.map((r) => `${r.role}:${r.resource}:${r.action}`));
-const S2C_PENDING = new Set(S2C_PENDING_REMOVALS.map((r) => `${r.role}:${r.resource}:${r.action}`));
+const S2C_PENDING = new Set(S2C_REMOVALS.map((r) => `${r.role}:${r.resource}:${r.action}`));
 const SWEEP_MATRICES: Array<{ name: string; rows: PermissionRow[] }> = [
-  // Restated for the S2b removal: the matrix itself lacks S2a's and S2b's removals (the S2b filter is now the identity
-  // and stays, so the sweep keeps naming S2b's set); S2c's planned removals are primed on top of it.
-  { name: "the current matrix (S2a + S2b)", rows: PERMISSION_MATRIX.filter((r) => !S2B_PENDING.has(`${r.role}:${r.resource}:${r.action}`)) },
-  // 19B S2c: its nine planned removals primed ON TOP of S2b's (the bank's text, member security, migration contact)
-  { name: "S2b's and S2c's planned removals", rows: PERMISSION_MATRIX.filter((r) => !S2B_PENDING.has(`${r.role}:${r.resource}:${r.action}`) && !S2C_PENDING.has(`${r.role}:${r.resource}:${r.action}`)) },
+  // Restated for the S2b and S2c removals: the matrix itself lacks S2a's, S2b's and S2c's removals; the filters below are
+  // now the identity and stay, so the sweep keeps naming both sets.
+  { name: "the current matrix (S2a + S2b + S2c)", rows: PERMISSION_MATRIX.filter((r) => !S2B_PENDING.has(`${r.role}:${r.resource}:${r.action}`) && !S2C_PENDING.has(`${r.role}:${r.resource}:${r.action}`)) },
 ];
 
 const ROLES_SWEPT = ["viewer", "bookkeeper"] as const;

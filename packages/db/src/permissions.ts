@@ -308,20 +308,22 @@ const FIELD_SPEC: Record<string, Partial<Record<ProtectedFieldClass, Partial<Rec
     contact: { read: WRITE, write: WRITE },
     bank_account: { read: APPROVE, last4: WRITE, write: WRITE },
   },
+  // 🔴 S2c (v4 §6.1 D2, D9 (c)): a viewer reads no bank text and no migration contact; only the admin reads member
+  // security (S2C_REMOVALS). The write levels are unchanged.
   migration: {
-    contact: { read: READ_ALL, write: WRITE },
+    contact: { read: WRITE, write: WRITE },
   },
   transactions: {
-    bank_narrative: { read: READ_ALL, write: WRITE },
+    bank_narrative: { read: WRITE, write: WRITE },
   },
   journal_entries: {
-    bank_narrative: { read: READ_ALL, write: WRITE },
+    bank_narrative: { read: WRITE, write: WRITE },
   },
   audit_logs: {
-    member_security: { read: READ_ALL, write: WRITE },
+    member_security: { read: ADMIN_ONLY, write: WRITE },
   },
   users: {
-    member_security: { read: READ_ALL, write: WRITE },
+    member_security: { read: ADMIN_ONLY, write: WRITE },
   },
 };
 
@@ -380,9 +382,9 @@ export const S2B_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFiel
  * 🔴 19B S2c — THE REMOVALS THAT WILL SWITCH WITHHOLDING ON FOR THE BANK'S TEXT, MEMBER SECURITY AND MIGRATION CONTACT
  * (v4 §6.1 D2; D9 (c)).
  *
- * 🔴 PENDING — STILL IN PERMISSION_MATRIX. S2c's code merges with every grant in place (owner, 2026-11-24, "the same way
- * as S2a"); the removal is its own commit, applied per environment only with the owner's approval string for that
- * environment and this exact set (D10). field-class-grants.test.ts pins the set, its hash, and that each is still granted.
+ * 🔴 REMOVED FROM PERMISSION_MATRIX (FIELD_SPEC's transactions, journal_entries, migration, audit_logs, users). A database's
+ * table loses them only through the reconcile with the owner's approval string for THAT environment and this exact set
+ * (sha256 2c11c050…e65e, D10), after S2b's.
  *
  * After them: a viewer reads no bank text (a statement line's, a transaction's, a journal line posted from one) and no
  * migration contact; only an admin reads member security (an IP address, a member's email in a security trail, an audit
@@ -390,7 +392,7 @@ export const S2B_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFiel
  * sessions (served on routes scoped to the caller). The write levels are unchanged: no route under an organization role
  * writes member security.
  */
-export const S2C_PENDING_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFieldClass; why: string })[] = [
+export const S2C_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFieldClass; why: string })[] = [
   { role: "viewer", resource: "transactions", action: "field.bank_narrative.read", fieldClass: "bank_narrative", why: "viewer: bank text none (D1, D2)" },
   { role: "viewer", resource: "journal_entries", action: "field.bank_narrative.read", fieldClass: "bank_narrative", why: "viewer: bank text none, where a line came from a bank line (D1, D2, D11 amended)" },
   { role: "viewer", resource: "migration", action: "field.contact.read", fieldClass: "contact", why: "viewer: contact none (D2)" },

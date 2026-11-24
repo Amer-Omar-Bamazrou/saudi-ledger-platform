@@ -35,6 +35,8 @@ const h = g04Harness("s4ds");
 
 const without = (pred: (r: PermissionRow) => boolean) => PERMISSION_MATRIX.filter((r) => !pred(r));
 const noViewerBankText = without((r) => r.role === "viewer" && r.resource === "journal_entries" && r.action === "field.bank_narrative.read");
+// Restated for S2c's removal: the matrix itself lacks the viewer's bank-text grant now; "with the grant" re-adds exactly it.
+const withViewerBankText: PermissionRow[] = [...noViewerBankText, { role: "viewer", resource: "journal_entries", action: "field.bank_narrative.read" }];
 const noViewerExport = without((r) => r.role === "viewer" && r.resource === reportDatasetResource("journal_lines") && r.action === "export");
 
 describeDb("19B S4 — the journal-lines dataset, and the refusal events", () => {
@@ -68,13 +70,14 @@ describeDb("19B S4 — the journal-lines dataset, and the refusal events", () =>
   }, 120_000);
   afterAll(async () => { primePermissionCache(PERMISSION_MATRIX); vi.restoreAllMocks(); await h.stop(); await h.cleanup(); });
 
-  it("🔴 the list: the viewer's acts on journal lines are v4 §6.2's, and every column is read under the matrix", async () => {
-    primePermissionCache(PERMISSION_MATRIX);
+  it("🔴 the list: the viewer's acts on journal lines are v4 §6.2's, and every column is read with the bank-text grant", async () => {
+    primePermissionCache(withViewerBankText);
     const r = await h.api("viewer", "GET", "/reports/datasets");
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     const jl = r.body.items.find((i: { name: string }) => i.name === "journal_lines");
     expect(jl.acts).toEqual(["run", "export", "schedule", "save"]);
     expect(jl.columns.every((c: { level: string }) => c.level === "read")).toBe(true);
+    primePermissionCache(PERMISSION_MATRIX);
   });
 
   it("🔴 the rows are the ledger's: the debit total equals the journal report's for the window — non-zero, two paths", async () => {
@@ -91,7 +94,7 @@ describeDb("19B S4 — the journal-lines dataset, and the refusal events", () =>
   });
 
   it("🔴 without the bank-text grant: the bank line's text is ABSENT and listed, the typed line's text stays; a sort on it is refused by name", async () => {
-    primePermissionCache(PERMISSION_MATRIX);
+    primePermissionCache(withViewerBankText);
     const before = await h.api("viewer", "GET", `${ROWS}?date_from=2026-10-01&date_to=2026-10-31&columns=sourceType,description,debit`);
     expect((before.body.rows as { description?: string }[]).map((x) => x.description).sort()).toEqual([BANK_TEXT, BANK_TEXT, TYPED_TEXT, TYPED_TEXT].sort());
     primePermissionCache(noViewerBankText);

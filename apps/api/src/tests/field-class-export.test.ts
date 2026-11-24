@@ -19,6 +19,8 @@ const h = g04Harness("fc-export");
 const BANK_TEXT = "BANKTEXT POS 4412 AL-NAHDI";
 const TYPED_TEXT = "Typed accrual for October";
 const withoutViewerBankText = PERMISSION_MATRIX.filter((r) => !(r.role === "viewer" && r.resource === "journal_entries" && r.action === fieldGrantAction("bank_narrative", "read")));
+// Restated for S2c's removal: the matrix itself lacks the viewer's grant now; the "with" half re-adds exactly that one grant.
+const withViewerBankText = [...withoutViewerBankText, { role: "viewer" as const, resource: "journal_entries", action: fieldGrantAction("bank_narrative", "read") }];
 const GL = "/reports/export/general-ledger?format=csv&date_from=2026-10-01&date_to=2026-10-31";
 
 // Restated (review follow-up, 2026-11-24): the condition reads a row's TEXT ORIGIN, which follows a mirror to its original
@@ -55,8 +57,8 @@ describeDb("19B S2a — the general-ledger export withholds bank text by class",
   });
   afterAll(async () => { primePermissionCache(PERMISSION_MATRIX); await h.stop(); await h.cleanup(); });
 
-  it("🔴 S1's matrix: the viewer's export carries both texts, and no withheld note", async () => {
-    primePermissionCache(PERMISSION_MATRIX);
+  it("🔴 with the viewer's bank-text grant (before S2c's removal): the viewer's export carries both texts, and no withheld note", async () => {
+    primePermissionCache(withViewerBankText);
     const r = await h.api("viewer", "GET", GL);
     expect(r.status).toBe(200);
     expect(r.text).toContain(BANK_TEXT);
@@ -77,7 +79,8 @@ describeDb("19B S2a — the general-ledger export withholds bank text by class",
     expect(ar.text).not.toContain(BANK_TEXT);
     // movement: the admin, whose grant was not removed, still gets the text; restoring the viewer's grant restores it
     expect((await h.api("admin", "GET", GL)).text).toContain(BANK_TEXT);
-    primePermissionCache(PERMISSION_MATRIX);
+    primePermissionCache(withViewerBankText);
     expect((await h.api("viewer", "GET", GL)).text).toContain(BANK_TEXT);
+    primePermissionCache(PERMISSION_MATRIX);
   });
 });
