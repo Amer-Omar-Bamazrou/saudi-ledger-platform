@@ -19,6 +19,7 @@
  * visible. The server decides every state; the page renders its list.
  */
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText } from "@/components/Withheld";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { Link, useLocation, useSearch } from "wouter";
 import { useGetCurrentCompany, useGetVatReturn, useGetVatSummary, useGetDepositReview } from "@workspace/api-client-react";
@@ -435,7 +436,7 @@ export default function VatReport() {
                   {bankVat?.transactions?.map((tx) => (
                     <tr key={tx.id} className="hover:bg-secondary/30 transition-colors">
                       <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap"><DualDate date={tx.date} /></td>
-                      <td className="px-6 py-4 text-foreground font-medium">{tx.description}</td>
+                      <td className="px-6 py-4 text-foreground font-medium"><BankText row={tx} /></td>
                       <td className="px-6 py-4">
                         <Badge
                           variant="outline"

@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Scale, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText, bankTextLabel } from "@/components/Withheld";
 import { useBankOptions } from "@/components/payments/shared";
 import {
   useListReconciliationLines, getListReconciliationLinesQueryKey,
@@ -150,7 +151,7 @@ export default function BankReconciliation() {
                   <tr key={l.id} className="border-b border-border/50" data-testid={`rec-line-${l.id}`}>
                     <td className="py-2 pe-3 font-mono text-xs whitespace-nowrap" dir="ltr">{l.date}</td>
                     <td className="py-2 pe-3 text-xs">{byId(l.bankAccountId)?.name ?? `#${l.bankAccountId}`}</td>
-                    <td className="py-2 pe-3 text-xs max-w-72 truncate" title={l.description}>{l.description}</td>
+                    <td className="py-2 pe-3 text-xs max-w-72 truncate" title={bankTextLabel(l, t)}><BankText row={l} /></td>
                     <td className="py-2 pe-3 text-xs">{l.direction === "in" ? t("In", "داخل") : t("Out", "خارج")}</td>
                     <td className="py-2 pe-3"><Money v={l.amount} /></td>
                     <td className="py-2 pe-3" data-testid={`rec-remaining-${l.id}`}><Money v={l.remaining} /></td>
@@ -199,7 +200,7 @@ function LineDialog({ id, t, onChanged, onClose }: { id: number; lang: string; t
   return (
     <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="rec-line-dialog">
       <DialogHeader>
-        <DialogTitle className="text-base">{line.description}</DialogTitle>
+        <DialogTitle className="text-base"><BankText row={line} /></DialogTitle>
         <DialogDescription>
           <span dir="ltr" className="font-mono">{line.date}</span>{" · "}
           {line.direction === "in" ? t("money in", "أموال داخلة") : t("money out", "أموال خارجة")}{" · "}
