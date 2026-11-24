@@ -40,6 +40,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { __resetRateLimitsForTests } from "../routes/auth";
 import { g04Harness } from "./helpers/g04Harness";
+import { SA_BUYER_ADDRESS } from "./helpers/buyerAddress";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -133,7 +134,7 @@ describeMaybe("G59 — the Art. 40(9) recovery's folded allocation cannot be una
     await h.mkUser("bookkeeper", PW, orgId, "bookkeeper");
     await h.start();
     for (const who of ["admin", "bookkeeper"]) expect(await h.login(who, h.email(who), PW), `login ${who}`).toBe(200);
-    const cust = await h.api("admin", "POST", "/customers", { name: "G59 Proof Buyer", taxNumber: "300000000000003" });
+    const cust = await h.api("admin", "POST", "/customers", { name: "G59 Proof Buyer", taxNumber: "300000000000003", ...SA_BUYER_ADDRESS });
     ok(cust, 201);
     customerId = cust.body.id;
     const bank = await h.api("admin", "POST", "/bank-accounts", { name: "G59 Proof Ops", bankName: "Riyad", currency: "SAR" });

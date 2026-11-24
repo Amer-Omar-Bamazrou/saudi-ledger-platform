@@ -29,6 +29,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { JOURNAL_SOURCE_TYPES, RESERVED_ENTRY_NUMBER_PREFIXES } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
+import { SA_BUYER_ADDRESS } from "./helpers/buyerAddress";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -167,7 +168,7 @@ describeMaybe("T1d — every journal entry records who created it, who approved 
   });
 
   it("🔴 an entry the posting seam writes INSIDE an approval records the approver and its source document (an invoice)", async () => {
-    const cust = await h.api("admin", "POST", "/customers", { name: "T1d Buyer", taxNumber: "300000000000003" });
+    const cust = await h.api("admin", "POST", "/customers", { name: "T1d Buyer", taxNumber: "300000000000003", ...SA_BUYER_ADDRESS });
     expect(cust.status, JSON.stringify(cust.body)).toBe(201);
     const inv = await h.api("maker", "POST", "/invoices", { date: DATE, customerId: cust.body.id, items: [{ description: "Services", quantity: 1, unitPrice: 1_000, vatRate: 15 }] });
     expect(inv.status, JSON.stringify(inv.body)).toBe(201);

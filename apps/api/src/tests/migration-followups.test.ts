@@ -28,6 +28,7 @@ import { loadEInvoiceInput } from "../services/einvoice/einvoiceInput.loader";
 import { buildInvoiceXml } from "../services/einvoice/ubl/buildInvoiceXml";
 import { createApproved } from "./helpers/createApproved";
 import { replica } from "./helpers/replica";
+import { SA_BUYER_ADDRESS } from "./helpers/buyerAddress";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -257,6 +258,9 @@ describeMaybe("Migration follow-ups — identity, item-level correction to retai
     // money arrives: allocated to the open item (outstanding after the note: 11,500 − 1,150 = 10,350); the recovery invoice declares the VAT (rate from the migration's historical VAT: 15)
     const rcpt = await inTenant(() => paymentsService.receive({ customerId: row.customer_id, amount: 4_600, paidAt: "2026-07-20", bankAccountId: bank, allocations: [{ invoiceId: invoiceOf.S3!, amount: 4_600 }] }, userId));
     const vatBefore = await gl("VAT_OUTPUT");
+    // 2026-11-24: a recovery invoice is a standard tax invoice to this business buyer, which the import brought with a
+    // free-text address only; the buyer's national address is completed first (as the customer form now does)
+    await pool.query(`UPDATE customers SET building_number = $2, street = $3, district = $4, city = $5, postal_code = $6 WHERE id = $1`, [row.customer_id, SA_BUYER_ADDRESS.buildingNumber, SA_BUYER_ADDRESS.street, SA_BUYER_ADDRESS.district, SA_BUYER_ADDRESS.city, SA_BUYER_ADDRESS.postalCode]);
     const draft = await inTenant(() => badDebtService.createRecovery(invoiceOf.S3!, { paymentId: rcpt.id, amount: 4_600 }, userId));
     expect([draft.subtotal, draft.vatAmount, draft.total].map(Number)).toEqual([4_000, 600, 4_600]);
     const rec = await inTenant(() => invoicesService.approve(draft.id, userId));

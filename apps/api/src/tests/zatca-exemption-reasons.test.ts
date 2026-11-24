@@ -25,6 +25,7 @@ process.env.MFA_ENFORCEMENT = "optional";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
+import { SA_BUYER_ADDRESS } from "./helpers/buyerAddress";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -55,7 +56,7 @@ describeMaybe("Z/E/O invoice lines carry their reason from ZATCA's code list, ov
     await h.start();
     expect(await h.login("admin", h.email("admin"), PW)).toBe(200);
     citizen = (await h.api("admin", "POST", "/customers", { name: "Abdulrahman Al-Harbi", nationalId: "1012345678" })).body.id;
-    business = (await h.api("admin", "POST", "/customers", { name: "Gulf Exports Co", taxNumber: "311111111111113" })).body.id;
+    business = (await h.api("admin", "POST", "/customers", { name: "Gulf Exports Co", taxNumber: "311111111111113", ...SA_BUYER_ADDRESS })).body.id;
     expect(citizen && business, "anti-vacuity: both customers exist").toBeTruthy();
   }, 120_000);
   afterAll(async () => { await h.stop(); await h.cleanup(); });
