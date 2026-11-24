@@ -168,7 +168,7 @@ describeMaybe("G08 — two acts on one invoice at once: one wins, the other gets
     orgId = await h.mkOrg("org");
     companyId = await h.mkCompany(orgId, "G08 Regression Co", "318181818181863");
     customerId = (await pool.query(
-      `INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'G08 Regression Buyer','300000000000003') RETURNING id`, [orgId],
+      `INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'G08 Regression Buyer','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId],
     )).rows[0].id;
     await h.mkUser("admin", PW, orgId, "admin");
     await h.mkUser("accountant", PW, orgId, "accountant");

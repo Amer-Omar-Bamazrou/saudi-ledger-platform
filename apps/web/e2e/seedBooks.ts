@@ -49,7 +49,8 @@ export interface BooksValues {
 
 export const SMOKE_BOOKS: BooksValues = {
   company: { name: "E2E Smoke Co", nameAr: "شركة الاختبار", crNumber: "1010101010", vatNumber: "300000000000003" },
-  customer: { name: "E2E Customer", taxNumber: "310000000000003" },
+  // 2026-11-24: a standard tax invoice to a Saudi business buyer needs its national address (buyer_address_incomplete)
+  customer: { name: "E2E Customer", taxNumber: "310000000000003", buildingNumber: "4321", street: "Olaya Street", district: "Al Olaya", city: "Riyadh", postalCode: "12211" },
   vendor: { name: "E2E Vendor", taxNumber: "302222222222223" },
   bank: { name: "E2E Current Account", bankName: "Al Rajhi Bank" },
   equity: { name: "Owner Equity", nameAr: "حقوق الملكية" },
@@ -99,6 +100,8 @@ export const PHONE_BOOKS: BooksValues = {
     phone: "+966 55 123 4567 / +966 11 456 7890",
     address: "مبنى رقم 7788، طريق الملك فهد الفرعي، حي العليا، الرياض 12214، المملكة العربية السعودية",
     city: "الرياض",
+    // the same address, as the national address a standard tax invoice needs (2026-11-24)
+    buildingNumber: "7788", street: "طريق الملك فهد الفرعي", district: "حي العليا", postalCode: "12214",
   },
   vendor: {
     name: "Gulf Integrated Office Supplies, Printing & Technical Services Trading Establishment",

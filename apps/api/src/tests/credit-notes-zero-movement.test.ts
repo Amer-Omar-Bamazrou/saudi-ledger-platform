@@ -125,7 +125,7 @@ describeMaybe("Credit/debit notes — zero movement until approved, then correct
     );
     customerId = (
       await pool.query(
-        `INSERT INTO customers (organization_id, name, name_ar, tax_number) VALUES ($1,'Gamma Client','جاما','300000000000003') RETURNING id`,
+        `INSERT INTO customers (organization_id, name, name_ar, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'Gamma Client','جاما','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`,
         [orgId],
       )
     ).rows[0].id;

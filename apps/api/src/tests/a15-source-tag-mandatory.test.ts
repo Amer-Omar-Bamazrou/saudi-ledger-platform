@@ -31,6 +31,7 @@ import { recurringService } from "../services/recurring/recurring.service";
 import { recurringGenerationService } from "../services/recurring/generation.service";
 import { fixtureQuery, SYNTHETIC_SOURCE_SETTING, TEST_FIXTURE_SOURCE } from "./helpers/journalFixtures";
 import { g04Harness } from "./helpers/g04Harness";
+import { SA_BUYER_ADDRESS } from "./helpers/buyerAddress";
 
 const url = process.env.DATABASE_URL;
 const describeMaybe = url && !url.includes("placeholder") ? describe : describe.skip;
@@ -164,7 +165,7 @@ describeMaybe("A15 — every journal entry names its source (migration 0163)", (
     const bank = await h.api("admin", "POST", "/bank-accounts", { name: "A15 Ops", bankName: "SNB", currency: "SAR" });
     expect(bank.status, JSON.stringify(bank.body)).toBe(201);
     bankId = bank.body.id as number;
-    const cust = await h.api("admin", "POST", "/customers", { name: "A15 Buyer", taxNumber: "300000000000003" });
+    const cust = await h.api("admin", "POST", "/customers", { name: "A15 Buyer", taxNumber: "300000000000003", ...SA_BUYER_ADDRESS });
     expect(cust.status, JSON.stringify(cust.body)).toBe(201);
     customerId = cust.body.id as number;
     office = await account("OFFICE_SUPPLIES");

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, Search, Users, TrendingUp, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { CustomerForm } from "@/components/customers/CustomerForm";
 import { Withheld } from "@/components/Withheld";
 import { useGetCustomerFieldAccess } from "@workspace/api-client-react";
 import { ListPagination } from "@/components/ListPagination";
@@ -20,24 +21,14 @@ import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 import type { CreateCustomerInput, CustomerTotals, CustomerWithBalance } from "@workspace/api-client-react";
 
 
-const emptyForm = { name: "", nameAr: "", taxNumber: "", crNumber: "", phone: "", email: "", address: "", city: "", paymentTermsDays: "30", creditLimit: "" };
 
-/**
- * The form holds strings; the contract wants `creditLimit: number | null`, and
- * "" means "no limit". The server used to accept "" and store it — `Number("")`
- * is 0 — so every such customer read back with a limit of 0.00. The generated
- * body type makes sending "" a compile error here and a 400 there.
- */
-function toCreateInput(f: typeof emptyForm): CreateCustomerInput {
-  const { creditLimit, ...rest } = f;
-  return { ...rest, creditLimit: creditLimit.trim() === "" ? null : Number(creditLimit) };
-}
 
+// The create form is the shared CustomerForm (components/customers): the structured national address and the national
+// ID, role-aware (2026-11-24).
 export default function Customers() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t, lang } = useLanguage();
@@ -55,11 +46,6 @@ export default function Customers() {
   });
   const customers = paged?.items ?? [];
 
-  const createMut = useMutation({
-    mutationFn: (body: CreateCustomerInput) => apiFetch("/customers", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); setOpen(false); setForm(emptyForm); toast({ title: t("Customer created", "تم إنشاء العميل") }); },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
-  });
 
   /**
    * 🔴 From the server, over every matching customer — never `reduce`d over the
@@ -83,25 +69,8 @@ export default function Customers() {
           <h1 className="text-2xl font-bold text-foreground">{t("Customers", "العملاء")}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t("Accounts Receivable", "الحسابات المدينة")} — {lang === "ar" ? arabicActiveCustomers(paged?.page.total ?? 0) : englishActiveCustomers(paged?.page.total ?? 0)}</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="w-4 h-4" /> {t("New Customer", "عميل جديد")}</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>{t("New Customer", "عميل جديد")}</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              {[["name",t("Company Name (English) *","اسم الشركة (بالإنجليزية) *")],["nameAr",t("Company Name (Arabic)","اسم الشركة (بالعربية)")],["taxNumber",t("VAT Number","رقم ضريبة القيمة المضافة")],["crNumber",t("CR Number","رقم السجل التجاري")],["phone",t("Phone","الهاتف")],["email",t("Email","البريد الإلكتروني")],["address",t("Address","العنوان")],["city",t("City","المدينة")],["paymentTermsDays",t("Payment Terms (days)","شروط الدفع (أيام)")],["creditLimit",t("Credit Limit (SAR)","حد الائتمان (ر.س)")]].map(([k,l])=>(
-                <div key={k} className={k==="address"?"col-span-2":""}>
-                  <Label className="text-xs text-muted-foreground">{l}</Label>
-                  <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1 h-8 text-sm" />
-                </div>
-              ))}
-            </div>
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate(toCreateInput(form))} disabled={!form.name || createMut.isPending}>
-              {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Customer", "إنشاء عميل")}
-            </Button>
-          </DialogContent>
-        </Dialog>
+        <Button className="gap-2" onClick={() => setOpen(true)} data-testid="customer-new"><Plus className="w-4 h-4" /> {t("New Customer", "عميل جديد")}</Button>
+        <CustomerForm mode="create" access={access.data} open={open} onOpenChange={setOpen} />
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">

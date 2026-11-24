@@ -99,7 +99,7 @@ describeMaybe("Phase 18 S1-b · G64 proof — one statement line settled twice a
     orgId = await h.mkOrg("org");
     await h.mkCompany(orgId, "S1b G64 Co", "318181818181863");
     customerId = (await pool.query(
-      `INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'S1b G64 Buyer','300000000000003') RETURNING id`, [orgId],
+      `INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'S1b G64 Buyer','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId],
     )).rows[0].id;
     await h.mkUser("admin", PW, orgId, "admin");
     await h.mkUser("accountant", PW, orgId, "accountant");

@@ -37,6 +37,7 @@ import { captureIssuedParties } from "./issuedParties";
 import { assertCorrectionIssuable, mirrorRejectedInvoiceEntries } from "./invoiceCorrections.service";
 import { enqueueEInvoice } from "./einvoice/outbox/enqueue";
 import { assertBuyerNationalIdForExemptions } from "./einvoice/buyerNationalId";
+import { assertBuyerAddressForStandardInvoice } from "./einvoice/buyerAddress";
 import { BusinessRuleError, ConflictError } from "../lib/errors";
 import { logger } from "../lib/logger";
 import { buildInvoiceOut, toNum, type InvoiceOut } from "./invoices.presenter";
@@ -237,6 +238,8 @@ async function issueInvoice(row: InvoiceRow, from: UnissuedStatus): Promise<Invo
   // 🔴 each zero-rated, exempt or out-of-scope line names its reason from ZATCA's list (invoiceLineReasons.ts)
   assertLineReasons(issuingItems);
   assertBuyerNationalIdForExemptions(issuingItems, row.cust?.nationalId);
+  // 🔴 a standard tax invoice names its buyer's address (BR-KSA-63 / BR-KSA-67 / BR-KSA-10; buyerAddress.ts) — before the ICV
+  assertBuyerAddressForStandardInvoice(inv.documentType, row.cust);
   const prepayments = !isAdvance && !isNoteType(inv.documentType) ? await assertPrepaymentsIssuable(inv, total) : [];
 
   // The tenant's real ZATCA identity — fails closed if unconfigured, so an

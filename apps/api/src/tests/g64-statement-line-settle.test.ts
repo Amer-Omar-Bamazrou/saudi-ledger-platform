@@ -111,7 +111,7 @@ describeMaybe("G64 — one statement line settles one document, once", () => {
     await h.mkCompany(orgId, "G64 Regression Co", "318181818181881");
     otherOrgId = await h.mkOrg("other");
     await h.mkCompany(otherOrgId, "G64 Other Co", "318181818181882");
-    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'G64 Buyer','300000000000003') RETURNING id`, [orgId])).rows[0].id;
+    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'G64 Buyer','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id;
     vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'G64 Supplier') RETURNING id`, [orgId])).rows[0].id;
     for (const [who, role] of [["admin", "admin"], ["accountant", "accountant"], ["bookkeeper", "bookkeeper"]]) await h.mkUser(who, PW, orgId, role);
     await h.mkUser("otheradmin", PW, otherOrgId, "admin");

@@ -59,7 +59,7 @@ describeMaybe("B-G08R-P (R1) — a PATCH racing an approval", () => {
     await h.cleanup();
     orgId = await h.mkOrg("org");
     await h.mkCompany(orgId, "G08R-R1 Co", "318181818181878");
-    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'G08R-R1 Buyer','300000000000003') RETURNING id`, [orgId])).rows[0].id;
+    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'G08R-R1 Buyer','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id;
     for (const [who, role] of [["admin", "admin"], ["bookkeeper", "bookkeeper"]]) await h.mkUser(who, PW, orgId, role);
     await h.start();
     for (const who of ["admin", "bookkeeper"]) expect(await h.login(who, h.email(who), PW), `login ${who}`).toBe(200);

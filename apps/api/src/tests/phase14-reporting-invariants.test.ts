@@ -123,7 +123,7 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
     ids.ap = await catId(orgId, "AP");
     ids.capital = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, is_posting) VALUES ($1,'Owner capital','رأس المال','equity',true) RETURNING id`, [orgId])).rows[0].id;
     ids.equipment = (await pool.query(`INSERT INTO categories (organization_id, name, name_ar, type, liquidity_class, is_posting) VALUES ($1,'Equipment','معدات','asset','non_current',true) RETURNING id`, [orgId])).rows[0].id;
-    ids.customer = (await pool.query(`INSERT INTO customers (organization_id, name, name_ar, tax_number) VALUES ($1,'Client One','العميل الأول','300000000000063') RETURNING id`, [orgId])).rows[0].id;
+    ids.customer = (await pool.query(`INSERT INTO customers (organization_id, name, name_ar, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'Client One','العميل الأول','300000000000063','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id;
     ids.vendor = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Supplier One','300000000000073') RETURNING id`, [orgId])).rows[0].id;
 
     await manual(inA, "P14-PRIOR", "2025-12-15", [[bank1Leaf, 500, 0], [ids.sales, 0, 500]]);
@@ -145,7 +145,7 @@ describeMaybe("Phase 14 — reporting invariants on real rows", () => {
 
     // ── company B (same org) ─────────────────────────────────────────────
     ids.bankB = await newBank(orgId, coB, "B Main");
-    const custB = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'Client B','300000000000083') RETURNING id`, [orgId])).rows[0].id;
+    const custB = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'Client B','300000000000083','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id;
     const invB = await inB(() => invoicesService.create({ invoiceNumber: "P14-INV-B", date: "2026-03-10", dueDate: "2026-03-25", customerId: custB, items: [{ description: "B work", quantity: 1, unitPrice: 9000, vatRate: 15 }] }, userId)) as { id: number };
     await inB(() => invoicesService.approve(invB.id, userId));
     await inB(() => invoicesService.pay(invB.id, { amount: 10350, paidAt: "2026-04-05", bankAccountId: ids.bankB }, userId));

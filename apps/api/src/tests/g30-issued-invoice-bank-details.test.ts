@@ -141,7 +141,7 @@ describeMaybe("G30 — an issued invoice keeps the bank details in force when it
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, name_ar, cr_number, vat_number, fiscal_year_start) VALUES ($1,'G30 Co','شركة جي ٣٠','1010303030','330033003300303',1) RETURNING id`, [orgId])).rows[0].id;
     otherOrgId = (await pool.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('G30 Other','${P}-other','approved') RETURNING id`)).rows[0].id;
     otherCompanyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number, fiscal_year_start) VALUES ($1,'G30 Other Co','1010303031','330033003300313',1) RETURNING id`, [otherOrgId])).rows[0].id;
-    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'G30 Buyer','300000000000003') RETURNING id`, [orgId])).rows[0].id;
+    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'G30 Buyer','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id;
     const hash = await bcrypt.hash(PW, 4);
     for (const role of ["admin", "bookkeeper"]) {
       ids[role] = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,$2,$3,'viewer',true) RETURNING id`, [email(role), role, hash])).rows[0].id;

@@ -10,6 +10,8 @@ import { ArrowLeft, FileText, FileMinus, ClipboardList, Banknote, AlertCircle, C
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Withheld } from "@/components/Withheld";
 import { useGetCustomerFieldAccess } from "@workspace/api-client-react";
+import { CustomerForm } from "@/components/customers/CustomerForm";
+import { Pencil } from "lucide-react";
 import { statusLabel } from "@/lib/statusLabel";
 import { computeAging, toFetched, DETAIL_FETCH_LIMIT, type FetchedDocs } from "@/lib/partyDetail";
 import type { Paged } from "@/lib/pagedList";
@@ -194,6 +196,9 @@ export default function CustomerDetail() {
   // 19B S2b (D4): what this role may read of the record, from the server's one class table and matrix — a withheld field is marked
   const access = useGetCustomerFieldAccess();
   const contactWithheld = access.data?.fields.phone?.read === "none";
+  const identityWithheld = access.data?.fields.nationalId?.read === "none";
+  const canEdit = access.data?.fields.name?.write === true;
+  const [editing, setEditing] = useState(false);
   const canPost = useCanPostPayments();
   const [receiving, setReceiving] = useState(false);
 
@@ -273,6 +278,11 @@ export default function CustomerDetail() {
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
+            {canEdit && (
+              <Button variant="outline" size="sm" className="gap-1" onClick={() => setEditing(true)} data-testid="customer-edit">
+                <Pencil className="w-4 h-4" />{t("Edit", "تعديل")}
+              </Button>
+            )}
             <Link href={`/customers/${customer.id}/statement`}>
               <Button variant="outline" size="sm" data-testid="open-statement">{t("Open statement", "فتح كشف الحساب")}</Button>
             </Link>
@@ -299,7 +309,8 @@ export default function CustomerDetail() {
         <StatTile label={t("Invoices", "الفواتير")} value={String(customer.invoiceCount)} />
       </div>
 
-      {(contactWithheld || customer.phone || customer.email || customer.address || customer.city) && (
+      <CustomerForm mode="edit" customer={customer} access={access.data} open={editing} onOpenChange={setEditing} />
+      {(contactWithheld || customer.phone || customer.email || customer.address || customer.city || customer.street || customer.nationalId || identityWithheld) && (
         <Card>
           <CardHeader><CardTitle className="text-base">{t("Contact", "بيانات الاتصال")}</CardTitle></CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2 text-sm">
@@ -308,6 +319,15 @@ export default function CustomerDetail() {
             {customer.email && <p><span className="text-muted-foreground">{t("Email", "البريد الإلكتروني")}: </span>{customer.email}</p>}
             {customer.address && <p><span className="text-muted-foreground">{t("Address", "العنوان")}: </span>{customer.address}</p>}
             {customer.city && <p><span className="text-muted-foreground">{t("City", "المدينة")}: </span>{customer.city}</p>}
+            {(customer.buildingNumber || customer.street || customer.district || customer.postalCode || customer.additionalNumber) && (
+              <p className="sm:col-span-2" data-testid="customer-national-address">
+                <span className="text-muted-foreground">{t("National address", "العنوان الوطني")}: </span>
+                {[customer.buildingNumber, customer.street, customer.district, customer.city, customer.postalCode, customer.additionalNumber, customer.country].filter(Boolean).join("، ")}
+              </p>
+            )}
+            {identityWithheld
+              ? <p><span className="text-muted-foreground">{t("National ID", "رقم الهوية الوطنية")}: </span><Withheld cls="identity" testId="customer-national-id-withheld" /></p>
+              : customer.nationalId && <p><span className="text-muted-foreground">{t("National ID", "رقم الهوية الوطنية")}: </span><span dir="ltr" className="font-mono">{customer.nationalId}</span></p>}
           </CardContent>
         </Card>
       )}

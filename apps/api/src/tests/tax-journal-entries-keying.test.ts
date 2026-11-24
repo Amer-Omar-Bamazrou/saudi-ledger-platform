@@ -74,7 +74,7 @@ describeMaybe("tax-journal-entries — keyed on system_code, never on the accoun
     // R-3 (AC-5; register §11.90): the VAT entries are an approved invoice's own, so the company has the seller identity
     // issuing needs (M11.6) and a customer exists.
     companyId = (await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number) VALUES ($1,'TJ Co','1010101012','399999999999975') RETURNING id`, [orgId])).rows[0].id;
-    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'TJ Customer','300000000000093') RETURNING id`, [orgId])).rows[0].id as number;
+    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'TJ Customer','300000000000093','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id as number;
     // D-3: cash posts to a bank's own GL account, so the fixture needs a bank.
     bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     const byCode = async (code: string) =>
