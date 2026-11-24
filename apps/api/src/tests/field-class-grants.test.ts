@@ -70,9 +70,12 @@ describe("field-class grants in PERMISSION_MATRIX (19B S1)", () => {
     expect(lacking.sort(), "a narrowing is an S2 removal the owner approves — S2a's, S2b's and S2c's, and nothing else").toEqual([...s2aFieldRemovals, ...s2bRemovals, ...s2cRemovals].sort());
   });
 
-  it("🔴 a viewer holds no field WRITE level (presence: it holds the read levels)", () => {
+  // restated for S2c's removal: v4 §6.1 gives the viewer NO protected class at all (until now it held the read levels);
+  // the presence half moves to the bookkeeper, which still reads contact and bank text
+  it("🔴 a viewer holds no field level at all — no read, no last four, no write (presence: the bookkeeper holds read levels)", () => {
     expect(fieldRows.filter((r) => r.role === "viewer" && r.action.endsWith(".write")).map((r) => `${r.resource}:${r.action}`)).toEqual([]);
-    expect(fieldRows.some((r) => r.role === "viewer" && r.action.endsWith(".read"))).toBe(true);
+    expect(fieldRows.filter((r) => r.role === "viewer").map((r) => `${r.resource}:${r.action}`)).toEqual([]);
+    expect(fieldRows.some((r) => r.role === "bookkeeper" && r.action.endsWith(".read"))).toBe(true);
   });
 });
 
