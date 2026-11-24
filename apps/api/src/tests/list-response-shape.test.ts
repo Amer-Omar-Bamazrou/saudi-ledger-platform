@@ -141,8 +141,11 @@ function scanDeclarations(): Declaration[] {
  * approvals queue stopped declaring four shapes entirely (one server-built
  * row now). The 8 that remain are the operator/identity, AI and read-only
  * surfaces the milestone deliberately STOPPED at — see the findings file.
+ * 8 → 7 (19B S2b, 2026-11-24): ScanReview's supplier picker moved onto the picker route and its GENERATED
+ * `PartyPickerItem` type (v4 D9 (a): id, name, Arabic name and VAT number only), so its local `Vendor` interface no
+ * longer types a list response. Same reason, same direction: checked by construction instead of by this scan.
  */
-const DECLARATIONS_AT_WRITING = 8;
+const DECLARATIONS_AT_WRITING = 7;
 
 /* ─────────────────────── fields allowed to be absent ──────────────────── */
 
