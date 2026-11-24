@@ -31,14 +31,15 @@ function formOf(c: Customer, access: FieldAccess | undefined): CustomerFormValue
 }
 
 const LABELS: Record<CustomerFormField, [string, string]> = {
-  name: ["Name (English) *", "الاسم (بالإنجليزية) *"], nameAr: ["Name (Arabic)", "الاسم (بالعربية)"],
-  taxNumber: ["VAT number", "الرقم الضريبي"], crNumber: ["CR number", "رقم السجل التجاري"],
+  // the established wording (Phase 18 Z5, e2e/phase18-z5-arabic-wording.spec.ts) for every field the old form had
+  name: ["Company Name (English) *", "اسم الشركة (بالإنجليزية) *"], nameAr: ["Company Name (Arabic)", "اسم الشركة (بالعربية)"],
+  taxNumber: ["VAT Number", "رقم ضريبة القيمة المضافة"], crNumber: ["CR Number", "رقم السجل التجاري"],
   nationalId: ["National ID (education and healthcare invoices)", "رقم الهوية الوطنية (فواتير التعليم والصحة)"],
   phone: ["Phone", "الهاتف"], email: ["Email", "البريد الإلكتروني"],
   buildingNumber: ["Building number", "رقم المبنى"], street: ["Street", "الشارع"], district: ["District", "الحي"],
   city: ["City", "المدينة"], postalCode: ["Postal code (5 digits)", "الرمز البريدي (5 أرقام)"], additionalNumber: ["Additional number (4 digits)", "الرقم الإضافي (4 أرقام)"],
-  country: ["Country (2-letter code)", "الدولة (رمز من حرفين)"], address: ["Address line (free text)", "سطر العنوان (نص حر)"],
-  paymentTermsDays: ["Payment terms (days)", "مدة السداد (أيام)"], creditLimit: ["Credit limit", "الحد الائتماني"], notes: ["Notes", "ملاحظات"],
+  country: ["Country (2-letter code)", "الدولة (رمز من حرفين)"], address: ["Address", "العنوان"],
+  paymentTermsDays: ["Payment Terms (days)", "شروط الدفع (أيام)"], creditLimit: ["Credit Limit (SAR)", "حد الائتمان (ر.س)"], notes: ["Notes", "ملاحظات"],
 };
 
 export function CustomerForm({ mode, customer, access, open, onOpenChange }: {
