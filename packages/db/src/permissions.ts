@@ -376,6 +376,32 @@ export const S2B_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFiel
   { role: "bookkeeper", resource: "vendors", action: "field.bank_account.read", fieldClass: "bank_account", why: "bookkeeper: the last four digits only (D2)" },
 ];
 
+/**
+ * 🔴 19B S2c — THE REMOVALS THAT WILL SWITCH WITHHOLDING ON FOR THE BANK'S TEXT, MEMBER SECURITY AND MIGRATION CONTACT
+ * (v4 §6.1 D2; D9 (c)).
+ *
+ * 🔴 PENDING — STILL IN PERMISSION_MATRIX. S2c's code merges with every grant in place (owner, 2026-11-24, "the same way
+ * as S2a"); the removal is its own commit, applied per environment only with the owner's approval string for that
+ * environment and this exact set (D10). field-class-grants.test.ts pins the set, its hash, and that each is still granted.
+ *
+ * After them: a viewer reads no bank text (a statement line's, a transaction's, a journal line posted from one) and no
+ * migration contact; only an admin reads member security (an IP address, a member's email in a security trail, an audit
+ * entry's IP, and — D9 (c) — an audit snapshot key its entity's node does not list). Every other role keeps its own
+ * sessions (served on routes scoped to the caller). The write levels are unchanged: no route under an organization role
+ * writes member security.
+ */
+export const S2C_PENDING_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFieldClass; why: string })[] = [
+  { role: "viewer", resource: "transactions", action: "field.bank_narrative.read", fieldClass: "bank_narrative", why: "viewer: bank text none (D1, D2)" },
+  { role: "viewer", resource: "journal_entries", action: "field.bank_narrative.read", fieldClass: "bank_narrative", why: "viewer: bank text none, where a line came from a bank line (D1, D2, D11 amended)" },
+  { role: "viewer", resource: "migration", action: "field.contact.read", fieldClass: "contact", why: "viewer: contact none (D2)" },
+  { role: "viewer", resource: "users", action: "field.member_security.read", fieldClass: "member_security", why: "viewer: own sessions only (D2)" },
+  { role: "bookkeeper", resource: "users", action: "field.member_security.read", fieldClass: "member_security", why: "bookkeeper: own sessions only (D2)" },
+  { role: "accountant", resource: "users", action: "field.member_security.read", fieldClass: "member_security", why: "accountant: own sessions only (D2)" },
+  { role: "viewer", resource: "audit_logs", action: "field.member_security.read", fieldClass: "member_security", why: "viewer: own sessions only (D2); audit snapshot keys unlisted by their entity (D9 c)" },
+  { role: "bookkeeper", resource: "audit_logs", action: "field.member_security.read", fieldClass: "member_security", why: "bookkeeper: own sessions only (D2); audit snapshot keys unlisted by their entity (D9 c)" },
+  { role: "accountant", resource: "audit_logs", action: "field.member_security.read", fieldClass: "member_security", why: "accountant: own sessions only (D2); audit snapshot keys unlisted by their entity (D9 c)" },
+];
+
 /** The flattened matrix: one row per (role, resource, action) grant — the route grants, then the field grants. */
 export const PERMISSION_MATRIX: PermissionRow[] = [
   ...Object.entries(SPEC).flatMap(([resource, actions]) =>

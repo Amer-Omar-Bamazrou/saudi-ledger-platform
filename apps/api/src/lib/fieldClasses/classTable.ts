@@ -31,6 +31,24 @@
 import { PROTECTED_FIELD_CLASSES, type ProtectedFieldClass } from "@workspace/db";
 import { BANK_TEXT_ORIGINS } from "./conditions";
 
+/** 19B S2c: a held change's IBAN is a PARTY's (a supplier's or an employee's) only for these kinds; the company's own
+ * bank account (`bank_account_iban`, `default_bank_account`) is the business's record — standard. */
+export const PARTY_IBAN_KINDS: readonly string[] = ["vendor_iban", "employee_iban"];
+
+/**
+ * 🔴 19B S2c (v4 §5.2, D9 (c)) — THE AUDIT READER. An audit entry's before/after snapshot is classified KEY BY KEY by the
+ * audited entity's own node (AUDIT_ENTITY_NODES); a key that node does not list — a column the contract never serves, an
+ * entity with no node — is withheld from every role but the admin. "Only the admin" is the audit trail's own grant,
+ * `field.member_security.read` on `audit_logs`, which S2c leaves with the admin alone (AUDIT_UNLISTED).
+ */
+export const AUDIT_ENTITY_NODES: Readonly<Record<string, string>> = {
+  customer: "Customer", vendor: "Vendor", employee: "Employee", invoice: "Invoice", bill: "Bill", transaction: "Transaction",
+  journal_entry: "JournalEntry", payroll_run: "PayrollRun", quotation: "Quotation", purchase_order: "PurchaseOrder",
+  bank_detail_change_request: "BankDetailChange",
+  // bank accounts and products are served OUTSIDE the contract (no node): their snapshot keys stay the admin's only
+};
+export const AUDIT_UNLISTED: { cls: ProtectedFieldClass; resource: string } = { cls: "member_security", resource: "audit_logs" };
+
 export const FIELD_CLASSES = ["standard", ...PROTECTED_FIELD_CLASSES, "by_entity"] as const;
 export type FieldClass = (typeof FIELD_CLASSES)[number];
 
@@ -142,7 +160,7 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   "BalanceSheetReport.liabilities": { standard: "accountsPayable accountsPayableKey total" },
   // 🔴 19B S3: an EMPLOYEE's held IBAN is decided by the `employees` grants (S2a: a bookkeeper its last four, a viewer
   // nothing) — per row, by `kind` — so the held-change list never shows it more than the employee's own record does.
-  BankDetailChange: { resource: "vendors", rowResource: { by: "kind", resources: { employee_iban: "employees" } }, standard: "id kind vendorId employeeId bankAccountId subjectName status reason requestedBy requestedByName requestedAt decidedBy decidedByName decidedAt", bank_account: "ibanBefore ibanAfter", conditions: {
+  BankDetailChange: { resource: "vendors", rowResource: { by: "kind", resources: { employee_iban: "employees" } }, rowConditions: { ibanBefore: { by: "kind", in: PARTY_IBAN_KINDS }, ibanAfter: { by: "kind", in: PARTY_IBAN_KINDS } }, standard: "id kind vendorId employeeId bankAccountId subjectName status reason requestedBy requestedByName requestedAt decidedBy decidedByName decidedAt", bank_account: "ibanBefore ibanAfter", conditions: {
       ibanBefore: "classified per row: a vendor's IBAN by the vendors grants, an employee's by the employees grants (S3, built: rowResource); the company's own bank account is standard (S2c)",
       ibanAfter: "classified per row: a vendor's IBAN by the vendors grants, an employee's by the employees grants (S3, built: rowResource); the company's own bank account is standard (S2c)",
     } },

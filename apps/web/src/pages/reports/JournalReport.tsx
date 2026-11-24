@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, CheckCircle, XCircle } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText } from "@/components/Withheld";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
@@ -124,7 +125,7 @@ function JournalReportInner({ range }: { range: ReportDefaultRange }) {
                     {entry.lines.map(line => (
                       <tr key={line.id} className="border-b border-border/30">
                         <td className="py-1.5 pe-4 text-foreground">{line.accountName}</td>
-                        <td className="py-1.5 pe-4 text-muted-foreground text-xs">{line.description ?? "—"}</td>
+                        <td className="py-1.5 pe-4 text-muted-foreground text-xs"><BankText row={line} empty="—" /></td>
                         <td className="py-1.5 pe-4 text-end font-mono text-sm">{line.debit > 0 ? <span className="text-info">{fmtNum(line.debit)}</span> : <span className="text-muted-foreground/30">—</span>}</td>
                         <td className="py-1.5 text-end font-mono text-sm">{line.credit > 0 ? <span className="text-positive">{fmtNum(line.credit)}</span> : <span className="text-muted-foreground/30">—</span>}</td>
                       </tr>

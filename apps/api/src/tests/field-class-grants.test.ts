@@ -9,7 +9,7 @@
  *    applied to a database only with the owner's approval string for it (D10).
  */
 import { describe, expect, it } from "vitest";
-import { FIELD_CLASS_LEVELS, PERMISSION_MATRIX, PROTECTED_FIELD_CLASSES, S2A_REMOVALS, S2B_REMOVALS, fieldGrantAction, removalSetHash, type ProtectedFieldClass } from "@workspace/db";
+import { FIELD_CLASS_LEVELS, PERMISSION_MATRIX, PROTECTED_FIELD_CLASSES, S2A_REMOVALS, S2B_REMOVALS, S2C_PENDING_REMOVALS, fieldGrantAction, removalSetHash, type ProtectedFieldClass } from "@workspace/db";
 import { FIELD_CLASS_TABLE, indexTable } from "../lib/fieldClasses/classTable";
 import { OUTSIDE_CONTRACT_ROUTES } from "../lib/fieldClasses/outsideContract";
 
@@ -135,5 +135,36 @@ describe("S2b's removals (removed from the matrix; each environment only with th
       "bookkeeper:vendors:field.contact.read", "bookkeeper:vendors:field.bank_account.last4", "bookkeeper:vendors:field.bank_account.write"]) {
       expect([k, pending.has(k), new Set(PERMISSION_MATRIX.map(key)).has(k)]).toEqual([k, false, true]);
     }
+  });
+});
+
+/**
+ * 🔴 19B S2c: its nine removals are DECLARED and STILL GRANTED (owner, 2026-11-24: S2c "the same way as S2a"). The removal
+ * commit restates this block; a database loses them only with the owner's approval string for it and THIS set.
+ */
+describe("S2c's pending removals (declared; every one still granted until the owner approves each environment)", () => {
+  const key = (r: { role: string; resource: string; action: string }) => `${r.role}:${r.resource}:${r.action}`;
+  it("🔴 the set is exactly these nine (v4 §6.1: bank text, member security, migration contact)", () => {
+    expect(S2C_PENDING_REMOVALS.map(key).sort()).toEqual([
+      "accountant:audit_logs:field.member_security.read", "accountant:users:field.member_security.read",
+      "bookkeeper:audit_logs:field.member_security.read", "bookkeeper:users:field.member_security.read",
+      "viewer:audit_logs:field.member_security.read", "viewer:journal_entries:field.bank_narrative.read",
+      "viewer:migration:field.contact.read", "viewer:transactions:field.bank_narrative.read", "viewer:users:field.member_security.read",
+    ]);
+    expect(removalSetHash(S2C_PENDING_REMOVALS)).toBe("2c11c0503ac92fb002aeeed5d98ef4aa1f3dc8d392479151879a2be813bce65e");
+  });
+  it("🔴 NOT YET APPLIED: every one of the nine is still in the matrix, and none overlaps S2a's or S2b's", () => {
+    const granted = new Set(PERMISSION_MATRIX.map(key));
+    expect(S2C_PENDING_REMOVALS.filter((r) => !granted.has(key(r))).map(key)).toEqual([]);
+    const earlier = new Set([...S2A_REMOVALS, ...S2B_REMOVALS].map(key));
+    expect(S2C_PENDING_REMOVALS.filter((r) => earlier.has(key(r))).map(key)).toEqual([]);
+  });
+  it("after them the admin alone reads member security, the bookkeeper keeps the bank's text, and no write level changes", () => {
+    const pending = new Set(S2C_PENDING_REMOVALS.map(key));
+    const granted = new Set(PERMISSION_MATRIX.map(key));
+    for (const k of ["admin:users:field.member_security.read", "admin:audit_logs:field.member_security.read", "bookkeeper:transactions:field.bank_narrative.read", "bookkeeper:journal_entries:field.bank_narrative.read", "bookkeeper:migration:field.contact.read"]) {
+      expect([k, pending.has(k), granted.has(k)]).toEqual([k, false, true]);
+    }
+    expect(S2C_PENDING_REMOVALS.filter((r) => !r.action.endsWith(".read")).map(key)).toEqual([]);
   });
 });

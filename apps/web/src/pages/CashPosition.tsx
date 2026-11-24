@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Landmark } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText } from "@/components/Withheld";
 import { useGetCashPosition, useGetBankingExceptions } from "@workspace/api-client-react";
 import { CONTINUITY } from "@/pages/BankStatements";
 
@@ -104,7 +105,7 @@ export default function CashPosition() {
               <ul className="divide-y">
                 {x.lines.items.slice(0, SHOWN).map((i) => (
                   <li key={i.transactionId} className="flex flex-wrap justify-between gap-x-3 gap-y-1 py-2">
-                    <Link href="/bank-reconciliation" className="underline min-w-0 truncate"><span dir="ltr" className="me-2">{i.date}</span>{i.description}</Link>
+                    <Link href="/bank-reconciliation" className="underline min-w-0 truncate"><span dir="ltr" className="me-2">{i.date}</span><BankText row={i} /></Link>
                     <span className="whitespace-nowrap">{i.kind === "partial" ? <Badge variant="outline" className="me-2">{t("partial", "جزئي")}</Badge> : null}<Money v={i.direction === "in" ? i.amount : -i.amount} /></span>
                   </li>
                 ))}

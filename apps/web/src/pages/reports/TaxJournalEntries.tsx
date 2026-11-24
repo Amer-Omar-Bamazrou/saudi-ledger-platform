@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Receipt } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText } from "@/components/Withheld";
 import { cn } from "@/lib/utils";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
@@ -101,7 +102,7 @@ function TaxJournalEntriesInner({ range }: { range: ReportDefaultRange }) {
                 <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
                     <span className="font-mono text-xs text-primary font-semibold [overflow-wrap:anywhere]">{entry.entryNumber}</span>
-                    <span className="text-sm font-medium text-foreground min-w-0 break-words">{entry.description}</span>
+                    <span className="text-sm font-medium text-foreground min-w-0 break-words"><BankText row={entry} /></span>
                     {entry.reference && <span className="text-xs text-muted-foreground min-w-0 [overflow-wrap:anywhere]">· {entry.reference}</span>}
                   </div>
                   <span className="text-xs text-muted-foreground shrink-0"><DualDate date={entry.date} /></span>
