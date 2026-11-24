@@ -8,8 +8,14 @@
  * POSTGRES → assemble → sign with a live compliance CSID → submit to ZATCA's compliance endpoint. Standing rule 3's live
  * pass for the path (real HTTP → engine → Postgres → ZATCA, observed values).
  *
- * BEFORE (this file's first form): the form's body as Customers.tsx sends it today — a free-text address and a city,
- * no structured national address. Observed result recorded in the evidence folder.
+ * 🔴 OBSERVED BEFORE the form carried the national address (2026-11-24, the form's body as Customers.tsx sent it — a
+ * free-text address and a city): the app ISSUED the standard invoice (HTTP 200), and ZATCA's sandbox answered WARNING
+ * with BR-KSA-63, BR-KSA-67, BR-KSA-10, BR-KSA-F-06-C23 and BR-KSA-F-06-C28 — every buyer-address rule broken; nothing
+ * rejected it. Evidence: research/customer-form/01-live-before.log.
+ *
+ * NOW: (A) the customer form's own request (`customerFormBody`, @workspace/shared — what the form sends) with the
+ * national address → the app issues → the sandbox accepts with NONE of those warnings. (B) the old body, an address in
+ * free text only → the app refuses the approval (`buyer_address_incomplete`); nothing is issued and nothing is sent.
  *
  * Skips loudly when ZATCA is unreachable or there is no database.
  */
@@ -28,7 +34,7 @@ import { assembleSignedInvoice } from "../services/einvoice/crypto/assembleSigne
 import { generateZatcaKeyPair } from "../services/einvoice/crypto/keys";
 import { buildZatcaCsr } from "../services/einvoice/crypto/csr";
 import { tokenToPem } from "../services/einvoice/onboarding/zatcaOnboardingClient";
-import { emptyInvoiceLine, invoiceLinesBody } from "@workspace/shared";
+import { blankCustomerForm, customerFormBody, emptyInvoiceLine, invoiceLinesBody } from "@workspace/shared";
 
 const BASE = process.env.ZATCA_SANDBOX_BASE ?? "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal";
 const url = process.env.DATABASE_URL;
@@ -47,6 +53,8 @@ let orgId = "";
 let companyId = "";
 let userId = 0;
 let invoiceId = 0;
+let oldBodyApproval: { status: number; body: any } = { status: 0, body: null };
+let oldBodyInvoice = 0;
 
 interface Validation { status?: string; errorMessages?: { code: string; message: string }[]; warningMessages?: { code: string; message: string }[] }
 
@@ -94,33 +102,45 @@ beforeAll(async () => {
   userId = await h.mkUser("admin", PW, orgId, "admin");
   await h.start();
   expect(await h.login("admin", h.email("admin"), PW)).toBe(200);
-  // 🔴 THE CUSTOMER FORM'S OWN REQUEST, as Customers.tsx sends it today (emptyForm → toCreateInput): a free-text address
-  // and a city — the form offers no building number, street, district, postal code or national ID
-  const formBody = { name: "Al-Waha Trading Co", nameAr: "شركة الواحة التجارية", taxNumber: "300000000000003", crNumber: "1010202020", phone: "+966500000123", email: "accounts@alwaha.example.sa", address: "Building 4321, Olaya Street, Al Olaya, Riyadh 12211", city: "Riyadh", paymentTermsDays: "30", creditLimit: null };
-  const customer = await h.api("admin", "POST", "/customers", formBody);
+  // (A) 🔴 THE CUSTOMER FORM'S OWN REQUEST — customerFormBody, as the form builds it — with the national address
+  const form = { ...blankCustomerForm(), name: "Al-Waha Trading Co", nameAr: "شركة الواحة التجارية", taxNumber: "300000000000003", crNumber: "1010202020", phone: "+966500000123", email: "accounts@alwaha.example.sa",
+    buildingNumber: "4321", street: "Olaya Street", district: "Al Olaya", city: "Riyadh", postalCode: "12211", additionalNumber: "6789" };
+  const customer = await h.api("admin", "POST", "/customers", customerFormBody("create", form, blankCustomerForm()));
   expect(customer.status, JSON.stringify(customer.body)).toBe(201);
-  // the invoice form's own line: a standard-rated service, 1 × 1,000
-  const draft = await h.api("admin", "POST", "/invoices", { date: "2026-08-01", dueDate: "2026-08-31", customerId: customer.body.id, items: invoiceLinesBody([{ ...emptyInvoiceLine(), description: "Consulting services, August", quantity: "1", unitPrice: "1000" }]) });
+  const line = invoiceLinesBody([{ ...emptyInvoiceLine(), description: "Consulting services, August", quantity: "1", unitPrice: "1000" }]);
+  const draft = await h.api("admin", "POST", "/invoices", { date: "2026-08-01", dueDate: "2026-08-31", customerId: customer.body.id, items: line });
   expect(draft.status, JSON.stringify(draft.body)).toBe(201);
   expect((await h.api("admin", "POST", `/invoices/${draft.body.id}/submit`)).status).toBe(200);
   const approved = await h.api("admin", "POST", `/invoices/${draft.body.id}/approve`);
-  console.log(`[CUSTOMER-FORM-LIVE] approval of the standard invoice: HTTP ${approved.status} ${approved.status === 200 ? "(issued)" : JSON.stringify(approved.body)}`);
-  invoiceId = approved.status === 200 ? draft.body.id : 0;
+  expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+  invoiceId = draft.body.id;
+  // (B) the old body — an address in free text only, as the form sent before the national address existed
+  const old = await h.api("admin", "POST", "/customers", { name: "Al-Nakheel Trading", taxNumber: "300000000000003", crNumber: "1010303030", address: "Building 4321, Olaya Street, Al Olaya, Riyadh 12211", city: "Riyadh", paymentTermsDays: "30", creditLimit: null });
+  expect(old.status).toBe(201);
+  const oldDraft = await h.api("admin", "POST", "/invoices", { date: "2026-08-02", dueDate: "2026-09-01", customerId: old.body.id, items: line });
+  expect((await h.api("admin", "POST", `/invoices/${oldDraft.body.id}/submit`)).status).toBe(200);
+  oldBodyApproval = await h.api("admin", "POST", `/invoices/${oldDraft.body.id}/approve`);
+  oldBodyInvoice = oldDraft.body.id;
   if (LIVE_DISABLED) { skipReason = "ZATCA_LIVE_TESTS=0"; return; }
   try { await obtainCsid(); ready = true; } catch (err) { skipReason = String(err); }
 }, 180_000);
 afterAll(async () => { await h.stop(); await h.cleanup(); });
 
 describe("the customer form → a standard tax invoice → ZATCA (live)", () => {
-  it("BEFORE: the document built from the ledger rows of a customer made with today's form — the sandbox's verdict, recorded", async (ctx) => {
+  it("🔴 (A) the form's own request with the national address: the app issues, and the sandbox accepts with none of the buyer-address warnings", async (ctx) => {
     if (!ready) { console.log(`[CUSTOMER-FORM-LIVE] SKIPPED: ${skipReason}`); ctx.skip(); return; }
-    expect(invoiceId, "the app issued the invoice").toBeGreaterThan(0);
     const { xml, v } = await submitFromLedger(invoiceId);
-    const buyer = /<cac:AccountingCustomerParty>[\s\S]*?<\/cac:AccountingCustomerParty>/.exec(xml)?.[0] ?? "";
-    console.log(`[CUSTOMER-FORM-LIVE] buyer party in the XML:\n${buyer}`);
     console.log(`[CUSTOMER-FORM-LIVE] ZATCA status: ${v.status}`);
-    for (const m of v.errorMessages ?? []) console.log(`[CUSTOMER-FORM-LIVE] ERROR ${m.code}: ${m.message}`);
-    for (const m of v.warningMessages ?? []) console.log(`[CUSTOMER-FORM-LIVE] WARNING ${m.code}: ${m.message}`);
-    expect(v.status).toBeDefined();
+    for (const m of [...(v.errorMessages ?? []), ...(v.warningMessages ?? [])]) console.log(`[CUSTOMER-FORM-LIVE] ${m.code}: ${m.message}`);
+    expect(xml).toContain("Olaya Street");
+    const codes = [...(v.errorMessages ?? []), ...(v.warningMessages ?? [])].map((m) => m.code);
+    expect({ accepted: v.status === "PASS" || v.status === "WARNING", errors: (v.errorMessages ?? []).map((m) => m.code), buyerAddress: codes.filter((c) => ["BR-KSA-63", "BR-KSA-67", "BR-KSA-10", "BR-KSA-F-06-C23", "BR-KSA-F-06-C28"].includes(c)) })
+      .toEqual({ accepted: true, errors: [], buyerAddress: [] });
+  });
+
+  it("🔴 (B) the old body — an address in free text only — is refused at approval, by name; nothing is issued, nothing reaches ZATCA", async () => {
+    expect([oldBodyApproval.status, oldBodyApproval.body?.code]).toEqual([422, "buyer_address_incomplete"]);
+    const row = (await pool.query(`SELECT status, icv FROM invoices WHERE id = $1`, [oldBodyInvoice])).rows[0];
+    expect(row).toEqual({ status: "submitted", icv: null });
   });
 });
