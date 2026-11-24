@@ -220,9 +220,11 @@ async function main() {
     ["Jeddah Logistics Ltd", "جدة للخدمات اللوجستية", "310333333300003"],
   ] as const).entries()) {
     const r = await q(
-      `INSERT INTO customers (organization_id, name, name_ar, tax_number, cr_number, city, phone, email, payment_terms_days, credit_limit)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'30',$9) RETURNING id`,
-      [orgId, `${P}${name}`, ar, vat, `10100000${i}1`, ["Riyadh", "Riyadh", "Jeddah"][i], "+96650000000" + i, `ap${i}@example.sa`, i === 0 ? "250000.00" : null],
+      // 2026-11-24: a standard tax invoice to a Saudi business buyer needs its national address (buyer_address_incomplete)
+      `INSERT INTO customers (organization_id, name, name_ar, tax_number, cr_number, city, phone, email, payment_terms_days, credit_limit, building_number, street, district, postal_code)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'30',$9,$10,$11,$12,$13) RETURNING id`,
+      [orgId, `${P}${name}`, ar, vat, `10100000${i}1`, ["Riyadh", "Riyadh", "Jeddah"][i], "+96650000000" + i, `ap${i}@example.sa`, i === 0 ? "250000.00" : null,
+        ["4321", "7788", "2468"][i], ["Olaya Street", "King Fahd Road", "Prince Sultan Street"][i], ["Al Olaya", "Al Muruj", "Al Rawdah"][i], ["12211", "12263", "23432"][i]],
     );
     customers.push(Number(r.rows[0].id));
   }
