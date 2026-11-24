@@ -48,6 +48,7 @@ import * as enqueueModule from "../services/einvoice/outbox/enqueue";
 import * as zatcaModule from "../services/accounting/zatca";
 import { createApproved } from "./helpers/createApproved";
 import { INVOICE_ISSUED_OR_OPENING_TEXT } from "../repositories/receivableInBooks";
+import { SA_BUYER_ADDRESS } from "./helpers/buyerAddress";
 
 // The issuance seams, wrapped so the suite can prove they were NOT called on a
 // collection (and WERE called on an ordinary approval — the planted positive).
@@ -361,6 +362,9 @@ describeMaybe("Batch 1C — Issue 1: opening receivables collect through D-4 and
 
   it("🔴 the planted positive — an ORDINARY invoice still issues through approval (hash, ICV, QR, the seams run), pays the same way, and a DRAFT still cannot be paid; an opening BILL pays as before", async () => {
     const seamsBefore = seams();
+    // 2026-11-24: an ordinary standard invoice to this business buyer (imported with no national address) needs the
+    // address completed first — as the customer form now does
+    await pool.query(`UPDATE customers SET building_number = $2, street = $3, district = $4, city = $5, postal_code = $6 WHERE id = $1`, [alphaId, SA_BUYER_ADDRESS.buildingNumber, SA_BUYER_ADDRESS.street, SA_BUYER_ADDRESS.district, SA_BUYER_ADDRESS.city, SA_BUYER_ADDRESS.postalCode]);
     const inv = await inTenant(() => createApproved<{ id: number; invoiceNumber: string; invoiceHash: string | null; icv: number | null; qrCode: string | null }>(invoicesService, { invoiceNumber: "SL-2026-001", date: "2026-07-21", dueDate: "2026-08-20", customerId: alphaId, items: [{ description: "Work", quantity: 1, unitPrice: 1000, vatRate: 15 }] }, userId));
     expect(inv.invoiceHash).toBeTruthy();
     expect(inv.icv).not.toBeNull();
