@@ -7,7 +7,7 @@
  *
  *  - Which role may read a canary is the MATRIX's answer (`field.<class>.read` on its resource), so the same sweep runs
  *    for S2a's classes now and — primed with S2b's and S2c's planned removals — for theirs (`SWEEP_MATRICES`). S2b's
- *    are primed (S2B_PENDING_REMOVALS), with a supplier paid with tax withheld so the withholding-tax routes carry its
+ *    are primed (S2B_REMOVALS), with a supplier paid with tax withheld so the withholding-tax routes carry its
  *    address (D9 d).
  *  - 🔴 NOT VACUOUS: every canary must be FOUND by the admin on at least one route (a canary nobody can see proves no
  *    withholding), and the sweep must have exercised a floor of routes; the routes it could not fill (a path
@@ -22,7 +22,7 @@ process.env.SESSION_SECRET ??= "field-class-canary-sweep-000000001";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { pool, PERMISSION_MATRIX, S2B_PENDING_REMOVALS, S2C_PENDING_REMOVALS, fieldGrantAction, type PermissionRow, type ProtectedFieldClass } from "@workspace/db";
+import { pool, PERMISSION_MATRIX, S2B_REMOVALS, S2C_PENDING_REMOVALS, fieldGrantAction, type PermissionRow, type ProtectedFieldClass } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { CONTRACT } from "../lib/fieldClasses/contractShapes.generated";
 import { OUTSIDE_CONTRACT_ROUTES } from "../lib/fieldClasses/outsideContract";
@@ -67,12 +67,12 @@ const CANARIES: Canary[] = [
 ];
 
 /** The matrices the sweep runs under: today's (S2a's classes switched on). S2b and S2c add their planned removals. */
-const S2B_PENDING = new Set(S2B_PENDING_REMOVALS.map((r) => `${r.role}:${r.resource}:${r.action}`));
+const S2B_PENDING = new Set(S2B_REMOVALS.map((r) => `${r.role}:${r.resource}:${r.action}`));
 const S2C_PENDING = new Set(S2C_PENDING_REMOVALS.map((r) => `${r.role}:${r.resource}:${r.action}`));
 const SWEEP_MATRICES: Array<{ name: string; rows: PermissionRow[] }> = [
-  { name: "the current matrix (S2a)", rows: PERMISSION_MATRIX },
-  // 19B S2b: its seven planned removals primed (still granted until the owner approves each environment)
-  { name: "S2b's planned removals", rows: PERMISSION_MATRIX.filter((r) => !S2B_PENDING.has(`${r.role}:${r.resource}:${r.action}`)) },
+  // Restated for the S2b removal: the matrix itself lacks S2a's and S2b's removals (the S2b filter is now the identity
+  // and stays, so the sweep keeps naming S2b's set); S2c's planned removals are primed on top of it.
+  { name: "the current matrix (S2a + S2b)", rows: PERMISSION_MATRIX.filter((r) => !S2B_PENDING.has(`${r.role}:${r.resource}:${r.action}`)) },
   // 19B S2c: its nine planned removals primed ON TOP of S2b's (the bank's text, member security, migration contact)
   { name: "S2b's and S2c's planned removals", rows: PERMISSION_MATRIX.filter((r) => !S2B_PENDING.has(`${r.role}:${r.resource}:${r.action}`) && !S2C_PENDING.has(`${r.role}:${r.resource}:${r.action}`)) },
 ];

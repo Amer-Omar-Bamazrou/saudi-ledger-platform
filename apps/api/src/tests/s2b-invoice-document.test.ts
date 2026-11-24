@@ -11,7 +11,7 @@
  *    has an address prints it, so it is `contact` too.
  *
  * Run twice: with TODAY's matrix (every role downloads every PDF — S2b merges with every grant in place) and with S2b's
- * seven planned removals primed (S2B_PENDING_REMOVALS) — the viewer refused contact and identity, the bookkeeper
+ * seven planned removals primed (S2B_REMOVALS) — the viewer refused contact and identity, the bookkeeper
  * identity. A refusal answers before anything is rendered, names the classes, never carries a value, and is recorded as
  * a refused export (D6).
  *
@@ -22,7 +22,7 @@
  * `buildInvoiceXml`) and stored unsigned as the signed copy. Signing adds a signature; it does not change the buyer.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { pool, PERMISSION_MATRIX, S2B_PENDING_REMOVALS } from "@workspace/db";
+import { pool, PERMISSION_MATRIX, S2B_REMOVALS } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { invoiceDocumentClasses, xmlBuyerClasses } from "../lib/fieldClasses/documentClasses";
 import { invoicesRepository } from "../repositories/invoices.repository";
@@ -50,8 +50,11 @@ const describeDb = !!url && !url.includes("placeholder") ? describe : describe.s
 const PW = "s2b-document-password-2026";
 const h = g04Harness("s2b-doc");
 const key = (r: { role: string; resource: string; action: string }) => `${r.role}:${r.resource}:${r.action}`;
-const PENDING = new Set(S2B_PENDING_REMOVALS.map(key));
+// Restated for the removal: the seven are out of PERMISSION_MATRIX itself; BEFORE is the matrix with them (re-added),
+// so the movement half — every role served while they are granted — stays.
+const PENDING = new Set(S2B_REMOVALS.map(key));
 const S2B_MATRIX = PERMISSION_MATRIX.filter((r) => !PENDING.has(key(r)));
+const BEFORE = [...PERMISSION_MATRIX, ...S2B_REMOVALS.map(({ role, resource, action }) => ({ role, resource, action }))];
 const ROLES = ["admin", "accountant", "bookkeeper", "viewer"] as const;
 
 /** Planted values: none may appear in a refusal, its record, or anything a refused role is served. */
@@ -132,13 +135,14 @@ describeDb("19B S2b — the invoice document is served whole or refused by the c
     expect(invoiceDocumentClasses({ buyer: null }, "<not-xml")).toEqual(["contact", "identity"]);
   });
 
-  it("TODAY (every grant in place): every role downloads every invoice's PDF — no visible change at merge", async () => {
-    primePermissionCache(PERMISSION_MATRIX);
+  it("BEFORE the removal (the seven granted): every role downloads every invoice's PDF", async () => {
+    primePermissionCache(BEFORE);
     for (const who of ROLES) for (const [kind, id] of Object.entries(inv)) {
       const r = await download(who, id);
       expect([who, kind, r.status, r.headers["content-type"]?.startsWith("application/pdf")]).toEqual([who, kind, 200, true]);
     }
     expect(await refusalRows()).toEqual([]);
+    primePermissionCache(PERMISSION_MATRIX);
   });
 
   describe("with S2b's seven planned removals primed", () => {

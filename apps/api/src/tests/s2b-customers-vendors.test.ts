@@ -3,7 +3,7 @@
  * plan §14 S2b: "as S2a, plus the CSV and PDF text of the two exports").
  *
  * Run with TODAY's matrix (S2b merges with every grant in place: nothing changes for anyone) and with S2b's seven
- * planned removals primed (S2B_PENDING_REMOVALS):
+ * planned removals primed (S2B_REMOVALS):
  *
  *  - the VIEWER reads no customer contact or national ID and no supplier contact or IBAN — not even its last four — on
  *    the lists, the records, the withholding-tax return, schedule, annual return and beneficiary statement, and in the
@@ -20,7 +20,7 @@
  * where Chromium is absent (CI's test job). The CSV is checked as served.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { pool, PERMISSION_MATRIX, S2B_PENDING_REMOVALS } from "@workspace/db";
+import { pool, PERMISSION_MATRIX, S2B_REMOVALS } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { g04Harness } from "./helpers/g04Harness";
 import { approveHeldIbans } from "./helpers/approveHeldIbans";
@@ -36,8 +36,11 @@ const describeDb = !!url && !url.includes("placeholder") ? describe : describe.s
 const PW = "s2b-cv-password-2026";
 const h = g04Harness("s2b-cv");
 const key = (r: { role: string; resource: string; action: string }) => `${r.role}:${r.resource}:${r.action}`;
-const PENDING = new Set(S2B_PENDING_REMOVALS.map(key));
+// Restated for the removal: the seven are out of PERMISSION_MATRIX itself; BEFORE is the matrix with them (re-added),
+// so the movement half — every role served while they are granted — stays.
+const PENDING = new Set(S2B_REMOVALS.map(key));
 const S2B_MATRIX = PERMISSION_MATRIX.filter((r) => !PENDING.has(key(r)));
+const BEFORE = [...PERMISSION_MATRIX, ...S2B_REMOVALS.map(({ role, resource, action }) => ({ role, resource, action }))];
 const ROLES = ["admin", "accountant", "bookkeeper", "viewer"] as const;
 
 /** A valid Saudi IBAN from its 20-digit BBAN (the check digits computed, so the product accepts it). */
@@ -146,8 +149,8 @@ describeDb("19B S2b — customers, suppliers, pickers and withholding tax, every
     return found;
   }
 
-  it("TODAY (every grant in place): every role reads every planted value — no visible change at merge", async () => {
-    primePermissionCache(PERMISSION_MATRIX);
+  it("BEFORE the removal (the seven granted): every role reads every planted value", async () => {
+    primePermissionCache(BEFORE);
     for (const who of ["viewer", "bookkeeper"]) {
       const found = await seen(who);
       expect(PLANTED.filter((p) => !found.has(p.what)).map((p) => p.what), who).toEqual([]);
@@ -231,7 +234,7 @@ describeDb("19B S2b — customers, suppliers, pickers and withholding tax, every
   });
 
   describe("🔴 PICKERS (D9 (a)) — id, name, Arabic name and VAT number, to every role, under either matrix", () => {
-    for (const [label, matrix] of [["today's matrix", PERMISSION_MATRIX], ["S2b's planned removals", S2B_MATRIX]] as const) {
+    for (const [label, matrix] of [["the matrix before the removal", BEFORE], ["S2b's removals", S2B_MATRIX]] as const) {
       it(`under ${label}: exactly those four keys, the list's predicate and total, the reader's own organization only`, async () => {
         primePermissionCache(matrix);
         for (const who of ROLES) {

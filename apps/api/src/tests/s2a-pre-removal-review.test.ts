@@ -99,7 +99,8 @@ describeDb("19B S2a pre-removal review — with the twelve grants removed", () =
     // 19B S4 added the 22 report-dataset grants (journal_lines: v4 §6.2) — additions, outside S2a's set too
     const later = (r: { resource: string }) => r.resource === "bank_detail" || r.resource.startsWith("report_dataset.");
     const withoutLater = PERMISSION_MATRIX.filter((r) => !later(r));
-    expect([withoutLater.length, S2A_MATRIX.filter((r) => !later(r)).length, PERMISSION_MATRIX.filter((r) => r.resource === "bank_detail").length, PERMISSION_MATRIX.filter((r) => r.resource.startsWith("report_dataset.")).length]).toEqual([395 - 12, 395 - 12, 6, 22]);
+    // 19B S2b removed its seven (S2B_REMOVALS) — outside S2a's set too, and none of the twelve (field-class-grants pins both)
+    expect([withoutLater.length, S2A_MATRIX.filter((r) => !later(r)).length, PERMISSION_MATRIX.filter((r) => r.resource === "bank_detail").length, PERMISSION_MATRIX.filter((r) => r.resource.startsWith("report_dataset.")).length]).toEqual([395 - 12 - 7, 395 - 12 - 7, 6, 22]);
   });
 
   // ── B ──

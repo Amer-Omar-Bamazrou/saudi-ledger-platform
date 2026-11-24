@@ -208,7 +208,10 @@ describeDb("19B S3 — a supplier's and an employee's IBAN is held (19B-S3)", ()
     expect(pick(keeper, ids.reqE).ibanAfter).toBe(`•••• ${IBAN_4.slice(-4)}`);
     expect("ibanAfter" in pick(viewer, ids.reqE)).toBe(false);
     expect(pick(admin, ids.reqE).ibanAfter).toBe(IBAN_4); // movement: an approver reads it
-    for (const r of [keeper, viewer]) expect(pick(r, ids.req1).ibanAfter).toBe(IBAN_1); // vendors' grants unchanged until S2b
+    // restated for S2b's removal (v4 §6.1): a supplier's IBAN now follows the same rule — the bookkeeper's last four, absent for a viewer
+    expect(pick(keeper, ids.req1).ibanAfter).toBe(`•••• ${IBAN_1.slice(-4)}`);
+    expect("ibanAfter" in pick(viewer, ids.req1)).toBe(false);
+    expect(pick(admin, ids.req1).ibanAfter).toBe(IBAN_1); // movement: an approver reads it
   });
 
   it("🔴 the fallback: a sole admin's IBAN applies at once — the request closed, its reason, the record's line, the security trail", async () => {
