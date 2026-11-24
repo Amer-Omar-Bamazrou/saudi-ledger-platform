@@ -298,13 +298,15 @@ const FIELD_SPEC: Record<string, Partial<Record<ProtectedFieldClass, Partial<Rec
   payroll: {
     compensation: { read: APPROVE, write: APPROVE },
   },
+  // 🔴 S2b (v4 §6.1 D2): a viewer reads no customer contact or identity and no supplier contact or IBAN; a bookkeeper
+  // writes a customer's national ID without reading it back and sees a supplier IBAN's last four digits (S2B_REMOVALS).
   customers: {
-    contact: { read: READ_ALL, write: WRITE },
-    identity: { read: READ_ALL, write: WRITE },
+    contact: { read: WRITE, write: WRITE },
+    identity: { read: APPROVE, write: WRITE },
   },
   vendors: {
-    contact: { read: READ_ALL, write: WRITE },
-    bank_account: { read: READ_ALL, last4: READ_ALL, write: WRITE },
+    contact: { read: WRITE, write: WRITE },
+    bank_account: { read: APPROVE, last4: WRITE, write: WRITE },
   },
   migration: {
     contact: { read: READ_ALL, write: WRITE },
@@ -353,18 +355,18 @@ export const S2A_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFiel
 /**
  * 🔴 19B S2b — THE REMOVALS THAT WILL SWITCH WITHHOLDING ON FOR CUSTOMERS AND SUPPLIERS (v4 §6.1 D2; D9 (a), (b), (d)).
  *
- * 🔴 PENDING — STILL IN PERMISSION_MATRIX. S2b's code merges with every grant in place (owner, 2026-11-24: "build the
- * code, merge it with every grant still in place, and stop before any removal"); the removal is its own commit, applied
- * per environment only with the owner's approval string for that environment and this exact set (D10). Declared ONCE,
- * here, so the dry runs, the approval string and the tests name the same set (field-class-grants.test.ts pins it, its
- * hash, and that each is still granted until then).
+ * 🔴 REMOVED FROM PERMISSION_MATRIX (FIELD_SPEC's customers and vendors). A database's table loses them only through the
+ * reconcile with the owner's approval string for THAT environment and this exact set (sha256 42693c06…088f, D10);
+ * until then main's API refuses to start against it (the startup check names the seven). Declared ONCE, here, so the
+ * dry runs, the approval string and the tests name the same set (field-class-grants.test.ts pins that none is granted
+ * any more, and the set's hash).
  *
  * After them: a viewer reads no customer contact or identity and no supplier contact or IBAN — not even its last four;
  * a bookkeeper writes a customer's national ID without reading it back and sees a supplier IBAN's last four digits
  * (as on employees), and keeps contact. The invoice PDF follows (B2: refused by the classes it carries), and so do the
  * withholding-tax routes' and exports' supplier address (D9 d) and a held supplier IBAN change.
  */
-export const S2B_PENDING_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFieldClass; why: string })[] = [
+export const S2B_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFieldClass; why: string })[] = [
   { role: "viewer", resource: "customers", action: "field.contact.read", fieldClass: "contact", why: "viewer: contact none (D2)" },
   { role: "viewer", resource: "customers", action: "field.identity.read", fieldClass: "identity", why: "viewer: identity none (D2)" },
   { role: "bookkeeper", resource: "customers", action: "field.identity.read", fieldClass: "identity", why: "bookkeeper: writes the national ID, never reads it back (D2)" },

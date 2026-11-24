@@ -9,7 +9,7 @@
  *    applied to a database only with the owner's approval string for it (D10).
  */
 import { describe, expect, it } from "vitest";
-import { FIELD_CLASS_LEVELS, PERMISSION_MATRIX, PROTECTED_FIELD_CLASSES, S2A_REMOVALS, S2B_PENDING_REMOVALS, fieldGrantAction, removalSetHash, type ProtectedFieldClass } from "@workspace/db";
+import { FIELD_CLASS_LEVELS, PERMISSION_MATRIX, PROTECTED_FIELD_CLASSES, S2A_REMOVALS, S2B_REMOVALS, fieldGrantAction, removalSetHash, type ProtectedFieldClass } from "@workspace/db";
 import { FIELD_CLASS_TABLE, indexTable } from "../lib/fieldClasses/classTable";
 import { OUTSIDE_CONTRACT_ROUTES } from "../lib/fieldClasses/outsideContract";
 
@@ -61,7 +61,10 @@ describe("field-class grants in PERMISSION_MATRIX (19B S1)", () => {
     }
     const s2aFieldRemovals = S2A_REMOVALS.filter((r) => r.action.startsWith("field.")).map((r) => `${r.role}:${r.resource}:${r.action}`);
     expect(s2aFieldRemovals).toHaveLength(11);
-    expect(lacking.sort(), "a narrowing is an S2 removal the owner approves — S2a's, and nothing else").toEqual(s2aFieldRemovals.sort());
+    // restated for S2b's removal: S2a's eleven field removals and S2b's seven, and nothing else
+    const s2bRemovals = S2B_REMOVALS.map((r) => `${r.role}:${r.resource}:${r.action}`);
+    expect(s2bRemovals).toHaveLength(7);
+    expect(lacking.sort(), "a narrowing is an S2 removal the owner approves — S2a's and S2b's, and nothing else").toEqual([...s2aFieldRemovals, ...s2bRemovals].sort());
   });
 
   it("🔴 a viewer holds no field WRITE level (presence: it holds the read levels)", () => {
@@ -108,24 +111,26 @@ describe("S2a's removals (removed from the matrix; each environment only with th
  * removal commit restates this block, as S2a's was; a database loses them only with the owner's approval string for it
  * and THIS set, whose hash the approval names.
  */
-describe("S2b's pending removals (declared; every one still granted until the owner approves each environment)", () => {
+describe("S2b's removals (removed from the matrix; each environment only with the owner's approval)", () => {
   const key = (r: { role: string; resource: string; action: string }) => `${r.role}:${r.resource}:${r.action}`;
   it("🔴 the set is exactly these seven (v4 §6.1)", () => {
-    expect(S2B_PENDING_REMOVALS.map(key).sort()).toEqual([
+    expect(S2B_REMOVALS.map(key).sort()).toEqual([
       "bookkeeper:customers:field.identity.read", "bookkeeper:vendors:field.bank_account.read",
       "viewer:customers:field.contact.read", "viewer:customers:field.identity.read",
       "viewer:vendors:field.bank_account.last4", "viewer:vendors:field.bank_account.read", "viewer:vendors:field.contact.read",
     ]);
-    expect(removalSetHash(S2B_PENDING_REMOVALS)).toBe("42693c06f2bf74be1b217115eb85c7f553cdc7c6ba6a3ca0dfcb9dfbc97c088f");
+    expect(removalSetHash(S2B_REMOVALS)).toBe("42693c06f2bf74be1b217115eb85c7f553cdc7c6ba6a3ca0dfcb9dfbc97c088f");
   });
-  it("🔴 NOT YET APPLIED: every one of the seven is still in the matrix, and none overlaps S2a's", () => {
+  // restated for the removal (until now: every one still granted)
+  it("🔴 APPLIED in the matrix: none of the seven is granted, none overlaps S2a's, and the accountant and admin keep each", () => {
     const granted = new Set(PERMISSION_MATRIX.map(key));
-    expect(S2B_PENDING_REMOVALS.filter((r) => !granted.has(key(r))).map(key)).toEqual([]);
+    expect(S2B_REMOVALS.filter((r) => granted.has(key(r))).map(key)).toEqual([]);
+    for (const r of S2B_REMOVALS) for (const role of ["admin", "accountant"]) expect(granted.has(key({ ...r, role })), `${role}:${r.resource}:${r.action}`).toBe(true);
     const s2a = new Set(S2A_REMOVALS.map(key));
-    expect(S2B_PENDING_REMOVALS.filter((r) => s2a.has(key(r))).map(key)).toEqual([]);
+    expect(S2B_REMOVALS.filter((r) => s2a.has(key(r))).map(key)).toEqual([]);
   });
   it("after them the bookkeeper keeps customer and supplier contact, the national ID's write, and an IBAN's last four and write", () => {
-    const pending = new Set(S2B_PENDING_REMOVALS.map(key));
+    const pending = new Set(S2B_REMOVALS.map(key));
     for (const k of ["bookkeeper:customers:field.contact.read", "bookkeeper:customers:field.contact.write", "bookkeeper:customers:field.identity.write",
       "bookkeeper:vendors:field.contact.read", "bookkeeper:vendors:field.bank_account.last4", "bookkeeper:vendors:field.bank_account.write"]) {
       expect([k, pending.has(k), new Set(PERMISSION_MATRIX.map(key)).has(k)]).toEqual([k, false, true]);
