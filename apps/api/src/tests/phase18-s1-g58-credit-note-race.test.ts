@@ -142,7 +142,7 @@ describeMaybe("Phase 18 S1 · G58 proof — two credit notes approved at once ag
     orgId = await h.mkOrg("org");
     companyId = await h.mkCompany(orgId, "S1 G58 Co", "318181818181803");
     customerId = (await pool.query(
-      `INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'S1 G58 Buyer','300000000000003') RETURNING id`, [orgId],
+      `INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'S1 G58 Buyer','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId],
     )).rows[0].id;
     await h.mkUser("admin", PW, orgId, "admin");
     await h.mkUser("accountant", PW, orgId, "accountant");

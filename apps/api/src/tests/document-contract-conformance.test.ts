@@ -120,7 +120,7 @@ describeMaybe("document contract conformance — invoices & bills, detail and wr
     bankId = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'D3 Fixture Bank','ANB') RETURNING id`, [orgId, companyId])).rows[0].id;
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','DC',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
-    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, name_ar, tax_number) VALUES ($1,'Doc Customer','عميل','310000000000003') RETURNING id`, [orgId])).rows[0].id;
+    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, name_ar, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'Doc Customer','عميل','310000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id;
     vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Doc Vendor','300000000000003') RETURNING id`, [orgId])).rows[0].id;
   });
 

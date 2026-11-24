@@ -166,7 +166,7 @@ describeMaybe("G31 — the seller identity on a tax invoice comes from the compa
     )).rows[0].id;
     otherOrgId = (await pool.query(`INSERT INTO organizations (name, slug, verification_status) VALUES ('G31 Other','${P}-other','approved') RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO companies (organization_id, name, cr_number, vat_number, fiscal_year_start) VALUES ($1,'G31 Other Co','1010313132',$2,1)`, [otherOrgId, VAT_OTHER_COMPANY]);
-    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'G31 Buyer','300000000000003') RETURNING id`, [orgId])).rows[0].id;
+    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'G31 Buyer','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id;
     const hash = await bcrypt.hash(PW, 4);
     for (const role of ["admin", "bookkeeper"]) {
       ids[role] = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ($1,$2,$3,'viewer',true) RETURNING id`, [email(role), role, hash])).rows[0].id;

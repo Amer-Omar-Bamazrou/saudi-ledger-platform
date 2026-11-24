@@ -89,7 +89,7 @@ describeMaybe("F-25 — today's ageing never counts a settlement dated after tod
     userId = (await pool.query(`INSERT INTO users (email, name, password_hash, role, is_active) VALUES ('${EMAIL}','P14',' ','admin',true) RETURNING id`)).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     ids.bank = (await pool.query(`INSERT INTO bank_accounts (organization_id, company_id, name, bank_name) VALUES ($1,$2,'Main','SNB') RETURNING id`, [orgId, coId])).rows[0].id;
-    ids.customer = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'Client','300000000000063') RETURNING id`, [orgId])).rows[0].id;
+    ids.customer = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'Client','300000000000063','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id;
     ids.vendor = (await pool.query(`INSERT INTO vendors (organization_id, name, tax_number) VALUES ($1,'Supplier','300000000000073') RETURNING id`, [orgId])).rows[0].id;
     ids.invPast = await invoice("PD-INV-PAST", addDays(T, -20), addDays(T, -10), 1000);  // 1,150
     ids.invC = await invoice("PD-INV-C", addDays(T, -5), addDays(T, 25), 400);            //   460

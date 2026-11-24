@@ -127,7 +127,7 @@ describeMaybe("B-G08R-P (a) — a submit or send-back queued behind an approval,
     orgId = await h.mkOrg("org");
     companyId = await h.mkCompany(orgId, "G08R-a Co", "318181818181871");
     customerId = (await pool.query(
-      `INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'G08R-a Buyer','300000000000003') RETURNING id`, [orgId],
+      `INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'G08R-a Buyer','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId],
     )).rows[0].id;
     await h.mkUser("admin", PW, orgId, "admin");
     await h.mkUser("accountant", PW, orgId, "accountant");

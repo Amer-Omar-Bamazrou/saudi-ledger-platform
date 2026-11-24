@@ -88,7 +88,7 @@ describeMaybe("The correction route for a rejected invoice — the sale recorded
     companyId = await h.mkCompany(orgId, "Rejected Correction Co", "318181818181999");
     await h.mkUser("admin", PW, orgId, "admin");
     await h.mkUser("keeper", PW, orgId, "bookkeeper");
-    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number) VALUES ($1, 'Rejected Correction Buyer', '300000000000003') RETURNING id`, [orgId])).rows[0].id;
+    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1, 'Rejected Correction Buyer', '300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id;
     await h.start();
     expect(await h.login("admin", h.email("admin"), PW), "login admin").toBe(200);
     expect(await h.login("keeper", h.email("keeper"), PW), "login keeper").toBe(200);

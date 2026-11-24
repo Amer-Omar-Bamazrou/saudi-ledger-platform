@@ -88,7 +88,7 @@ describeMaybe("Invoice draft/approval — pre-approval states move zero AR; appr
     ).rows[0].id;
     await pool.query(`INSERT INTO organization_memberships (user_id, organization_id, role, status) VALUES ($1,$2,'admin','active')`, [userId, orgId]);
     customerId = (
-      await pool.query(`INSERT INTO customers (organization_id, name, name_ar, tax_number) VALUES ($1,'Beta Client','بيتا','300000000000003') RETURNING id`, [orgId])
+      await pool.query(`INSERT INTO customers (organization_id, name, name_ar, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'Beta Client','بيتا','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])
     ).rows[0].id;
   });
 
