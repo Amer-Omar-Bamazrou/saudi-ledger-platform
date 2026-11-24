@@ -12,7 +12,7 @@
  * Run under today's matrix and with S2b's and S2c's planned removals primed. DB-backed; skips on the placeholder.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { pool, PERMISSION_MATRIX, S2B_REMOVALS, S2C_PENDING_REMOVALS } from "@workspace/db";
+import { pool, PERMISSION_MATRIX, S2B_REMOVALS, S2C_REMOVALS } from "@workspace/db";
 import { primePermissionCache } from "../lib/rbac";
 import { classifyResponse, deciderFor } from "../lib/fieldClasses/seam";
 import { AUDIT_ENTITY_NODES, FIELD_CLASS_TABLE } from "../lib/fieldClasses/classTable";
@@ -24,7 +24,7 @@ const describeDb = !!url && !url.includes("placeholder") ? describe : describe.s
 const PW = "s2c-audit-password-2026";
 const h = g04Harness("s2c-aud");
 const key = (r: { role: string; resource: string; action: string }) => `${r.role}:${r.resource}:${r.action}`;
-const PENDING = new Set([...S2B_REMOVALS, ...S2C_PENDING_REMOVALS].map(key));
+const PENDING = new Set([...S2B_REMOVALS, ...S2C_REMOVALS].map(key));
 const PRIMED = PERMISSION_MATRIX.filter((r) => !PENDING.has(key(r)));
 const grantsOf = (rows: { role: string; resource: string; action: string }[]) => new Set(rows.map(key));
 
@@ -76,9 +76,9 @@ describe("19B S2c — an audit snapshot, key by key (the walk)", () => {
     expect(((served("admin", PRIMED, body).value as Record<string, unknown>[])[0]!).beforeState).toEqual({ fileName: "parties.csv", rows: 12 });
   });
 
-  // restated for S2b's removal: "every grant in place" is the matrix with S2b's seven re-added
-  it("movement: with every grant in place (S2b's re-added) the same snapshot is served whole to every role", () => {
-    const BEFORE = [...PERMISSION_MATRIX, ...S2B_REMOVALS.map(({ role, resource, action }) => ({ role, resource, action }))];
+  // restated for the removals: "before" is the matrix with S2b's and S2c's grants re-added
+  it("movement: with S2b's and S2c's grants in place the same snapshot is served whole to every role", () => {
+    const BEFORE = [...PERMISSION_MATRIX, ...[...S2B_REMOVALS, ...S2C_REMOVALS].map(({ role, resource, action }) => ({ role, resource, action }))];
     const body = [entry("customer", { name: "Planted Buyer", nationalId: NID, legacyColumn: "x-7" })];
     for (const role of ["viewer", "bookkeeper", "accountant"]) {
       expect([role, ((served(role, BEFORE, body).value as Record<string, unknown>[])[0]!).beforeState]).toEqual([role, { name: "Planted Buyer", nationalId: NID, legacyColumn: "x-7" }]);

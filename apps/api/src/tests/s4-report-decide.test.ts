@@ -80,9 +80,11 @@ describe("19B S4 — a column's class is the class table's (one definition)", ()
 
 describe("19B S4 — decide(): uses", () => {
   const viewer = hasFrom(noViewerBankText, "viewer");
+  // Restated for S2c's removal: the matrix itself lacks the viewer's bank-text grant now; the control re-adds exactly it.
+  const withViewerBankText: PermissionRow[] = [...noViewerBankText, { role: "viewer", resource: "journal_entries", action: "field.bank_narrative.read" }];
 
   it("control: with the grant, every column is read and nothing is withheld", () => {
-    const d = decide(hasFrom(PERMISSION_MATRIX, "viewer"), JOURNAL_LINES, "run", { ...NO_USE, sort: ["date"] });
+    const d = decide(hasFrom(withViewerBankText, "viewer"), JOURNAL_LINES, "run", { ...NO_USE, sort: ["date"] });
     expect(d.allowed && d.withheld.map((c) => c.column.key)).toEqual([]);
   });
 

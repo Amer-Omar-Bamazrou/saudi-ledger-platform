@@ -31,6 +31,8 @@ const BANK_VAT_TEXT = "RVWBANK ZATCA SADAD 44120";
 const TYPED_TEXT = "RVW typed accrual November";
 const h = g04Harness("rvwbank");
 const noViewerBankText = PERMISSION_MATRIX.filter((r) => !(r.role === "viewer" && r.resource === "journal_entries" && r.action === fieldGrantAction("bank_narrative", "read")));
+// Restated for S2c's removal: the matrix itself lacks the viewer's grant now; the "WITH" half re-adds exactly that one grant.
+const withViewerBankText = [...noViewerBankText, { role: "viewer" as const, resource: "journal_entries", action: fieldGrantAction("bank_narrative", "read") }];
 const WINDOW = "date_from=2026-10-01&date_to=2026-10-31";
 
 // 🔴 the SAFE ERROR, pinned (mutant V4 survived without it): a row that does not say where its text came from is bank text
@@ -124,7 +126,7 @@ describeDb("19B review follow-up — bank text on every report and journal read,
   });
 
   it("🔴 WITH the grant the same reads serve the bank's text (movement), and the accountant keeps it under the narrowed matrix", async () => {
-    primePermissionCache(PERMISSION_MATRIX);
+    primePermissionCache(withViewerBankText);
     for (const r of reads) {
       const res = await h.api("viewer", "GET", r.path());
       const expected = r.name === "tax journal entries" ? BANK_VAT_TEXT : BANK_TEXT;
