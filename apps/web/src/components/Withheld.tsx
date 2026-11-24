@@ -24,6 +24,26 @@ export function Withheld({ cls, testId }: { cls: string | undefined; testId?: st
   );
 }
 
+/**
+ * 🔴 19B S2c (D4): a record's bank text — the bank's own words on a statement line, a transaction, or a journal line
+ * posted from one (bank_narrative). Shown as served; where the server WITHHELD it (the key is absent), marked withheld —
+ * never a blank, which would read as "the bank sent no text". `empty` is what an honest null shows (e.g. "—").
+ */
+export function BankText({ row, field = "description", empty = "", testId }: { row: object; field?: string; empty?: string; testId?: string }) {
+  const r = row as Record<string, unknown>;
+  if (!(field in r)) return <Withheld cls="bank_narrative" testId={testId} />;
+  const v = r[field];
+  return <>{v == null || v === "" ? empty : String(v)}</>;
+}
+
+/** The same, as plain text — for a title attribute or a composed label. */
+export function bankTextLabel(row: object, t: (en: string, ar: string) => string, field = "description"): string {
+  const r = row as Record<string, unknown>;
+  if (!(field in r)) return t("Withheld (bank text)", "محجوب (نص كشف البنك)");
+  const v = r[field];
+  return v == null ? "" : String(v);
+}
+
 export function PayNotSet({ testId }: { testId?: string }) {
   const { t } = useLanguage();
   return (

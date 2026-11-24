@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, BookOpen, CheckCircle, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText } from "@/components/Withheld";
 import { refusalOf } from "@/lib/openingVatRefusals";
 import { fmtCount } from "@/lib/businessTime";
 import { journalStatusLabel, linePartyText, partyHint } from "@/lib/journalLine";
@@ -348,7 +349,7 @@ export default function JournalEntries() {
                   <tr key={e.id} className={`border-b border-border/50 transition-colors cursor-pointer ${selectedId===e.id?"bg-primary/5":"hover:bg-secondary/20"}`} onClick={()=>setSelectedId(selectedId===e.id?null:e.id)}>
                     <td className="py-2 pe-3 font-mono text-xs text-primary">{e.entryNumber}</td>
                     <td className="py-2 pe-3 text-xs text-muted-foreground"><DualDate date={e.date} /></td>
-                    <td className="py-2 pe-3 max-w-[140px] truncate">{e.description}</td>
+                    <td className="py-2 pe-3 max-w-[140px] truncate"><BankText row={e} /></td>
                     <td className="py-2 pe-3 font-mono text-xs text-positive">{fmtNum(e.totalDebit)}</td>
                     <td className="py-2 pe-3 font-mono text-xs text-negative">{fmtNum(e.totalCredit)}</td>
                     <td className="py-2 pe-3"><Badge className={`text-xs ${STATUS_STYLES[e.status]??""}`}>{journalStatusLabel(e.status, t)}</Badge></td>
@@ -403,7 +404,7 @@ export default function JournalEntries() {
             {!selectedEntry ? <div className="text-center py-8 text-muted-foreground text-sm">{t("Select an entry to view its lines", "اختر قيداً لعرض سطوره")}</div> : (
               <div className="space-y-3">
                 <div className="flex justify-between text-sm"><span className="text-muted-foreground">{selectedEntry.entryNumber}</span><Badge className={`text-xs ${STATUS_STYLES[selectedEntry.status]??""}`}>{journalStatusLabel(selectedEntry.status, t)}</Badge></div>
-                <p className="text-xs text-foreground font-medium">{selectedEntry.description}</p>
+                <p className="text-xs text-foreground font-medium"><BankText row={selectedEntry} /></p>
                 {selectedEntry.reference && <p className="text-xs text-muted-foreground">{t("Ref:", "المرجع:")} {selectedEntry.reference}</p>}
                 <div className="overflow-x-auto"><table className="w-full text-xs mt-2">
                   <thead><tr className="border-b border-border text-muted-foreground">{[

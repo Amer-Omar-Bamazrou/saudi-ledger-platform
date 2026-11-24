@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText } from "@/components/Withheld";
 import { DualDate } from "@/components/DualDate";
 import { PARTY_REQUIRED_SYSTEM_CODES } from "@workspace/shared";
 
@@ -197,7 +198,7 @@ const PAGE_SIZE = 50;
                   <tr key={tx.id} className="hover:bg-secondary/30 transition-colors group">
                     <td className="px-6 py-4 font-mono text-muted-foreground whitespace-nowrap"><DualDate date={tx.date} /></td>
                     <td className="px-6 py-4 text-foreground max-w-[300px]">
-                      <div className="truncate font-medium">{tx.description}</div>
+                      <div className="truncate font-medium"><BankText row={tx} testId={`tx-text-withheld-${tx.id}`} /></div>
                       {tx.descriptionAr && <div className="text-xs text-muted-foreground mt-1" dir="rtl">{tx.descriptionAr}</div>}
                     </td>
                     <td className="px-6 py-4 text-end font-mono whitespace-nowrap">
@@ -349,7 +350,7 @@ const PAGE_SIZE = 50;
           {editTx && (
             <form onSubmit={handleUpdate} className="space-y-6 pt-4">
               <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">{editTx.description}</p>
+                <p className="text-sm font-medium text-foreground"><BankText row={editTx} /></p>
                 <p className="text-xl font-mono tracking-tight">{formatCurrency(editTx.amount)}</p>
               </div>
 

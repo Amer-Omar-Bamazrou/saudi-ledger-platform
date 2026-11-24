@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CheckCheck, Check, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText } from "@/components/Withheld";
 import { DualDate } from "@/components/DualDate";
 import type { AcceptPendingResult } from "@workspace/api-client-react";
 
@@ -221,7 +222,7 @@ export default function TransactionReview() {
   const Row = ({ r }: { r: PendingRow }) => (
     <div className="flex flex-wrap items-center gap-2 border-b border-border py-2 last:border-0">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm">{r.description}</div>
+        <div className="truncate text-sm"><BankText row={r} /></div>
         <div className="text-xs text-muted-foreground">
           <DualDate date={r.date} inline /> · {r.type} · {fmtNum(r.amount)}
           {r.kind !== "operating" && <Badge className="ms-2" variant="outline">{r.kind}</Badge>}
