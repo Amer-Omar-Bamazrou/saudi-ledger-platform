@@ -31,14 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { businessToday } from "@workspace/shared";
 import {
-  useListSupplierPayments, useGetSupplierPayment, getGetSupplierPaymentQueryKey,
-  useListVendors, useListBills, getListBillsQueryKey,
-  createSupplierPayment, allocateSupplierPayment, classifySupplierPayment,
-  refundSupplierPayment, reverseSupplierAllocation,
-  createSupplierAdvanceInvoice, approveBill, type SupplierAdvanceCreditNoteInput,
-  useListSupplierDepositForfeitures, forfeitSupplierDeposit,
-  type SupplierPaymentDetail, type Vendor, type Bill, type ListBillsParams,
-  type SupplierPaymentClassification,
+  useListSupplierPayments, useGetSupplierPayment, getGetSupplierPaymentQueryKey, useListBills, getListBillsQueryKey, createSupplierPayment, allocateSupplierPayment, classifySupplierPayment, refundSupplierPayment, reverseSupplierAllocation, createSupplierAdvanceInvoice, approveBill, type SupplierAdvanceCreditNoteInput, useListSupplierDepositForfeitures, forfeitSupplierDeposit, type SupplierPaymentDetail, type Vendor, type Bill, type ListBillsParams, type SupplierPaymentClassification, useListVendorPicker, useGetVendor, getGetVendorQueryKey, type PartyPickerItem,
 } from "@workspace/api-client-react";
 import { newIdempotencyKey, useBankOptions } from "@/components/payments/shared";
 import { WhtFields, type WhtDeclarationValue } from "@/components/payments/WhtFields";
@@ -84,11 +77,14 @@ export default function SupplierPayments() {
   const [detailId, setDetailId] = useState<number | null>(null);
 
   const { data, isLoading } = useListSupplierPayments();
-  const { data: vendorsPage } = useListVendors({ limit: 200 });
+  const { data: vendorsPage } = useListVendorPicker({ limit: 200 });
   const { active: banks } = useBankOptions();
   const { data: detail } = useGetSupplierPayment(detailId ?? 0, {
     query: { enabled: detailId != null, queryKey: getGetSupplierPaymentQueryKey(detailId ?? 0) },
   });
+  // 19B S2b (D9 (a)): the picker rows carry names only; the open payment's supplier is read whole for its WHT facts
+  const detailVendorId = detail?.vendorId ?? null;
+  const detailVendor = useGetVendor(detailVendorId ?? 0, { query: { queryKey: getGetVendorQueryKey(detailVendorId ?? 0), enabled: detailVendorId != null } });
 
   const vendors = vendorsPage?.items ?? [];
   const vendorName = (id: number) => {
@@ -165,7 +161,7 @@ export default function SupplierPayments() {
         {detail && (
           <PaymentDetailDialog
             payment={detail} banks={banks} vendorName={vendorName} t={t}
-            vendor={vendors.find((x) => x.id === detail.vendorId)}
+            vendor={detailVendor.data}
             /*
              * 🔴 A successful act CLOSES the dialog and returns to the list,
              * where the refreshed row shows what changed (found by the browser
@@ -203,7 +199,7 @@ function useOpenBills(vendorId: number | null) {
 }
 
 function NewPaymentDialog({ vendors, banks, t, lang, onDone }: {
-  vendors: Vendor[]; banks: BankOption[];
+  vendors: PartyPickerItem[]; banks: BankOption[];
   t: (en: string, ar: string) => string; lang: string; onDone: () => void;
 }) {
   const { toast } = useToast();
@@ -216,7 +212,9 @@ function NewPaymentDialog({ vendors, banks, t, lang, onDone }: {
   const [allocations, setAllocations] = useState<Record<number, string>>({});
   // Phase 16: the WHT declaration <WhtFields> reports (empty unless the supplier is non-resident).
   const [wht, setWht] = useState<{ declaration: WhtDeclarationValue; ready: boolean }>({ declaration: {}, ready: true });
-  const vendor = vendors.find((v) => String(v.id) === vendorId);
+  // 19B S2b (D9 (a)): the picker rows carry names only; the chosen supplier is read whole for its WHT facts
+  const chosenVendor = useGetVendor(Number(vendorId) || 0, { query: { queryKey: getGetVendorQueryKey(Number(vendorId) || 0), enabled: !!vendorId } });
+  const vendor = vendorId ? chosenVendor.data : undefined;
 
   const openBills = useOpenBills(vendorId ? Number(vendorId) : null);
   // One key per dialog: a double-click or a retried request is the SAME

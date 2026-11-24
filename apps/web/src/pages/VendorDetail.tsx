@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, FileInput, ShoppingCart, Banknote, AlertCircle } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { Withheld } from "@/components/Withheld";
+import { useGetVendorFieldAccess } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { residencyLabel, whtTypeLabel, WHT_TYPES } from "@/lib/taxLabels";
 import { useUpdateVendor, type VendorInputFields } from "@workspace/api-client-react";
@@ -174,6 +176,10 @@ export default function VendorDetail() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const { t } = useLanguage();
+  // 19B S2b (D4): what this role may read of the record, from the server's one class table and matrix — a withheld field is marked
+  const access = useGetVendorFieldAccess();
+  const contactWithheld = access.data?.fields.phone?.read === "none";
+  const ibanWithheld = access.data?.fields.iban?.read === "none";
 
   const { data: vendor, isLoading, error } = useQuery<VendorDetailView>({
     queryKey: ["vendor", id],
@@ -253,10 +259,12 @@ export default function VendorDetail() {
         <StatTile label={t("Bills", "الفواتير")} value={String(vendor.billCount)} />
       </div>
 
-      {(vendor.phone || vendor.email || vendor.address || vendor.city || vendor.iban || vendor.ibanPending || vendor.ibanAppliedWithoutSecondApprover) && (
+      {(contactWithheld || ibanWithheld || vendor.phone || vendor.email || vendor.address || vendor.city || vendor.iban || vendor.ibanPending || vendor.ibanAppliedWithoutSecondApprover) && (
         <Card>
           <CardHeader><CardTitle className="text-base">{t("Contact", "بيانات الاتصال")}</CardTitle></CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2 text-sm">
+            {contactWithheld && <p><Withheld cls="contact" testId="vendor-contact-withheld" /></p>}
+            {ibanWithheld && <p><span className="text-muted-foreground">{t("IBAN", "الآيبان")}: </span><Withheld cls="bank_account" testId="vendor-iban-withheld" /></p>}
             {vendor.phone && <p><span className="text-muted-foreground">{t("Phone", "الهاتف")}: </span>{vendor.phone}</p>}
             {vendor.email && <p><span className="text-muted-foreground">{t("Email", "البريد الإلكتروني")}: </span>{vendor.email}</p>}
             {vendor.address && <p><span className="text-muted-foreground">{t("Address", "العنوان")}: </span>{vendor.address}</p>}

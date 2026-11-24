@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, FileMinus, ClipboardList, Banknote, AlertCircle, ChevronDown, ChevronUp, Undo2, Plus } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { Withheld } from "@/components/Withheld";
+import { useGetCustomerFieldAccess } from "@workspace/api-client-react";
 import { statusLabel } from "@/lib/statusLabel";
 import { computeAging, toFetched, DETAIL_FETCH_LIMIT, type FetchedDocs } from "@/lib/partyDetail";
 import type { Paged } from "@/lib/pagedList";
@@ -189,6 +191,9 @@ export default function CustomerDetail() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const { t, lang, n } = useLanguage();
+  // 19B S2b (D4): what this role may read of the record, from the server's one class table and matrix — a withheld field is marked
+  const access = useGetCustomerFieldAccess();
+  const contactWithheld = access.data?.fields.phone?.read === "none";
   const canPost = useCanPostPayments();
   const [receiving, setReceiving] = useState(false);
 
@@ -294,10 +299,11 @@ export default function CustomerDetail() {
         <StatTile label={t("Invoices", "الفواتير")} value={String(customer.invoiceCount)} />
       </div>
 
-      {(customer.phone || customer.email || customer.address || customer.city) && (
+      {(contactWithheld || customer.phone || customer.email || customer.address || customer.city) && (
         <Card>
           <CardHeader><CardTitle className="text-base">{t("Contact", "بيانات الاتصال")}</CardTitle></CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2 text-sm">
+            {contactWithheld && <p><Withheld cls="contact" testId="customer-contact-withheld" /></p>}
             {customer.phone && <p><span className="text-muted-foreground">{t("Phone", "الهاتف")}: </span>{customer.phone}</p>}
             {customer.email && <p><span className="text-muted-foreground">{t("Email", "البريد الإلكتروني")}: </span>{customer.email}</p>}
             {customer.address && <p><span className="text-muted-foreground">{t("Address", "العنوان")}: </span>{customer.address}</p>}

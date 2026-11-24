@@ -13,7 +13,7 @@
  */
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListWhtContracts, useCreateWhtContract, getListWhtContractsQueryKey, useListVendors } from "@workspace/api-client-react";
+import { useListWhtContracts, useCreateWhtContract, getListWhtContractsQueryKey, useListVendorPicker } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,8 +33,10 @@ export function WhtContracts() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const contracts = useListWhtContracts();
-  const vendors = useListVendors({ limit: 200 });
-  const nonResident = (vendors.data?.items ?? []).filter((v) => v.residency === "non_resident");
+  const vendors = useListVendorPicker({ limit: 200 });
+  // 19B S2b (D9 (a)): only a non-resident can hold a contract — the server filters; the picker rows carry no residency
+  const nonResidentPicker = useListVendorPicker({ residency: "non_resident", limit: 200 });
+  const nonResident = nonResidentPicker.data?.items ?? [];
   const vendorName = (id: number) => (vendors.data?.items ?? []).find((v) => v.id === id)?.name ?? `#${id}`;
   const [f, setF] = useState({ vendorId: "", reference: "", taxBearing: "", confirmed: false, note: "" });
   const create = useCreateWhtContract({

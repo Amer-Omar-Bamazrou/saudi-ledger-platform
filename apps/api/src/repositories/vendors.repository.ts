@@ -26,6 +26,8 @@ const TOTAL_PAID = sql<number>`COALESCE(SUM(CASE WHEN ${billIsPayableSql("bills"
 export interface VendorListFilter {
   search?: string;
   isActive?: boolean;
+  /** 19B S2b: the treaty-relief and contract pickers offer non-residents only. */
+  residency?: "resident" | "non_resident" | "unknown";
   limit?: number;
   offset?: number;
 }
@@ -35,6 +37,7 @@ function vendorListConditions(filter: VendorListFilter) {
   const conditions = [];
   if (filter.search) conditions.push(ilike(vendorsTable.name, `%${filter.search}%`));
   if (filter.isActive !== undefined) conditions.push(eq(vendorsTable.isActive, filter.isActive));
+  if (filter.residency !== undefined) conditions.push(eq(vendorsTable.residency, filter.residency));
   return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
@@ -60,6 +63,20 @@ export const vendorsRepository = {
   },
 
   /** Rows matching the filter — not rows on this page. */
+  /**
+   * 🔴 19B S2b (v4 D9 (a)): a PICKER's rows — id, name, Arabic name and VAT number only, never a contact, identity or
+   * bank field, for every role. The list's own predicate and order, so the picker offers the set the list would.
+   */
+  picker(filter: VendorListFilter) {
+    return db
+      .select({ id: vendorsTable.id, name: vendorsTable.name, nameAr: vendorsTable.nameAr, taxNumber: vendorsTable.taxNumber })
+      .from(vendorsTable)
+      .where(vendorListConditions(filter))
+      .orderBy(vendorsTable.name)
+      .limit(filter.limit ?? DEFAULT_PAGE)
+      .offset(filter.offset ?? 0);
+  },
+
   async listCount(filter: VendorListFilter) {
     const [row] = await db
       .select({ total: sql<number>`count(*)::int` })

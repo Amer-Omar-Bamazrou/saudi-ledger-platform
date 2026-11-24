@@ -18,6 +18,7 @@ import { Link } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import type { PartyPickerItem } from "@workspace/api-client-react";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { listExpenses, previewBillVatEvidence, type Bill, type CreateBillInput, type Expense, type ListExpensesParams, type Vendor, type VatEvidencePreviewInput } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,9 +63,9 @@ export default function Expenses() {
   const items = data?.items ?? [];
   const total = data?.page.total ?? 0;
 
-  const { data: vendorsPage } = useQuery<{ items: Vendor[]; total: number }>({
+  const { data: vendorsPage } = useQuery<{ items: PartyPickerItem[]; total: number }>({
     queryKey: ["vendors", "picker"],
-    queryFn: () => fetchPickerOptions<Vendor>("/vendors"),
+    queryFn: () => fetchPickerOptions<PartyPickerItem>("/vendors/picker"),
   });
   const vendors = vendorsPage?.items ?? [];
   const { data: bankAccounts = [] } = useQuery<Array<{ id: number; name: string; bankName: string; isDefault: boolean; isActive: boolean }>>({

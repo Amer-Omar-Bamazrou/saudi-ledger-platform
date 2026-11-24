@@ -27,17 +27,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import {
-  useGetTreasuryDashboard, useGetTreasuryPosition, useGetTreasuryForecast,
-  useListPaymentPlans, useCreatePaymentPlan, useUpdatePaymentPlan, useDeletePaymentPlan,
-  useApprovePaymentPlan, usePayPaymentPlan, useCancelPaymentPlan,
-  useListForecastAssumptions, useCreateForecastAssumption, useUpdateForecastAssumption, useDeleteForecastAssumption,
-  useGetTreasurySettings, useUpdateTreasurySettings, useListBills, useListVendors, useGetVendor,
-  getGetTreasuryPositionQueryKey, getGetTreasuryForecastQueryKey, getListPaymentPlansQueryKey,
-  getListBillsQueryKey, getListVendorsQueryKey, getGetVendorQueryKey,
-  type TreasuryDashboard, type TreasuryForecast, type TreasuryBucket, type TreasuryFlowRow, type TreasuryFlowRowSource,
-  type PaymentPlan, type ForecastAssumption, type ListBillsParams, type ListPaymentPlansParams, type Bill,
-  type ForecastAssumptionInputCategory, type ForecastAssumptionInputDirection, type CreatePaymentPlanInputPriority,
-  type PayPaymentPlanInput,
+  useGetTreasuryDashboard, useGetTreasuryPosition, useGetTreasuryForecast, useListPaymentPlans, useCreatePaymentPlan, useUpdatePaymentPlan, useDeletePaymentPlan, useApprovePaymentPlan, usePayPaymentPlan, useCancelPaymentPlan, useListForecastAssumptions, useCreateForecastAssumption, useUpdateForecastAssumption, useDeleteForecastAssumption, useGetTreasurySettings, useUpdateTreasurySettings, useListBills, useGetVendor, getGetTreasuryPositionQueryKey, getGetTreasuryForecastQueryKey, getListPaymentPlansQueryKey, getListBillsQueryKey, getGetVendorQueryKey, type TreasuryDashboard, type TreasuryForecast, type TreasuryBucket, type TreasuryFlowRow, type TreasuryFlowRowSource, type PaymentPlan, type ForecastAssumption, type ListBillsParams, type ListPaymentPlansParams, type Bill, type ForecastAssumptionInputCategory, type ForecastAssumptionInputDirection, type CreatePaymentPlanInputPriority, type PayPaymentPlanInput, useListVendorPicker, getListVendorPickerQueryKey,
 } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 import { fmtDate, fmtNum } from "@/lib/api";
@@ -879,7 +869,7 @@ function PlanCreateForm({ onDone }: { onDone: () => void }) {
   const [notes, setNotes] = useState("");
 
   const vendorParams = { limit: 200 };
-  const vendors = useListVendors(vendorParams, { query: { queryKey: getListVendorsQueryKey(vendorParams) } });
+  const vendors = useListVendorPicker(vendorParams, { query: { queryKey: getListVendorPickerQueryKey(vendorParams) } });
   const vendorItems = vendors.data?.items ?? [];
   const vendorById = new Map(vendorItems.map((v) => [v.id, v]));
   const billParams: ListBillsParams = vendorFilter === NONE ? { limit: 200 } : { vendor_id: Number(vendorFilter), limit: 200 };
@@ -890,9 +880,12 @@ function PlanCreateForm({ onDone }: { onDone: () => void }) {
     h(Number(b.outstanding ?? 0)) > 0 && !b.reversedAt && (vendorFilter === NONE || b.vendorId === Number(vendorFilter)));
   const capped = bills.data != null && bills.data.page.total > bills.data.items.length;
   const chosen = open.find((b) => String(b.id) === billId);
-  const vendor = chosen?.vendorId != null ? vendorById.get(chosen.vendorId) : undefined;
+  // 19B S2b (D9 (a)): the picker rows carry names only; the chosen bill's supplier is read whole for its WHT facts
+  const chosenVendorId = chosen?.vendorId ?? null;
+  const chosenVendor = useGetVendor(chosenVendorId ?? 0, { query: { queryKey: getGetVendorQueryKey(chosenVendorId ?? 0), enabled: chosenVendorId != null } });
+  const vendor = chosenVendorId != null ? chosenVendor.data : undefined;
   const nonResident = vendor?.residency === "non_resident";
-  const residencyUnread = chosen != null && chosen.vendorId != null && vendor == null;
+  const residencyUnread = chosenVendorId != null && !chosenVendor.isLoading && vendor == null;
   const parsed = parseAmount(amount);
   const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(plannedDate) && plannedDate >= today;
 

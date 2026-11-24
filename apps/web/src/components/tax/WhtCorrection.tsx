@@ -11,9 +11,7 @@
  */
 import { useRef, useState } from "react";
 import {
-  useFileWhtReturn, useCorrectWhtWithholding, useGetWhtWithholdingLineage, useGetVendor, useListBills, useListVendors, useGetWhtCorrectionPack,
-  getGetWhtWithholdingLineageQueryKey, getGetVendorQueryKey, getListBillsQueryKey, getGetWhtCorrectionPackQueryKey,
-  type WhtWithholding, type WhtFilingState, type ListBillsParams,
+  useFileWhtReturn, useCorrectWhtWithholding, useGetWhtWithholdingLineage, useGetVendor, useListBills, useGetWhtCorrectionPack, getGetWhtWithholdingLineageQueryKey, getGetVendorQueryKey, getListBillsQueryKey, getGetWhtCorrectionPackQueryKey, type WhtWithholding, type WhtFilingState, type ListBillsParams, useListVendorPicker,
 } from "@workspace/api-client-react";
 import { businessToday } from "@workspace/shared";
 import { fmtDate, fmtNum } from "@/lib/api";
@@ -130,7 +128,7 @@ export function WhtCorrectionPanel({ row, monthFilingStatus, onDone, onCancel }:
   const [billId, setBillId] = useState("");
   const vendorId = otherVendor ? Number(otherVendor) : row.vendorId;
   const vendor = useGetVendor(vendorId, { query: { queryKey: getGetVendorQueryKey(vendorId) } });
-  const vendors = useListVendors({ search: vendorSearch.trim() || undefined, limit: 50 });
+  const vendors = useListVendorPicker({ search: vendorSearch.trim() || undefined, limit: 50 });
   const billParams: ListBillsParams = { vendor_id: vendorId, limit: 200 };
   const bills = useListBills(billParams, { query: { enabled: isBill && !!otherVendor, queryKey: getListBillsQueryKey(billParams) } });
   const openBills = (bills.data?.items ?? []).filter((b) => b.vendorId === vendorId && !["draft", "submitted"].includes(b.status) && b.documentType !== "credit_note" && Number(b.outstanding ?? 0) >= 0.01);

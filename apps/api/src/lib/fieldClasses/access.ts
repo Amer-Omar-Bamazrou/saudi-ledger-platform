@@ -9,7 +9,7 @@ import { fieldSpec, FIELD_CLASS_TABLE, indexTable, type FieldClass } from "./cla
 import { deciderFor } from "./seam";
 import type { ReadLevel } from "./walk";
 
-export type FieldAccessRecord = "employees" | "payroll";
+export type FieldAccessRecord = "employees" | "payroll" | "customers" | "vendors";
 
 /**
  * Each record's node that is READ (the response), the node that is WRITTEN (the body), and the resource whose
@@ -18,6 +18,9 @@ export type FieldAccessRecord = "employees" | "payroll";
 const RECORD_NODES: Record<FieldAccessRecord, { read: string; write: string | null; resource: string }> = {
   employees: { read: "Employee", write: "EmployeeInputFields", resource: "employees" },
   payroll: { read: "PayrollItem", write: null, resource: "payroll" },
+  // 19B S2b
+  customers: { read: "Customer", write: "CustomerInputFields", resource: "customers" },
+  vendors: { read: "Vendor", write: "VendorInputFields", resource: "vendors" },
 };
 
 export interface FieldAccessEntry {

@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Plus, Search, Users, TrendingUp, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { Withheld } from "@/components/Withheld";
+import { useGetCustomerFieldAccess } from "@workspace/api-client-react";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 
@@ -39,6 +41,9 @@ export default function Customers() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t, lang } = useLanguage();
+  // 19B S2b (D4): what this role may read of the record, from the server's one class table and matrix — a withheld field is marked
+  const access = useGetCustomerFieldAccess();
+  const cityWithheld = access.data?.fields.city?.read === "none";
 
   const { data: paged, isLoading } = useQuery<Paged<CustomerWithBalance, CustomerTotals>>({
     queryKey: ["customers", search, page],
@@ -131,7 +136,7 @@ export default function Customers() {
                       ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script — please correct", "ليس نصًا عربيًا — يرجى التصحيح")}</div>
                       : <div className="text-[10px] text-attention-surface/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
                   </td>
-                  <td className="py-3 pe-4 text-muted-foreground" data-label={t("City", "المدينة")}>{c.city||"—"}</td>
+                  <td className="py-3 pe-4 text-muted-foreground" data-label={t("City", "المدينة")}>{cityWithheld ? <Withheld cls="contact" testId={`customer-city-withheld-${c.id}`} /> : c.city||"—"}</td>
                   <td className="py-3 pe-4 font-mono text-xs text-muted-foreground" data-label={t("VAT Number", "رقم ضريبة القيمة المضافة")}>{c.taxNumber||"—"}</td>
                   <td className="py-3 pe-4" data-label={t("Payment Terms", "شروط الدفع")}><Badge variant="outline" className="text-xs font-mono">{c.paymentTermsDays == null ? "—" : t(`${c.paymentTermsDays}d`, arabicDays(Number(c.paymentTermsDays)))}</Badge></td>
                   <td className="py-3 pe-4 font-mono text-foreground" data-label={t("Billed", "المفوتر")}>{fmtNum(c.totalBilled??0)}</td>

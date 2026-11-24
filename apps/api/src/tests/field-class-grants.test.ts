@@ -9,7 +9,7 @@
  *    applied to a database only with the owner's approval string for it (D10).
  */
 import { describe, expect, it } from "vitest";
-import { FIELD_CLASS_LEVELS, PERMISSION_MATRIX, PROTECTED_FIELD_CLASSES, S2A_REMOVALS, fieldGrantAction, removalSetHash, type ProtectedFieldClass } from "@workspace/db";
+import { FIELD_CLASS_LEVELS, PERMISSION_MATRIX, PROTECTED_FIELD_CLASSES, S2A_REMOVALS, S2B_PENDING_REMOVALS, fieldGrantAction, removalSetHash, type ProtectedFieldClass } from "@workspace/db";
 import { FIELD_CLASS_TABLE, indexTable } from "../lib/fieldClasses/classTable";
 import { OUTSIDE_CONTRACT_ROUTES } from "../lib/fieldClasses/outsideContract";
 
@@ -98,6 +98,37 @@ describe("S2a's removals (removed from the matrix; each environment only with th
     for (const a of ["field.identity.write", "field.bank_account.write", "field.bank_account.last4"]) {
       expect(removed.has(`bookkeeper:employees:${a}`), a).toBe(false);
       expect(granted.has(`bookkeeper:employees:${a}`), a).toBe(true);
+    }
+  });
+});
+
+/**
+ * 🔴 19B S2b: its seven removals are DECLARED and STILL GRANTED (owner, 2026-11-24: "build the code, merge it with every
+ * grant still in place, and stop before any removal with the dry-run list, its hash and the pre-removal review"). The
+ * removal commit restates this block, as S2a's was; a database loses them only with the owner's approval string for it
+ * and THIS set, whose hash the approval names.
+ */
+describe("S2b's pending removals (declared; every one still granted until the owner approves each environment)", () => {
+  const key = (r: { role: string; resource: string; action: string }) => `${r.role}:${r.resource}:${r.action}`;
+  it("🔴 the set is exactly these seven (v4 §6.1)", () => {
+    expect(S2B_PENDING_REMOVALS.map(key).sort()).toEqual([
+      "bookkeeper:customers:field.identity.read", "bookkeeper:vendors:field.bank_account.read",
+      "viewer:customers:field.contact.read", "viewer:customers:field.identity.read",
+      "viewer:vendors:field.bank_account.last4", "viewer:vendors:field.bank_account.read", "viewer:vendors:field.contact.read",
+    ]);
+    expect(removalSetHash(S2B_PENDING_REMOVALS)).toBe("42693c06f2bf74be1b217115eb85c7f553cdc7c6ba6a3ca0dfcb9dfbc97c088f");
+  });
+  it("🔴 NOT YET APPLIED: every one of the seven is still in the matrix, and none overlaps S2a's", () => {
+    const granted = new Set(PERMISSION_MATRIX.map(key));
+    expect(S2B_PENDING_REMOVALS.filter((r) => !granted.has(key(r))).map(key)).toEqual([]);
+    const s2a = new Set(S2A_REMOVALS.map(key));
+    expect(S2B_PENDING_REMOVALS.filter((r) => s2a.has(key(r))).map(key)).toEqual([]);
+  });
+  it("after them the bookkeeper keeps customer and supplier contact, the national ID's write, and an IBAN's last four and write", () => {
+    const pending = new Set(S2B_PENDING_REMOVALS.map(key));
+    for (const k of ["bookkeeper:customers:field.contact.read", "bookkeeper:customers:field.contact.write", "bookkeeper:customers:field.identity.write",
+      "bookkeeper:vendors:field.contact.read", "bookkeeper:vendors:field.bank_account.last4", "bookkeeper:vendors:field.bank_account.write"]) {
+      expect([k, pending.has(k), new Set(PERMISSION_MATRIX.map(key)).has(k)]).toEqual([k, false, true]);
     }
   });
 });

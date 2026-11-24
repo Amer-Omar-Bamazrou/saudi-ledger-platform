@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import type { PartyPickerItem } from "@workspace/api-client-react";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
@@ -38,8 +39,8 @@ export function ReceiveDialog({ open, onClose, customer }: { open: boolean; onCl
   const [key] = useState(() => newIdempotencyKey("rcpt"));
 
   const { data: customers } = useQuery({
-    queryKey: ["customers", "picker"],
-    queryFn: () => fetchPickerOptions<Customer>("/customers?is_active=true"),
+    queryKey: ["customers", "picker", "active"],
+    queryFn: () => fetchPickerOptions<PartyPickerItem>("/customers/picker?is_active=true"),
     enabled: open && !customer,
   });
 

@@ -292,6 +292,10 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   // 19B S3 (v4 §6.3): the fallback line a supplier or employee shows — when, and who entered it. Standard: a fact about the record.
   IbanAppliedWithoutSecondApprover: { standard: "at byName" },
   FieldAccessEntry: { standard: "class read write" },
+  // 19B S2b (v4 D9 (a)): what a picker offers — a customer's or supplier's id, names and VAT number; nothing protected.
+  PartyPickerItem: { standard: "id name nameAr taxNumber" },
+  // 19B S2b (v4 §11): the invoice PDF refusal — the classes it carries, by name; never a value.
+  DocumentFieldWithheld: { standard: "error errorAr code classes" },
   EndUserSessionsInput: { resource: "users", member_security: "email" },
   ErrorResponse: { standard: "error" },
   EvidenceFlag: { standard: "code severity message amounts" },

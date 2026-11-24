@@ -6880,7 +6880,7 @@ export const CreatePayrollRunResponse = zod.object({
  * @summary What the reader's role may read and write of each payroll line field (19B S2a)
  */
 export const GetPayrollFieldAccessResponse = zod.object({
-  "record": zod.enum(['employees', 'payroll']),
+  "record": zod.enum(['employees', 'payroll', 'customers', 'vendors']),
   "fields": zod.record(zod.string(), zod.object({
   "class": zod.enum(['standard', 'contact', 'identity', 'compensation', 'bank_account', 'bank_narrative', 'member_security', 'by_entity']),
   "read": zod.enum(['read', 'last4', 'none']),
@@ -7128,7 +7128,7 @@ export const CreateEmployeeResponse = zod.object({
  * @summary What the reader's role may read and write of each employee field (19B S2a)
  */
 export const GetEmployeeFieldAccessResponse = zod.object({
-  "record": zod.enum(['employees', 'payroll']),
+  "record": zod.enum(['employees', 'payroll', 'customers', 'vendors']),
   "fields": zod.record(zod.string(), zod.object({
   "class": zod.enum(['standard', 'contact', 'identity', 'compensation', 'bank_account', 'bank_narrative', 'member_security', 'by_entity']),
   "read": zod.enum(['read', 'last4', 'none']),
@@ -8989,6 +8989,52 @@ export const CreateCustomerResponse = zod.object({
 
 
 /**
+ * @summary 19B S2b (v4 D9 (a)): a PICKER's customers — id, name, Arabic name and VAT number only, never a contact, identity or bank field. The list's own predicate and order.
+ */
+export const listCustomerPickerQueryLimitDefault = 50;
+export const listCustomerPickerQueryLimitMax = 200;
+
+export const listCustomerPickerQueryOffsetDefault = 0;
+export const listCustomerPickerQueryOffsetMin = 0;
+
+
+
+export const ListCustomerPickerQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "is_active": zod.coerce.boolean().optional(),
+  "limit": zod.coerce.number().min(1).max(listCustomerPickerQueryLimitMax).default(listCustomerPickerQueryLimitDefault),
+  "offset": zod.coerce.number().min(listCustomerPickerQueryOffsetMin).default(listCustomerPickerQueryOffsetDefault)
+})
+
+export const ListCustomerPickerResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "taxNumber": zod.string().nullable()
+}).describe('19B S2b (v4 D9 (a)): what a picker needs to offer a customer or supplier — and nothing else.')),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+})
+})
+
+
+/**
+ * @summary What the reader's role may read and write of each customer field (19B S2b)
+ */
+export const GetCustomerFieldAccessResponse = zod.object({
+  "record": zod.enum(['employees', 'payroll', 'customers', 'vendors']),
+  "fields": zod.record(zod.string(), zod.object({
+  "class": zod.enum(['standard', 'contact', 'identity', 'compensation', 'bank_account', 'bank_narrative', 'member_security', 'by_entity']),
+  "read": zod.enum(['read', 'last4', 'none']),
+  "write": zod.boolean().describe('False when the field is read-only for every role, or the role lacks a class its write needs.')
+}))
+}).describe('19B S2a (v4 §4): what the reader\'s role may do with each field of one kind of record, from the one class table and the one matrix — so a page shows only what the role may write, and marks what it may not read. Never a field\'s value.')
+
+
+/**
  * @summary One customer with its receivable balance and issued-invoice count
  */
 export const GetCustomerParams = zod.object({
@@ -9448,6 +9494,53 @@ export const MatchVendorResponse = zod.object({
   "createdAt": zod.string()
 }))
 })
+
+
+/**
+ * @summary 19B S2b (v4 D9 (a)): a PICKER's suppliers — id, name, Arabic name and VAT number only, never a contact, identity or bank field. The list's own predicate and order.
+ */
+export const listVendorPickerQueryLimitDefault = 50;
+export const listVendorPickerQueryLimitMax = 200;
+
+export const listVendorPickerQueryOffsetDefault = 0;
+export const listVendorPickerQueryOffsetMin = 0;
+
+
+
+export const ListVendorPickerQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "is_active": zod.coerce.boolean().optional(),
+  "residency": zod.enum(['resident', 'non_resident', 'unknown']).optional().describe('Only suppliers of this withholding-tax residency (the treaty-relief and contract pickers offer non-residents only).'),
+  "limit": zod.coerce.number().min(1).max(listVendorPickerQueryLimitMax).default(listVendorPickerQueryLimitDefault),
+  "offset": zod.coerce.number().min(listVendorPickerQueryOffsetMin).default(listVendorPickerQueryOffsetDefault)
+})
+
+export const ListVendorPickerResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "nameAr": zod.string().nullable(),
+  "taxNumber": zod.string().nullable()
+}).describe('19B S2b (v4 D9 (a)): what a picker needs to offer a customer or supplier — and nothing else.')),
+  "page": zod.object({
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "total": zod.number().describe('Rows matching the filter, not rows on this page.')
+})
+})
+
+
+/**
+ * @summary What the reader's role may read and write of each supplier field (19B S2b)
+ */
+export const GetVendorFieldAccessResponse = zod.object({
+  "record": zod.enum(['employees', 'payroll', 'customers', 'vendors']),
+  "fields": zod.record(zod.string(), zod.object({
+  "class": zod.enum(['standard', 'contact', 'identity', 'compensation', 'bank_account', 'bank_narrative', 'member_security', 'by_entity']),
+  "read": zod.enum(['read', 'last4', 'none']),
+  "write": zod.boolean().describe('False when the field is read-only for every role, or the role lacks a class its write needs.')
+}))
+}).describe('19B S2a (v4 §4): what the reader\'s role may do with each field of one kind of record, from the one class table and the one matrix — so a page shows only what the role may write, and marks what it may not read. Never a field\'s value.')
 
 
 /**

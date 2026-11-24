@@ -23,8 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Building2, ArrowLeft } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
-  useListSupplierPositions, useGetSupplierStatement, useListVendors,
-  getGetSupplierStatementQueryKey, type SupplierStatementBalance,
+  useListSupplierPositions, useGetSupplierStatement, getGetSupplierStatementQueryKey, type SupplierStatementBalance, useListVendorPicker,
 } from "@workspace/api-client-react";
 
 const Money = ({ v }: { v: number }) => <span className="font-mono" dir="ltr">{fmtNum(v)}</span>;
@@ -51,7 +50,7 @@ function PositionList() {
   const { t } = useLanguage();
   const { lang } = useLanguage();
   const { data, isLoading, isError } = useListSupplierPositions();
-  const { data: vendorsPage } = useListVendors({ limit: 200 });
+  const { data: vendorsPage } = useListVendorPicker({ limit: 200 });
   const nameOf = (id: number) => {
     const v = vendorsPage?.items.find((x) => x.id === id);
     return v ? (lang === "ar" && v.nameAr ? v.nameAr : v.name) : `#${id}`;

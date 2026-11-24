@@ -13,6 +13,7 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import type { PartyPickerItem } from "@workspace/api-client-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,7 +57,7 @@ export default function Payments() {
   const [selected, setSelected] = useState<CustomerPayment | null>(null);
   const [receiving, setReceiving] = useState(false);
 
-  const { data: customers } = useQuery({ queryKey: ["customers", "picker"], queryFn: () => fetchPickerOptions<Customer>("/customers") });
+  const { data: customers } = useQuery({ queryKey: ["customers", "picker"], queryFn: () => fetchPickerOptions<PartyPickerItem>("/customers/picker") });
   const nameOf = (id: number | null) => {
     if (id == null) return t("No identified customer", "بدون عميل محدد");
     const c = customers?.items.find((x) => x.id === id);

@@ -4,6 +4,9 @@ import { customersController } from "../controllers/customers.controller";
 const router = Router();
 
 router.get("/", customersController.list);
+// 19B S2b: before "/:id", which would read "picker" and "field-access" as an id
+router.get("/picker", customersController.picker);
+router.get("/field-access", customersController.fieldAccess);
 router.get("/:id", customersController.get);
 // D-4: the customer's credit position — deposits and credit-note balances, apart.
 router.get("/:id/credits", customersController.credits);

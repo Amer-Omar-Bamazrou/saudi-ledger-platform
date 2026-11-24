@@ -16,7 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, Upload, Pencil, Plus } from "lucide-react";
 import { EmptyState, Money, Problems, focusClass, invalidateMigration, useCanRunMigration, useFocusRow, useParties, useWorkspaceNav } from "./shared";
 import { ImportDialog, RowEditorDialog } from "./StagingEditors";
-import type { ListCustomers200, ListVendors200, MigrationParty, MigrationPartyDecisionInput } from "@workspace/api-client-react";
+import type { MigrationParty, MigrationPartyDecisionInput, PartyPickerItem } from "@workspace/api-client-react";
+import { fetchPickerOptions } from "@/lib/pagedList";
 
 function PartyDecision({ batchId, row }: { batchId: number; row: MigrationParty }) {
   const { t, n } = useLanguage();
@@ -25,8 +26,9 @@ function PartyDecision({ batchId, row }: { batchId: number; row: MigrationParty 
   const [pickOther, setPickOther] = useState(false);
   const [otherId, setOtherId] = useState("");
   const isCustomer = row.partyType === "customer";
-  const { data: customers } = useQuery<ListCustomers200>({ queryKey: ["customers", "picker"], queryFn: () => apiFetch("/customers?limit=200"), enabled: pickOther && isCustomer });
-  const { data: vendors } = useQuery<ListVendors200>({ queryKey: ["vendors", "picker"], queryFn: () => apiFetch("/vendors?limit=200"), enabled: pickOther && !isCustomer });
+  // 19B S2b (D9 (a)): the picker routes, in the shape every other picker shares this cache entry with ({ items, total })
+  const { data: customers } = useQuery<{ items: PartyPickerItem[]; total: number }>({ queryKey: ["customers", "picker"], queryFn: () => fetchPickerOptions<PartyPickerItem>("/customers/picker"), enabled: pickOther && isCustomer });
+  const { data: vendors } = useQuery<{ items: PartyPickerItem[]; total: number }>({ queryKey: ["vendors", "picker"], queryFn: () => fetchPickerOptions<PartyPickerItem>("/vendors/picker"), enabled: pickOther && !isCustomer });
   const options = isCustomer ? (customers?.items ?? []).map((c) => ({ id: c.id, label: n(c.name, c.nameAr) })) : (vendors?.items ?? []).map((v) => ({ id: v.id, label: n(v.name, v.nameAr) }));
 
   const mut = useMutation({

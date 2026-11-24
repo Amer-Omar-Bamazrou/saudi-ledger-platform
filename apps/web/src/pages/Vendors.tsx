@@ -13,6 +13,8 @@ import { Plus, Search, Building2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { Withheld } from "@/components/Withheld";
+import { useGetVendorFieldAccess } from "@workspace/api-client-react";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
 
@@ -50,6 +52,10 @@ export default function Vendors() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { t } = useLanguage();
+  // 19B S2b (D4): what this role may read of the record, from the server's one class table and matrix — a withheld field is marked
+  const access = useGetVendorFieldAccess();
+  const cityWithheld = access.data?.fields.city?.read === "none";
+  const ibanLevel = access.data?.fields.iban?.read ?? "read";
 
   const { data: paged, isLoading } = useQuery<Paged<VendorWithBalance, PartyTotals>>({
     queryKey: ["vendors", search, page],
@@ -171,9 +177,9 @@ export default function Vendors() {
                       ? <div className="text-[10px] text-orange-400 italic mt-0.5">⚠ {t("not Arabic script", "ليس نصًا عربيًا")}</div>
                       : <div className="text-[10px] text-attention-surface/60 italic mt-0.5">{t("needs Arabic translation", "يحتاج إلى ترجمة عربية")}</div>}
                   </td>
-                  <td className="py-3 pe-4 text-muted-foreground">{v.city||"—"}</td>
+                  <td className="py-3 pe-4 text-muted-foreground">{cityWithheld ? <Withheld cls="contact" testId={`vendor-city-withheld-${v.id}`} /> : v.city||"—"}</td>
                   <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.taxNumber||"—"}</td>
-                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{v.iban ? `${v.iban.slice(0,12)}...` : "—"}<PartyIbanLine record={v} testId={`vendor-iban-${v.id}`} /></td>
+                  <td className="py-3 pe-4 font-mono text-xs text-muted-foreground">{ibanLevel === "none" ? <Withheld cls="bank_account" testId={`vendor-iban-withheld-${v.id}`} /> : v.iban ? (ibanLevel === "last4" ? v.iban : `${v.iban.slice(0,12)}...`) : "—"}<PartyIbanLine record={v} testId={`vendor-iban-${v.id}`} /></td>
                   <td className="py-3 pe-4 font-mono text-foreground">{fmtNum(v.totalBilled??0)}</td>
                   <td className="py-3 pe-4"><span className={`font-mono font-medium ${(v.balance??0)>0?"text-negative":"text-positive"}`}>{fmtNum(v.balance??0)}</span></td>
                   <td className="py-3"><Link href={`/vendors/${v.id}`}><Button variant="ghost" size="sm" className="text-xs h-7">{t("View", "عرض")}</Button></Link></td>

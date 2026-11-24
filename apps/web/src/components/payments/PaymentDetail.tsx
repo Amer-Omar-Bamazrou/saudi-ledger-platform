@@ -10,6 +10,7 @@ import { Fragment, useState } from "react";
 import { Link } from "wouter";
 import { fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { InvoiceDocumentLink } from "@/components/InvoiceDocumentLink";
 import { refusalOf } from "@/lib/openingVatRefusals";
 import { Button } from "@/components/ui/button";
 import { IssueConfirmDialog } from "@/components/invoices/IssueConfirmDialog";
@@ -212,7 +213,7 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
                             {t("Credit note", "إشعار دائن")}
                           </Button>
                         )}
-                        <a href={`/api/invoices/${a.id}/document?lang=${lang === "ar" ? "ar" : "en"}`} download className="text-xs text-primary hover:underline">PDF</a>
+                        <InvoiceDocumentLink invoiceId={a.id} lang={lang === "ar" ? "ar" : "en"} className="text-xs text-primary hover:underline">PDF</InvoiceDocumentLink>
                       </span>
                     )}
                   </td>
@@ -234,7 +235,7 @@ function AdvanceInvoicesSection({ payment, customerName, canPost }: { payment: C
                           {t("Approve & issue", "اعتماد وإصدار")}
                         </Button>
                       ) : (
-                        <a href={`/api/invoices/${n.id}/document?lang=${lang === "ar" ? "ar" : "en"}`} download className="text-xs text-primary hover:underline">PDF</a>
+                        <InvoiceDocumentLink invoiceId={n.id} lang={lang === "ar" ? "ar" : "en"} className="text-xs text-primary hover:underline">PDF</InvoiceDocumentLink>
                       )}
                     </td>
                   </tr>

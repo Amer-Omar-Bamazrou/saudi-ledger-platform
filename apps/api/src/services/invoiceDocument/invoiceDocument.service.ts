@@ -47,6 +47,9 @@ import { dayNumberFromIso, toHijri } from "../../lib/hijriCalendar";
 import { renderInvoiceHtml, type InvoiceDocModel, type DocLine } from "./renderInvoiceHtml";
 import { documentTitle, type DocLang } from "./labels";
 import { toPdfA3 } from "./pdfa3";
+import type { ReadDecider } from "../../lib/fieldClasses/walk";
+import { DOCUMENT_CLASS_RESOURCE, invoiceDocumentClasses } from "../../lib/fieldClasses/documentClasses";
+import { refusalEventsService } from "../refusalEvents.service";
 
 // The browser lives in ONE shared module now (Phase 14, D14-10) — re-exported
 // so every existing importer keeps working unchanged.
@@ -241,6 +244,43 @@ async function loadLogoDataUrl(logoPath: string | null | undefined): Promise<str
     logger.warn({ logoPath, err }, "company logo could not be loaded — rendering without it");
     return null;
   }
+}
+
+/** What a refused document's record names for each class it carries (names only — never a value). */
+const DOCUMENT_FIELD_NAMES: Record<"contact" | "identity", string> = { contact: "buyer.address", identity: "buyer.identification" };
+
+/**
+ * 🔴 19B S2b (v4 §11, D9 (b) = B2): the PDF is served whole or REFUSED BY NAME — a signed tax document is not altered
+ * per reader. The classes are read from the document itself (`invoiceDocumentClasses`: the printed buyer block and the
+ * attached XML); a role that may not read one of them is refused 403 `document_field_withheld`, naming the classes,
+ * before anything is rendered, and the refusal is recorded as a refused export (D6: on its own connection, names only).
+ */
+export async function refuseWithheldDocument(
+  model: InvoiceDocModel,
+  xml: { content: Buffer } | undefined,
+  decide: ReadDecider,
+  actor: { userId: number; organizationId: string; companyId: string | null },
+): Promise<void> {
+  const withheld = invoiceDocumentClasses(model, xml?.content.toString("utf8")).filter((c) => decide(c, DOCUMENT_CLASS_RESOURCE) !== "read");
+  if (withheld.length === 0) return;
+  await refusalEventsService.record({
+    action: "export",
+    actorUserId: actor.userId,
+    organizationId: actor.organizationId,
+    companyId: actor.companyId,
+    resource: "invoices",
+    refusalCode: "document_field_withheld",
+    fieldNames: withheld.map((c) => DOCUMENT_FIELD_NAMES[c]),
+    fieldClasses: withheld,
+  });
+  const en = withheld.map((c) => (c === "contact" ? "the buyer's contact details" : "the buyer's identity")).join(" and ");
+  const ar = withheld.map((c) => (c === "contact" ? "بيانات الاتصال للمشتري" : "هوية المشتري")).join(" و");
+  throw new BusinessRuleError(403, {
+    code: "document_field_withheld",
+    error: `This invoice's PDF carries ${en}, which your role may not see. The invoice stays available in the app; an accountant or admin can download the PDF.`,
+    errorAr: `يتضمن ملف PDF لهذه الفاتورة ${ar}، وهي غير متاحة لدورك. تبقى الفاتورة متاحة في التطبيق، ويمكن للمحاسب أو المسؤول تنزيل ملف PDF.`,
+    classes: withheld,
+  });
 }
 
 /** The signed-XML attachment, when the invoice has a ZATCA document. Read

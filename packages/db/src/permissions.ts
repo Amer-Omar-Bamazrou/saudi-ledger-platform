@@ -350,6 +350,30 @@ export const S2A_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFiel
   { role: "bookkeeper", resource: "payroll", action: "create", fieldClass: null, why: "bookkeeper: no longer prepares payroll runs (D8 O2)" },
 ];
 
+/**
+ * 🔴 19B S2b — THE REMOVALS THAT WILL SWITCH WITHHOLDING ON FOR CUSTOMERS AND SUPPLIERS (v4 §6.1 D2; D9 (a), (b), (d)).
+ *
+ * 🔴 PENDING — STILL IN PERMISSION_MATRIX. S2b's code merges with every grant in place (owner, 2026-11-24: "build the
+ * code, merge it with every grant still in place, and stop before any removal"); the removal is its own commit, applied
+ * per environment only with the owner's approval string for that environment and this exact set (D10). Declared ONCE,
+ * here, so the dry runs, the approval string and the tests name the same set (field-class-grants.test.ts pins it, its
+ * hash, and that each is still granted until then).
+ *
+ * After them: a viewer reads no customer contact or identity and no supplier contact or IBAN — not even its last four;
+ * a bookkeeper writes a customer's national ID without reading it back and sees a supplier IBAN's last four digits
+ * (as on employees), and keeps contact. The invoice PDF follows (B2: refused by the classes it carries), and so do the
+ * withholding-tax routes' and exports' supplier address (D9 d) and a held supplier IBAN change.
+ */
+export const S2B_PENDING_REMOVALS: readonly (PermissionRow & { fieldClass: ProtectedFieldClass; why: string })[] = [
+  { role: "viewer", resource: "customers", action: "field.contact.read", fieldClass: "contact", why: "viewer: contact none (D2)" },
+  { role: "viewer", resource: "customers", action: "field.identity.read", fieldClass: "identity", why: "viewer: identity none (D2)" },
+  { role: "bookkeeper", resource: "customers", action: "field.identity.read", fieldClass: "identity", why: "bookkeeper: writes the national ID, never reads it back (D2)" },
+  { role: "viewer", resource: "vendors", action: "field.contact.read", fieldClass: "contact", why: "viewer: contact none (D2); the withholding-tax address follows (D9 d)" },
+  { role: "viewer", resource: "vendors", action: "field.bank_account.read", fieldClass: "bank_account", why: "viewer: bank_account none (D2)" },
+  { role: "viewer", resource: "vendors", action: "field.bank_account.last4", fieldClass: "bank_account", why: "viewer: bank_account none — not even the last four (D2)" },
+  { role: "bookkeeper", resource: "vendors", action: "field.bank_account.read", fieldClass: "bank_account", why: "bookkeeper: the last four digits only (D2)" },
+];
+
 /** The flattened matrix: one row per (role, resource, action) grant — the route grants, then the field grants. */
 export const PERMISSION_MATRIX: PermissionRow[] = [
   ...Object.entries(SPEC).flatMap(([resource, actions]) =>

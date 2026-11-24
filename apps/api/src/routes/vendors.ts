@@ -5,6 +5,9 @@ import { supplierAdvanceInvoicesController } from "../controllers/supplierAdvanc
 const router = Router();
 
 router.get("/", vendorsController.list);
+// 19B S2b: before "/:id", which would read "picker" and "field-access" as an id
+router.get("/picker", vendorsController.picker);
+router.get("/field-access", vendorsController.fieldAccess);
 router.get("/:id", vendorsController.get);
 router.get("/:id/open-advance-invoices", supplierAdvanceInvoicesController.openForVendor);
 router.post("/match", vendorsController.match);

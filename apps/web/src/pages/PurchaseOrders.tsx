@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { fetchPickerOptions } from "@/lib/pagedList";
+import type { PartyPickerItem } from "@workspace/api-client-react";
 import { PickerLimitNotice } from "@/components/PickerLimitNotice";
 import { ListPagination } from "@/components/ListPagination";
 import { PAGE_SIZE, type Paged } from "@/lib/pagedList";
@@ -93,7 +94,7 @@ export default function PurchaseOrders() {
       ),
   });
   const orders = ordersPage?.items ?? [];
-  const { data: vendorsPage } = useQuery<{ items: Vendor[]; total: number }>({ queryKey: ["vendors", "picker"], queryFn: () => fetchPickerOptions<Vendor>("/vendors") });
+  const { data: vendorsPage } = useQuery<{ items: PartyPickerItem[]; total: number }>({ queryKey: ["vendors", "picker"], queryFn: () => fetchPickerOptions<PartyPickerItem>("/vendors/picker") });
   const vendors = vendorsPage?.items ?? [];
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["purchase-orders"] });
