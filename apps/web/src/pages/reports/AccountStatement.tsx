@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText } from "@/components/Withheld";
 import { useReportDefaultRange, type ReportDefaultRange } from "@/hooks/useReportDefaultRange";
 import { FiscalRangeNotice, ReportRangeLoading } from "@/components/FiscalRangeNotice";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
@@ -134,7 +135,7 @@ function AccountStatementInner({ range }: { range: ReportDefaultRange }) {
                     <td className="py-2 pe-4 text-xs text-muted-foreground"><DualDate date={m.date} /></td>
                     <td className="py-2 pe-4 font-mono text-xs text-primary">{m.entryNumber}</td>
                     <td className="py-2 pe-4 text-xs text-muted-foreground">{m.reference ?? "—"}</td>
-                    <td className="py-2 pe-4 text-xs">{m.description}</td>
+                    <td className="py-2 pe-4 text-xs"><BankText row={m} /></td>
                     <td className="py-2 pe-4 font-mono text-xs text-info">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
                     <td className="py-2 pe-4 font-mono text-xs text-positive">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
                     <td className="py-2 font-mono text-xs font-semibold">{fmtNum(m.balance)}</td>

@@ -10,6 +10,7 @@ import { Activity } from "lucide-react";
 import { PeriodShortcuts } from "@/components/PeriodShortcuts";
 import { DualDate } from "@/components/DualDate";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText } from "@/components/Withheld";
 
 /*
  * 🔴 i18n'd in the 2026-09-01 Arabic re-measurement. This page was one of eight
@@ -113,7 +114,7 @@ export default function ActivityReport() {
                   <tr key={a.id} className="border-b border-border/30 hover:bg-secondary/10">
                     <td className="py-2.5 pe-4 font-mono text-xs text-primary">{a.entryNumber}</td>
                     <td className="py-2.5 pe-4 text-xs text-muted-foreground whitespace-nowrap"><DualDate date={a.date} /></td>
-                    <td className="py-2.5 pe-4 text-xs max-w-48 truncate">{a.description}</td>
+                    <td className="py-2.5 pe-4 text-xs max-w-48 truncate"><BankText row={a} /></td>
                     <td className="py-2.5 pe-4 text-xs text-muted-foreground">{a.reference ?? "—"}</td>
                     <td className="py-2.5 pe-4 text-xs font-mono">{a.lineCount}</td>
                     <td className="py-2.5 pe-4 font-mono text-xs">{fmtNum(a.totalDebit)}</td>

@@ -26,6 +26,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText, bankTextLabel } from "@/components/Withheld";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -143,7 +144,7 @@ function OverrideDialog({ row, onClose }: { row: StatementRowClassification; onC
         <div className="rounded-md border border-border p-3 text-sm space-y-1">
           <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("Statement row", "سطر الكشف")}</span><span className="font-mono">#{row.transactionId} · {row.date} · {fmtNum(row.amount)} {row.direction === "in" ? t("in", "وارد") : t("out", "صادر")}</span></div>
           <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("Bank", "البنك")}</span><span><BankName id={row.bankAccountId} /></span></div>
-          <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("Narrative", "الوصف")}</span><span className="text-end text-xs">{row.description}</span></div>
+          <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("Narrative", "الوصف")}</span><span className="text-end text-xs"><BankText row={row} /></span></div>
           <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("Why not automatic", "لماذا لم تتم تلقائيًا")}</span><span className="text-end text-xs">{row.reason}</span></div>
         </div>
         <div className="space-y-2">
@@ -322,7 +323,7 @@ export default function BankMatching() {
                               : <span className="inline-flex items-center gap-1 text-negative text-xs"><ArrowUpRight className="w-3 h-3" />{t("Out", "صادر")}</span>}
                           </td>
                           <td className="py-3 pe-3 font-mono">{fmtNum(r.amount)}</td>
-                          <td className="py-3 pe-3 hidden sm:table-cell text-xs text-muted-foreground max-w-[18rem] truncate" title={r.description}>{r.description}</td>
+                          <td className="py-3 pe-3 hidden sm:table-cell text-xs text-muted-foreground max-w-[18rem] truncate" title={bankTextLabel(r, t)}><BankText row={r} /></td>
                           <td className="py-3 pe-3"><Badge className={`text-xs ${c.cls}`}>{t(c.en, c.ar)}</Badge></td>
                           <td className="py-3 text-end whitespace-nowrap">
                             {r.classification === "DETERMINISTIC" && (
@@ -342,7 +343,7 @@ export default function BankMatching() {
                         {open && (
                           <tr className="border-b border-border/50 bg-secondary/10">
                             <td colSpan={7} className="py-3 px-2 sm:px-4 space-y-2" data-testid={`evidence-panel-${r.transactionId}`}>
-                              <p className="text-xs"><span className="text-muted-foreground">{t("Narrative", "الوصف")}:</span> {r.description}</p>
+                              <p className="text-xs"><span className="text-muted-foreground">{t("Narrative", "الوصف")}:</span> <BankText row={r} /></p>
                               <p className="text-xs"><span className="text-muted-foreground">{t("Why", "السبب")}:</span> <span data-testid={`reason-${r.transactionId}`}>{r.reason}</span></p>
                               <p className="text-xs text-muted-foreground">{t(`Date window ${r.window.from} → ${r.window.to} (±${r.window.days} days) · same bank · same direction · exact amount`, `نافذة التاريخ ${r.window.from} → ${r.window.to} (±${r.window.days} أيام) · نفس البنك · نفس الاتجاه · المبلغ بالضبط`)}</p>
                               {r.match ? <MatchEvidence m={r.match} /> : <Candidates list={r.candidates} target={r.target} />}

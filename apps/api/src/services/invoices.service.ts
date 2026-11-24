@@ -84,6 +84,10 @@ function toPrepaymentRow(invoiceId: number, p: PreparedPrepayment) {
 
 /** Money rounds at the boundary; the SQL sums are float8. */
 
+/** 19B S2c (D9 c): an invoice as a payment record names it — what a payment changes, never the buyer snapshot or bank details. */
+const payRecord = (r: { id: number; invoiceNumber: string; status: string; total: string | null; paidAmount: string | null; customerId: number | null } | undefined) =>
+  r ? { id: r.id, invoiceNumber: r.invoiceNumber, status: r.status, total: r.total, paidAmount: r.paidAmount, customerId: r.customerId } : null;
+
 export const invoicesService = {
   /**
    * A PAGE of invoices, plus the totals for the whole filtered set.
@@ -654,7 +658,9 @@ export const invoicesService = {
     );
     const [inv] = await invoicesRepository.findById(id);
 
-    await auditService.record({ action: "pay", entityType: "invoice", entityId: id, before: existing, after: inv });
+    // 🔴 19B S2c (D9 c): what a payment CHANGED — never the whole row, which carries the buyer's snapshot (address,
+    // national ID) and the printed bank details
+    await auditService.record({ action: "pay", entityType: "invoice", entityId: id, before: payRecord(existing), after: payRecord(inv) });
     return buildInvoiceOut(inv!, null);
   },
 

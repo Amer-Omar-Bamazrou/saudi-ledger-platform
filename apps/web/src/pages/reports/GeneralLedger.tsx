@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { BankText } from "@/components/Withheld";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "wouter";
 import { apiFetch, fmtNum, fmtDate } from "@/lib/api";
@@ -241,7 +242,7 @@ function GeneralLedgerInner({ range }: { range: ReportDefaultRange }) {
                     {/* D14-09: a ledger line opens its journal entry */}
                     <td className="py-2 pe-4 font-mono text-xs"><Link href={journalEntryHref(m.jeId)} className="text-primary hover:underline" data-testid={`gl-entry-${m.jeId}`}>{m.entryNumber}</Link></td>
                     <td className="py-2 pe-4 text-xs text-muted-foreground">{m.reference ?? "—"}</td>
-                    <td className="py-2 pe-4 text-xs">{m.description}</td>
+                    <td className="py-2 pe-4 text-xs"><BankText row={m} /></td>
                     <td className="py-2 pe-4 font-mono text-xs text-info">{m.debit > 0 ? fmtNum(m.debit) : "—"}</td>
                     <td className="py-2 pe-4 font-mono text-xs text-positive">{m.credit > 0 ? fmtNum(m.credit) : "—"}</td>
                     <td className={cn("py-2 font-mono text-xs font-semibold", m.balance < 0 ? "text-negative" : "")}>{fmtNum(m.balance)}</td>

@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Scale } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { bankTextLabel } from "@/components/Withheld";
 import { useBankOptions } from "@/components/payments/shared";
 import {
   useGetBankReconciliationPosition, getGetBankReconciliationPositionQueryKey,
@@ -139,9 +140,9 @@ export default function BankReconciliations() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <ItemsCard title={t("In the books, not yet on the statement", "في الدفاتر وليس في الكشف بعد")} testId="brec-ledger-only" empty={t("None.", "لا شيء.")}
-              rows={p.ledgerOnly.map((i) => ({ key: `l${i.journalLineId}`, date: i.date, label: `${i.entryNumber}${i.description ? ` — ${i.description}` : ""}`, amount: i.signedOutstanding }))} />
+              rows={p.ledgerOnly.map((i) => ({ key: `l${i.journalLineId}`, date: i.date, label: `${i.entryNumber}${"description" in i ? (i.description ? ` — ${i.description}` : "") : ` — ${bankTextLabel(i, t)}`}`, amount: i.signedOutstanding }))} />
             <ItemsCard title={t("On the statement, not yet in the books", "في الكشف وليس في الدفاتر بعد")} testId="brec-statement-only" empty={t("None.", "لا شيء.")}
-              rows={p.statementOnly.map((i) => ({ key: `s${i.transactionId}`, date: i.date, label: i.description, amount: i.signedOutstanding, href: "/bank-reconciliation" }))} />
+              rows={p.statementOnly.map((i) => ({ key: `s${i.transactionId}`, date: i.date, label: bankTextLabel(i, t), amount: i.signedOutstanding, href: "/bank-reconciliation" }))} />
           </div>
         </>
       )}

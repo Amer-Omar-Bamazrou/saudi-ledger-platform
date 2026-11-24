@@ -10,7 +10,7 @@
  *    walk is one linear read of the value when every class is granted (S1's state) — the performance budget's basis.
  */
 import type { ProtectedFieldClass } from "@workspace/db";
-import { rowConditionApplies, type FieldClass, type RowCondition } from "./classTable";
+import { AUDIT_ENTITY_NODES, AUDIT_UNLISTED, rowConditionApplies, type FieldClass, type RowCondition } from "./classTable";
 import { hasLeaf, isContainer, isPlainObject, resolve, type Shape } from "./shapes";
 
 export type ReadLevel = "read" | "last4" | "none";
@@ -111,7 +111,9 @@ export function walkValue(
     const { cls } = spec;
     // 🔴 19B S3: a per-row resource — the row's own field picks whose grants decide (an employee's held IBAN: employees).
     const resource = spec.rowResource && row ? (spec.rowResource.resources[String(row[spec.rowResource.by])] ?? spec.resource) : spec.resource;
-    if (cls === "standard" || cls === "by_entity") return v; // by_entity: each key by the audited entity's node (S2c)
+    if (cls === "standard") return v;
+    // 🔴 19B S2c (D9 c): an audit snapshot — each key by the audited entity's own node (classTable.ts, AUDIT_ENTITY_NODES)
+    if (cls === "by_entity") return byEntity(v, row, path);
     // 🔴 19B S4: a class that applies to some rows only — on any other row the field is standard (classTable.ts, rowConditions)
     if (spec.rowCondition && !rowConditionApplies(spec.rowCondition, row)) return v;
     if (!resource) throw new Error(`class table: ${node}.${field} is ${cls} but its node names no resource`);
@@ -126,6 +128,25 @@ export function walkValue(
     }
     withheld.push({ path, class: cls, level: "none" });
     return REMOVE;
+  };
+
+  /** An audit snapshot, key by key: a key its entity's node lists is decided as that node decides it; any other key is
+   *  the audit trail's admin-only class (AUDIT_UNLISTED) — withheld from every role but the admin. */
+  const byEntity = (v: unknown, row: Record<string, unknown> | undefined, path: string): unknown => {
+    if (!isPlainObject(v)) return v;
+    const node = AUDIT_ENTITY_NODES[String(row?.entityType ?? "")];
+    const out: Record<string, unknown> = {};
+    for (const [k, kv] of Object.entries(v as Record<string, unknown>)) {
+      const spec = node ? lookup(node, k) : undefined;
+      if (node && spec && spec.cls !== "by_entity") {
+        const decided = decideLeaf(node, k, kv, `${path}.${k}`, v as Record<string, unknown>);
+        if (decided !== REMOVE) out[k] = decided;
+        continue;
+      }
+      if (decide(AUDIT_UNLISTED.cls, AUDIT_UNLISTED.resource) === "read") { out[k] = kv; continue; }
+      withheld.push({ path: `${path}.${k}`, class: AUDIT_UNLISTED.cls, level: "none" });
+    }
+    return out;
   };
 
   /** A field's value: walked into when the contract gives it structure of the value's own kind, else ONE value. */
