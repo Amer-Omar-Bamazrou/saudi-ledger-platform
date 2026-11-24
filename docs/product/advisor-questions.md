@@ -917,8 +917,8 @@ entries, and no run's status is changed to make a reversal look resolved (owner,
 - **If the identification's period:** the 386's tax point for an identified unknown receipt
   becomes the identification date, and the 423 refusal no longer applies to it.
 
-**🔴 Answered 2026-11-23 — the receipt's period, as today.** Who: **to be stated by the owner**
-(the two answer documents are the owner's; this public file names no adviser). Status:
+**🔴 Answered 2026-11-23 — the receipt's period, as today.** Who (owner, 2026-11-24): **ChatGPT deep research,
+two runs — not a licensed tax adviser.** Status:
 **settled in principle**. Source status: **READING** — two research answers, not a ruling
 (the second says so); the tax-point rule and Art. 63 they rest on are the texts already
 pinned and read (Art. 63(3) in the Tenth Edition, 2026-11-19).
@@ -947,8 +947,8 @@ pinned and read (Art. 63(3) in the Tenth Edition, 2026-11-19).
 - **L4 — Art. 9(5), amended (Res. 1-4-23):** a government body is outside economic activity only when all three conditions hold (a legal instrument authorises the activity, it is not run on economic or commercial criteria, and it is exclusive to government) — do the statutory fees a business pays to government still carry no VAT under that test?
 - **L5 — Art. 40(7)(d), amended (Res. 1-4-23):** for bad-debt relief ZATCA may accept other supporting documents in place of the certified accountant's certificate from a supplier not obliged to appoint an auditor — what evidence is accepted in practice?
 
-**🔴 Answered 2026-11-23.** Who: **to be stated by the owner** (the documents are the
-owner's; this file names no adviser). Source status:
+**🔴 Answered 2026-11-23.** Who (owner, 2026-11-24): **ChatGPT deep research, two runs — not a licensed
+tax adviser.** Source status:
 - **VERIFIED** — Art. 40(7)(a)–(e) and 40(8) (by the owner against the primary text, and
   read here in the Arabic Tenth Edition pinned in `docs/zatca/specs/`), and Labor Law
   Art. 147 (by the owner).
