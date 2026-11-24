@@ -98,7 +98,7 @@ describeMaybe("G08 residuals, PR A — the other ordering of every race, and unf
     await h.cleanup();
     orgId = await h.mkOrg("org");
     const companyId = await h.mkCompany(orgId, "CAS1 Co", "318181818181881");
-    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number) VALUES ($1,'CAS1 Buyer','300000000000003') RETURNING id`, [orgId])).rows[0].id;
+    customerId = (await pool.query(`INSERT INTO customers (organization_id, name, tax_number, building_number, street, district, city, postal_code) VALUES ($1,'CAS1 Buyer','300000000000003','4321','Olaya Street','Al Olaya','Riyadh','12211') RETURNING id`, [orgId])).rows[0].id;
     vendorId = (await pool.query(`INSERT INTO vendors (organization_id, name) VALUES ($1,'CAS1 Supplier') RETURNING id`, [orgId])).rows[0].id;
     const accountOf = async (code: string) => Number((await pool.query(`SELECT id FROM categories WHERE organization_id = $1 AND system_code = $2 AND is_posting`, [orgId, code])).rows[0].id);
     debitAccount = await accountOf("RENT_UTILITIES");
