@@ -14,10 +14,11 @@ process.env.PORT ??= "3262";
 process.env.SESSION_SECRET ??= "phase18-h12-sign-in-events-00001";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
-import { __resetRateLimitsForTests } from "../routes/auth";
+import { __resetRateLimitsForTests, __signInEventsSettledForTests } from "../routes/auth";
+import { securityAuditService } from "../services/securityAudit.service";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -64,13 +65,15 @@ describeMaybe("Phase 18 H-12 — DR-22: sign-ins, refused sign-ins and sign-outs
 
   it("🔴 a wrong password is recorded against the account, per active membership, with its reason — written after the 401", async () => {
     expect(await h.login("member", h.email("member"), WRONG)).toBe(401);
-    await expect.poll(async () => (await rows("auth.login_failed", member)).map((x) => [x.organization_id, x.metadata?.reason]).sort())
+    await __signInEventsSettledForTests(); // the rows are written after the 401: wait for the writes, not a clock
+    expect((await rows("auth.login_failed", member)).map((x) => [x.organization_id, x.metadata?.reason]).sort())
       .toEqual([[orgA, "wrong_password"], [orgB, "wrong_password"]].sort());
   });
 
   it("🔴 an inactive account's refused sign-in says so", async () => {
     expect(await h.login("dormant", h.email("dormant"), PW)).toBe(401);
-    await expect.poll(async () => (await rows("auth.login_failed", dormant)).map((x) => [x.organization_id, x.metadata?.reason]))
+    await __signInEventsSettledForTests();
+    expect((await rows("auth.login_failed", dormant)).map((x) => [x.organization_id, x.metadata?.reason]))
       .toEqual([[orgA, "inactive"]]);
   });
 
@@ -81,7 +84,8 @@ describeMaybe("Phase 18 H-12 — DR-22: sign-ins, refused sign-ins and sign-outs
           AND metadata->>'reason' = 'unknown_account'`)).rows[0].n);
     const before = await unknownRows();
     expect(await h.login("ghost", ghost, PW)).toBe(401);
-    await expect.poll(unknownRows).toBeGreaterThan(before);
+    await __signInEventsSettledForTests();
+    expect(await unknownRows()).toBeGreaterThan(before);
     const leaked = (await pool.query(
       `SELECT count(*)::int AS n FROM security_audit_logs WHERE coalesce(actor_email, '') = $1 OR coalesce(metadata::text, '') LIKE $2`, [ghost, `%${ghost}%`])).rows[0].n;
     expect(leaked).toBe(0);
@@ -110,16 +114,22 @@ describeMaybe("Phase 18 H-12 — DR-22: sign-ins, refused sign-ins and sign-outs
     await __resetRateLimitsForTests();
     const failed = async () => (await rows("auth.login_failed", member)).length;
     const start = await failed();
+    // 🔴 PLANTED (2026-11-25): every event write is SLOW (800 ms each), as on a loaded CI runner — the case that turned #383's
+    // run red. The rows are written after the response; nothing below may depend on how long that takes.
+    const realRecord = securityAuditService.record.bind(securityAuditService);
+    const slow = vi.spyOn(securityAuditService, "record").mockImplementation(async (e) => { await new Promise((r) => setTimeout(r, 800)); return realRecord(e); });
     try {
       // the IP limit admits ten attempts in its window; each admitted refusal writes one row per active membership (two)
       for (let i = 0; i < 10; i++) expect(await h.login("member", h.email("member"), WRONG), `attempt ${i + 1}`).toBe(401);
-      await expect.poll(failed).toBe(start + 20);
-      // the eleventh is refused by the limiter, before the handler runs
-      expect(await h.login("member", h.email("member"), WRONG)).toBe(429);
-      // the admitted refusals' rows landed within the poll above; a row for the eleventh would land as fast
-      await new Promise((r) => setTimeout(r, 1_000));
+      await __signInEventsSettledForTests(); // every admitted refusal's rows are written — however slow the writes are
       expect(await failed()).toBe(start + 20);
+      // the eleventh is refused by the limiter, before the handler runs: it starts no write at all
+      expect(await h.login("member", h.email("member"), WRONG)).toBe(429);
+      await __signInEventsSettledForTests();
+      expect(await failed()).toBe(start + 20);
+      expect(slow.mock.calls.length, "the planted slow write was the one used: 10 refusals × 2 memberships").toBe(20);
     } finally {
+      slow.mockRestore();
       await __resetRateLimitsForTests();
     }
   });

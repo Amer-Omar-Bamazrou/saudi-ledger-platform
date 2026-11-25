@@ -234,6 +234,21 @@ router.post("/signup", refuseSignupInDemo, signupRateLimiter, async (req, res) =
  * failed lookup or write never fails the act. The typed address of an unknown
  * account is never stored (it is often a password typed in the wrong field).
  */
+/**
+ * The refused sign-in's event is written AFTER the response (DR-22: the refusal's timing is the same with or without an
+ * account), so nothing awaits it. Each such write is tracked here only so a TEST can wait for them to finish instead of
+ * waiting on a clock (2026-11-25: a one-second poll turned a loaded CI run red). No production reader.
+ */
+const pendingSignInEvents = new Set<Promise<void>>();
+function afterResponse(write: Promise<void>): void {
+  pendingSignInEvents.add(write);
+  void write.finally(() => pendingSignInEvents.delete(write));
+}
+/** Tests only: resolves once every after-the-response sign-in event write has finished (recorded or failed). */
+export async function __signInEventsSettledForTests(): Promise<void> {
+  while (pendingSignInEvents.size > 0) await Promise.allSettled([...pendingSignInEvents]);
+}
+
 async function recordSignInEvent(
   action: "auth.login" | "auth.login_failed" | "auth.logout",
   account: { id: number; email: string } | null,
@@ -288,8 +303,8 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
       res.status(401).json({ error: "Invalid credentials." });
       // DR-22: recorded AFTER the response, so the refusal's timing is the same with or without an account
       const reason = !user ? "unknown_account" : !user.isActive ? "inactive" : "wrong_password";
-      void recordSignInEvent("auth.login_failed", user ? { id: user.id, email: user.email } : null, { actor: false, ipAddress: req.ip ?? null, metadata: { reason } })
-        .catch((err) => req.log.error({ err }, "refused sign-in not recorded"));
+      afterResponse(recordSignInEvent("auth.login_failed", user ? { id: user.id, email: user.email } : null, { actor: false, ipAddress: req.ip ?? null, metadata: { reason } })
+        .catch((err) => req.log.error({ err }, "refused sign-in not recorded")));
       return;
     }
 
@@ -297,8 +312,8 @@ router.post("/login", authRateLimiter, loginAccountLimiter, async (req, res) => 
     // passed — checked AFTER the hash verified, so the timing is a wrong password's. Only a new reset answers it.
     if (user.breakGlassExpiresAt && user.breakGlassExpiresAt.getTime() <= Date.now()) {
       res.status(401).json({ code: "break_glass_expired", error: "The temporary password has expired (it was usable for 24 hours). Ask the platform for a new reset.", errorAr: "انتهت صلاحية كلمة المرور المؤقتة (كانت صالحة 24 ساعة). اطلب من المنصة إعادة تعيين جديدة." });
-      void recordSignInEvent("auth.login_failed", { id: user.id, email: user.email }, { actor: false, ipAddress: req.ip ?? null, metadata: { reason: "break_glass_expired" } })
-        .catch((err) => req.log.error({ err }, "refused sign-in not recorded"));
+      afterResponse(recordSignInEvent("auth.login_failed", { id: user.id, email: user.email }, { actor: false, ipAddress: req.ip ?? null, metadata: { reason: "break_glass_expired" } })
+        .catch((err) => req.log.error({ err }, "refused sign-in not recorded")));
       return;
     }
 
