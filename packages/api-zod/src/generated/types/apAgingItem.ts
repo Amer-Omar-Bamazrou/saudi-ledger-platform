@@ -9,6 +9,8 @@
 export interface ApAgingItem {
   id: number;
   billNumber: string;
+  /** bill or debit_note — served since B7 and absent from the contract until 19B S5 found it (2026-11-25): no test had listed a payable through this route. */
+  documentType?: string;
   vendorName: string;
   vendorNameAr: string;
   /** @nullable */

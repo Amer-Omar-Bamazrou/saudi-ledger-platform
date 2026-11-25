@@ -210,6 +210,15 @@ const SPEC: Record<string, Partial<Record<PermissionAction, readonly PermissionR
    * viewer's (§6.2). Its native resource is `journal_entries` (read, every role today).
    */
   "report_dataset.journal_lines": { run: READ_ALL, export: READ_ALL, schedule: READ_ALL, save: READ_ALL, deliver: WRITE, share: WRITE },
+  /**
+   * 🔴 19B S5 — the remaining datasets (v4 §6.2, D3). Sales and purchase documents are VIEWER datasets, granted as
+   * journal lines are. Cash movements and VAT lines are not a viewer's: the bookkeeper ("the first five datasets"), the
+   * accountant and the admin hold every act.
+   */
+  "report_dataset.sales_documents": { run: READ_ALL, export: READ_ALL, schedule: READ_ALL, save: READ_ALL, deliver: WRITE, share: WRITE },
+  "report_dataset.purchase_documents": { run: READ_ALL, export: READ_ALL, schedule: READ_ALL, save: READ_ALL, deliver: WRITE, share: WRITE },
+  "report_dataset.cash_movements": { run: WRITE, export: WRITE, schedule: WRITE, save: WRITE, deliver: WRITE, share: WRITE },
+  "report_dataset.vat_lines": { run: WRITE, export: WRITE, schedule: WRITE, save: WRITE, deliver: WRITE, share: WRITE },
 
   // Categorization proposal (POST only).
   categorize: { create: WRITE },

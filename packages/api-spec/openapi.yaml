@@ -3539,6 +3539,270 @@ paths:
         "422":
           description: export_too_large — the export would exceed the row limit
 
+  /reports/datasets/sales_documents/rows:
+    get:
+      operationId: runSalesDocumentsDataset
+      tags: [reports]
+      summary: >
+        19B S5 — run the sales_documents dataset: sales documents in the books (invoices, credit notes and debit notes; amounts stored positive, the direction in `sign`), in the request's company. A shown column the role may not read
+        is withheld (absent from every row, its level 'none'); the total is the true count.
+      parameters:
+        - { name: columns, in: query, schema: { type: string }, description: "Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld." }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
+        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: The rows
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SalesDocumentsDatasetRows" }
+        "400":
+          description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, or report_field_withheld
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+
+  /reports/datasets/sales_documents/export:
+    get:
+      operationId: exportSalesDocumentsDataset
+      tags: [reports]
+      summary: >
+        19B S5 — export the sales_documents dataset as CSV: the same rows the run returns, withheld columns absent from the
+        file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut
+        short. A refused export is recorded as a refusal event (D6), never with a value.
+      parameters:
+        - { name: columns, in: query, schema: { type: string }, description: "Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld." }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
+        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
+      responses:
+        "200":
+          description: The CSV file
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+        "400":
+          description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, or report_field_withheld
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "422":
+          description: export_too_large — the export would exceed the row limit
+
+  /reports/datasets/purchase_documents/rows:
+    get:
+      operationId: runPurchaseDocumentsDataset
+      tags: [reports]
+      summary: >
+        19B S5 — run the purchase_documents dataset: purchase documents in the books (bills and supplier notes; `outstanding` is the bill position, the one definition), in the request's company. A shown column the role may not read
+        is withheld (absent from every row, its level 'none'); the total is the true count.
+      parameters:
+        - { name: columns, in: query, schema: { type: string }, description: "Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld." }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
+        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: The rows
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PurchaseDocumentsDatasetRows" }
+        "400":
+          description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, or report_field_withheld
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+
+  /reports/datasets/purchase_documents/export:
+    get:
+      operationId: exportPurchaseDocumentsDataset
+      tags: [reports]
+      summary: >
+        19B S5 — export the purchase_documents dataset as CSV: the same rows the run returns, withheld columns absent from the
+        file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut
+        short. A refused export is recorded as a refusal event (D6), never with a value.
+      parameters:
+        - { name: columns, in: query, schema: { type: string }, description: "Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld." }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
+        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
+      responses:
+        "200":
+          description: The CSV file
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+        "400":
+          description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, or report_field_withheld
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "422":
+          description: export_too_large — the export would exceed the row limit
+
+  /reports/datasets/cash_movements/rows:
+    get:
+      operationId: runCashMovementsDataset
+      tags: [reports]
+      summary: >
+        19B S5 — run the cash_movements dataset: cash movements (the bank's lines in this company; `countsInAggregates` is false for a transfer or a settlement, which is in no income, expense or VAT figure), in the request's company. A shown column the role may not read
+        is withheld (absent from every row, its level 'none'); the total is the true count.
+      parameters:
+        - { name: columns, in: query, schema: { type: string }, description: "Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld." }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
+        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: The rows
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CashMovementsDatasetRows" }
+        "400":
+          description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, or report_field_withheld
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+
+  /reports/datasets/cash_movements/export:
+    get:
+      operationId: exportCashMovementsDataset
+      tags: [reports]
+      summary: >
+        19B S5 — export the cash_movements dataset as CSV: the same rows the run returns, withheld columns absent from the
+        file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut
+        short. A refused export is recorded as a refusal event (D6), never with a value.
+      parameters:
+        - { name: columns, in: query, schema: { type: string }, description: "Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld." }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
+        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
+      responses:
+        "200":
+          description: The CSV file
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+        "400":
+          description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, or report_field_withheld
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "422":
+          description: export_too_large — the export would exceed the row limit
+
+  /reports/datasets/vat_lines/rows:
+    get:
+      operationId: runVatLinesDataset
+      tags: [reports]
+      summary: >
+        19B S5 — run the vat_lines dataset: VAT lines (each addend of the VAT return for the window, with the box it joins; date_from and date_to are required), in the request's company. A shown column the role may not read
+        is withheld (absent from every row, its level 'none'); the total is the true count.
+      parameters:
+        - { name: columns, in: query, schema: { type: string }, description: "Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld." }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
+        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
+      responses:
+        "200":
+          description: The rows
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VatLinesDatasetRows" }
+        "400":
+          description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, or report_field_withheld
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+
+  /reports/datasets/vat_lines/export:
+    get:
+      operationId: exportVatLinesDataset
+      tags: [reports]
+      summary: >
+        19B S5 — export the vat_lines dataset as CSV: the same rows the run returns, withheld columns absent from the
+        file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut
+        short. A refused export is recorded as a refusal event (D6), never with a value.
+      parameters:
+        - { name: columns, in: query, schema: { type: string }, description: "Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld." }
+        - { name: date_from, in: query, schema: { type: string, format: date } }
+        - { name: date_to, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
+        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
+      responses:
+        "200":
+          description: The CSV file
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+        "400":
+          description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, or report_field_withheld
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "422":
+          description: export_too_large — the export would exceed the row limit
+
   /reports/tax-journal-entries:
     get:
       operationId: getTaxJournalEntries
@@ -8839,6 +9103,133 @@ components:
         limit: { type: integer }
         offset: { type: integer }
         withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+    SalesDocumentsDatasetRow:
+      type: object
+      description: >
+        19B S5 — one row of the sales_documents dataset. Only the shown columns are present; a withheld column's key is absent (D4).
+      properties:
+        documentId: { type: ["integer", "null"] }
+        documentNumber: { type: ["string", "null"] }
+        documentType: { type: ["string", "null"] }
+        date: { type: ["string", "null"] }
+        dueDate: { type: ["string", "null"] }
+        status: { type: ["string", "null"] }
+        customerId: { type: ["integer", "null"] }
+        customerName: { type: ["string", "null"] }
+        currency: { type: ["string", "null"] }
+        subtotal: { type: ["number", "null"] }
+        vatAmount: { type: ["number", "null"] }
+        total: { type: ["number", "null"] }
+        sign: { type: ["integer", "null"] }
+        signedSubtotal: { type: ["number", "null"] }
+        signedVat: { type: ["number", "null"] }
+        signedTotal: { type: ["number", "null"] }
+        paidAmount: { type: ["number", "null"] }
+        isOpening: { type: ["boolean", "null"] }
+    SalesDocumentsDatasetRows:
+      type: object
+      required: [dataset, columns, rows, total, limit, offset, withheld]
+      properties:
+        dataset: { type: string }
+        columns: { type: array, items: { $ref: "#/components/schemas/ReportDatasetColumn" } }
+        rows: { type: array, items: { $ref: "#/components/schemas/SalesDocumentsDatasetRow" } }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+        withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+    PurchaseDocumentsDatasetRow:
+      type: object
+      description: >
+        19B S5 — one row of the purchase_documents dataset. Only the shown columns are present; a withheld column's key is absent (D4).
+      properties:
+        documentId: { type: ["integer", "null"] }
+        documentNumber: { type: ["string", "null"] }
+        supplierReference: { type: ["string", "null"] }
+        documentType: { type: ["string", "null"] }
+        date: { type: ["string", "null"] }
+        dueDate: { type: ["string", "null"] }
+        status: { type: ["string", "null"] }
+        vendorId: { type: ["integer", "null"] }
+        vendorName: { type: ["string", "null"] }
+        currency: { type: ["string", "null"] }
+        subtotal: { type: ["number", "null"] }
+        vatAmount: { type: ["number", "null"] }
+        total: { type: ["number", "null"] }
+        sign: { type: ["integer", "null"] }
+        signedSubtotal: { type: ["number", "null"] }
+        signedVat: { type: ["number", "null"] }
+        signedTotal: { type: ["number", "null"] }
+        outstanding: { type: ["number", "null"] }
+        inputVat: { type: ["string", "null"] }
+        isOpening: { type: ["boolean", "null"] }
+    PurchaseDocumentsDatasetRows:
+      type: object
+      required: [dataset, columns, rows, total, limit, offset, withheld]
+      properties:
+        dataset: { type: string }
+        columns: { type: array, items: { $ref: "#/components/schemas/ReportDatasetColumn" } }
+        rows: { type: array, items: { $ref: "#/components/schemas/PurchaseDocumentsDatasetRow" } }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+        withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+    CashMovementsDatasetRow:
+      type: object
+      description: >
+        19B S5 — one row of the cash_movements dataset. Only the shown columns are present; a withheld column's key is absent (D4).
+      properties:
+        transactionId: { type: ["integer", "null"] }
+        date: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
+        type: { type: ["string", "null"] }
+        kind: { type: ["string", "null"] }
+        amount: { type: ["number", "null"] }
+        signedAmount: { type: ["number", "null"] }
+        vatAmount: { type: ["number", "null"] }
+        reviewStatus: { type: ["string", "null"] }
+        bankAccountId: { type: ["integer", "null"] }
+        categoryId: { type: ["integer", "null"] }
+        categoryName: { type: ["string", "null"] }
+        countsInAggregates: { type: ["boolean", "null"] }
+    CashMovementsDatasetRows:
+      type: object
+      required: [dataset, columns, rows, total, limit, offset, withheld]
+      properties:
+        dataset: { type: string }
+        columns: { type: array, items: { $ref: "#/components/schemas/ReportDatasetColumn" } }
+        rows: { type: array, items: { $ref: "#/components/schemas/CashMovementsDatasetRow" } }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+        withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+    VatLinesDatasetRow:
+      type: object
+      description: >
+        19B S5 — one row of the vat_lines dataset. Only the shown columns are present; a withheld column's key is absent (D4).
+      properties:
+        lineNo: { type: ["integer", "null"] }
+        side: { type: ["string", "null"] }
+        source: { type: ["string", "null"] }
+        documentId: { type: ["integer", "null"] }
+        documentNumber: { type: ["string", "null"] }
+        documentType: { type: ["string", "null"] }
+        date: { type: ["string", "null"] }
+        taxCategory: { type: ["string", "null"] }
+        taxable: { type: ["number", "null"] }
+        vat: { type: ["number", "null"] }
+        taxableBox: { type: ["integer", "null"] }
+        vatBox: { type: ["integer", "null"] }
+    VatLinesDatasetRows:
+      type: object
+      required: [dataset, columns, rows, total, limit, offset, withheld]
+      properties:
+        dataset: { type: string }
+        columns: { type: array, items: { $ref: "#/components/schemas/ReportDatasetColumn" } }
+        rows: { type: array, items: { $ref: "#/components/schemas/VatLinesDatasetRow" } }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+        withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
     SupplierPosition:
       type: object
       required: [vendorId, payable, creditBalance, advanceBalance, depositBalance, unidentifiedBalance, netPosition]
@@ -13985,6 +14376,7 @@ components:
       properties:
         id: { type: integer }
         billNumber: { type: string }
+        documentType: { type: string, description: "bill or debit_note — served since B7 and absent from the contract until 19B S5 found it (2026-11-25): no test had listed a payable through this route." }
         vendorName: { type: string }
         vendorNameAr: { type: string }
         dueDate: { type: ["string", "null"] }
