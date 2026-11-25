@@ -154,6 +154,16 @@ export const billsTable = pgTable(
     vatFiguresConfirmedBy: integer("vat_figures_confirmed_by"),
     vatFiguresConfirmedAt: timestamp("vat_figures_confirmed_at", { withTimezone: true }),
     /**
+     * 🔴 L4 (owner, 2026-11-25) — VAT on an OUT-OF-SCOPE expense account (the account's own treatment 'O': a statutory
+     * fee, GOSI, salaries…) is claimed only on a STATED commercial supply: the reason, who stated it and when. Required
+     * by the service at entry, edit and approval whenever such a bill carries VAT (`assertOutOfScopeVatStated`); the
+     * claim still needs a valid tax invoice (the 13A verdict). CHECK `bills_commercial_supply_chk` (0172, hand-written):
+     * all NULL, or a non-blank reason with its time.
+     */
+    commercialSupplyReason: text("commercial_supply_reason"),
+    commercialSupplyStatedBy: integer("commercial_supply_stated_by"),
+    commercialSupplyStatedAt: timestamp("commercial_supply_stated_at", { withTimezone: true }),
+    /**
      * 🔴 PHASE 13A (accountant answers X1/X3/X5, 2026-09-27) — WHERE this
      * posted document's input VAT sits. Written by the approval, in the same
      * UPDATE that posts it; NULL on a draft.

@@ -84,6 +84,11 @@ export interface Bill {
      */
   expenseAccountId?: number | null;
   /**
+     * L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.
+     * @nullable
+     */
+  commercialSupplyReason?: string | null;
+  /**
      * FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY's cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.
      * @nullable
      */

@@ -50,6 +50,20 @@ import { QR_TAG, decodeTlv, readPhase1 } from "@workspace/zatca-tlv";
 import { DEFAULT_VAT_RATE } from "@workspace/shared";
 import { VAT_NUMBER_RE } from "../../lib/saudiIdentifiers";
 
+/**
+ * 🔴 L4 (owner, 2026-11-25) — THE ONE DEFINITION of an out-of-scope expense account: an EXPENSE account whose own VAT
+ * treatment is 'O' (GOVT_FEES, GOSI_EXPENSE, SALARIES, DEPRECIATION_EXPENSE… and any tenant account so marked). A
+ * statutory fee or a contribution is not a supply, so its VAT defaults to 0 and is claimed only on a stated commercial
+ * supply. A balance-sheet account's 'O' is the treatment of a MOVEMENT of money, not of a purchase — a bill posts only
+ * to expense accounts (`resolveExpenseLine`), so only those are in scope of this rule.
+ */
+export function isOutOfScopeExpenseAccount(c: { type: string; defaultTaxTreatment: string | null } | null | undefined): boolean {
+  return c != null && c.type === "expense" && c.defaultTaxTreatment === "O";
+}
+
+/** The documents the rule governs: what CLAIMS input VAT. A credit note reduces a claim; an advance document is VAT-only on its own account. */
+export const OUT_OF_SCOPE_RULE_DOCUMENTS: readonly string[] = ["bill", "debit_note"];
+
 export const SUPPLIER_DOCUMENT_KINDS = ["tax_invoice", "simplified_tax_invoice", "no_tax_invoice"] as const;
 export type SupplierDocumentKind = (typeof SUPPLIER_DOCUMENT_KINDS)[number];
 
@@ -89,6 +103,11 @@ export interface VatEvidenceInput {
    * path knows the original; the unsaved-form preview does not.
    */
   art50BlockedOriginal?: { billNumber: string } | null;
+  /**
+   * 🔴 L4 (owner, 2026-11-25): the expense account, when it is OUT OF SCOPE (`isOutOfScopeExpenseAccount`), and the
+   * commercial supply stated for VAT on it. Optional — absent, the rule does not apply.
+   */
+  outOfScopeExpenseAccount?: { name: string; commercialSupplyReason: string | null } | null;
   /** The evidence document linked to the bill, if any. */
   capture: { qrPayload: string | null; signatureStatus: string | null } | null;
   /**
@@ -234,7 +253,15 @@ export function evaluateVatEvidence(input: VatEvidenceInput): VatEvidenceVerdict
         "This bill buys a fixed asset recorded with 0 % VAT recovery: its VAT is capitalised into the asset's cost (the existing fixed-asset treatment) and no input VAT is claimed.")],
     };
   }
-  if (!(input.vatToClaim > 0)) return { status: "not_required", basis: null, flags: [] };
+  const oos = input.outOfScopeExpenseAccount && OUT_OF_SCOPE_RULE_DOCUMENTS.includes(input.documentType) ? input.outOfScopeExpenseAccount : null;
+  if (!(input.vatToClaim > 0)) {
+    // 🔴 L4 — warn at entry: the account carries no VAT, and says so before any is typed.
+    return oos
+      ? { status: "not_required", basis: null, flags: [info("out_of_scope_account",
+          `The expense account "${oos.name}" is outside the scope of VAT (a statutory fee, a GOSI contribution or a salary is not a supply), so its VAT is 0. ` +
+          "To claim VAT on it, state the commercial supply and why; the claim still needs a valid tax invoice.")] }
+      : { status: "not_required", basis: null, flags: [] };
+  }
 
   // ── D-4a: a DEBIT note on an Art. 50-blocked supply is blocked too ─────────
   // IR Art. 50(1) blocks the input tax «المتعلقة بتلك النفقات» — it attaches to
@@ -265,6 +292,18 @@ export function evaluateVatEvidence(input: VatEvidenceInput): VatEvidenceVerdict
 
   const flags: EvidenceFlag[] = [];
   const kind = input.supplierDocumentKind;
+
+  // ── 🔴 L4: VAT on an out-of-scope account — only on a STATED commercial supply, and still only on a tax invoice ─
+  if (oos) {
+    const reason = (oos.commercialSupplyReason ?? "").trim();
+    flags.push(reason
+      ? warning("out_of_scope_account_commercial_supply",
+          `The expense account "${oos.name}" is outside the scope of VAT. Its VAT is claimed only because a commercial supply was stated: "${reason}". ` +
+          "Check that the purchase is a supply charged with VAT, and that a valid tax invoice is held.")
+      : blocking("out_of_scope_account_vat_unstated",
+          `The expense account "${oos.name}" is outside the scope of VAT (a statutory fee, a GOSI contribution or a salary is not a supply). ` +
+          "Set the VAT to 0, or state the commercial supply and why — the approval is refused until one of them is done."));
+  }
 
   // ── what document is held ──────────────────────────────────────────────────
   if (kind == null) {

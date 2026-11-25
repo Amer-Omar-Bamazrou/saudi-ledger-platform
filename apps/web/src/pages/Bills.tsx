@@ -29,6 +29,8 @@ import { BILL_FILTERS, initialStatusFilter, syncStatusToUrl } from "@/lib/listFi
 import { DualDate } from "@/components/DualDate";
 import { PaymentHistory } from "@/components/PaymentHistory";
 import { VatEvidencePanel } from "@/components/VatEvidencePanel";
+import { CommercialSupplyField } from "@/components/CommercialSupplyField";
+import { refusalOf } from "@/lib/openingVatRefusals";
 import { DuplicateWarning } from "@/components/DuplicateWarning";
 import { SUPPLIER_DOCUMENT_KINDS, inputVatLabel, kindLabel, statusLabel as evidenceStatusLabel, type SupplierDocumentKind } from "@/lib/vatEvidence";
 
@@ -92,6 +94,8 @@ const makeEmpty = () => ({
   // 🔴 Phase 13A: the supplier document the user HOLDS. Never pre-selected —
   // input VAT is claimed only on a tax invoice, and the page does not assume one.
   supplierDocumentKind: "" as SupplierDocumentKind | "",
+  // 🔴 L4: the commercial supply stated for VAT on an out-of-scope account (asked only when the server's verdict does).
+  commercialSupplyReason: "",
 });
 
 /** 🔴 Phase 13A — the approval refused this document for its VAT evidence (only a supplier's advance tax invoice can be): it is SAVED as a draft, not failed. */
@@ -178,6 +182,8 @@ export default function Bills() {
   const [confirmDeleteBill, setConfirmDeleteBill] = useState<{ id: number; billNumber: string } | null>(null);
   /** Phase 13A: the edited draft's evidence (its verdict and linked document). */
   const [editingEvidence, setEditingEvidence] = useState<Pick<Bill, "vatEvidence" | "evidenceDocument"> | null>(null);
+  /** L4: the edited draft's stated supply as loaded — sent again only when changed (a resend would re-date the statement). */
+  const [loadedSupplyReason, setLoadedSupplyReason] = useState("");
   const [attaching, setAttaching] = useState(false);
   const evidenceFileRef = useRef<HTMLInputElement>(null);
   const [scanOpen, setScanOpen] = useState(false);
@@ -259,6 +265,8 @@ export default function Bills() {
           expenseAccountId: body.capitalisesAssetId != null ? undefined : (body.debitAccountId ?? undefined),
           capitalisesAssetId: body.capitalisesAssetId,
           ...(body.supplierDocumentKind ? { supplierDocumentKind: body.supplierDocumentKind } : {}),
+          // L4: a changed statement is sent (blank withdraws it); an unchanged one is not.
+          ...(body.commercialSupplyReason.trim() !== loadedSupplyReason.trim() ? { commercialSupplyReason: body.commercialSupplyReason.trim() || null } : {}),
         }),
       }),
     onSuccess: () => {
@@ -267,7 +275,7 @@ export default function Bills() {
       setOpen(false); setEditingBill(null); setEditingEvidence(null); setForm(makeEmpty());
       toast({ title: t("Changes saved", "تم حفظ التعديلات") });
     },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" } as any),
   });
 
   const deleteBillMut = useMutation({
@@ -309,7 +317,9 @@ export default function Bills() {
         debitAccountId: d.expenseAccountId ?? null,
         capitalisesAssetId: d.capitalisesAssetId ?? null,
         supplierDocumentKind: (d.supplierDocumentKind ?? "") as SupplierDocumentKind | "",
+        commercialSupplyReason: d.commercialSupplyReason ?? "",
       } as never);
+      setLoadedSupplyReason(d.commercialSupplyReason ?? "");
       setEditingBill({ id: d.id, billNumber: d.billNumber });
       setEditingEvidence({ vatEvidence: d.vatEvidence, evidenceDocument: d.evidenceDocument ?? null });
       setOpen(true);
@@ -348,6 +358,8 @@ export default function Bills() {
           ...(body.advanceBillIds.length > 0 ? { prepayments: body.advanceBillIds.map((id) => ({ advanceBillId: id })) } : {}),
           // An unchosen document is an ABSENCE, not "" (the raw spread above carried the form's "").
           supplierDocumentKind: body.supplierDocumentKind || undefined,
+          // L4: no statement is an ABSENCE, not "".
+          commercialSupplyReason: body.commercialSupplyReason.trim() || undefined,
           items: [],
         }),
       });
@@ -380,7 +392,7 @@ export default function Bills() {
         : canPostBill ? { title: t("Bill saved", "حُفظت الفاتورة") }
         : { title: t("Bill saved as a draft", "حُفظت الفاتورة كمسودة"), description: t("Submit it for approval from its row.", "قدّمها للاعتماد من صفّها.") });
     },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" } as any),
   });
 
   // Post an existing draft bill — opens a small account-selection dialog first
@@ -400,7 +412,7 @@ export default function Bills() {
     },
     onError: (e: Error) => toast(isEvidenceHold(e)
       ? { title: t("Not posted — the evidence does not support the claim", "لم تُرحّل — الإثبات لا يدعم الخصم"), description: e.message }
-      : { title: t("Posting failed", "فشل الترحيل"), description: e.message, variant: "destructive" } as any),
+      : { title: t("Posting failed", "فشل الترحيل"), description: refusalOf(e).words, variant: "destructive" } as any),
   });
 
   const payMut = useMutation({
@@ -494,6 +506,7 @@ export default function Bills() {
     expenseAccountId: form.capitalisesAssetId != null ? null : (form.debitAccountId ?? defaultExpenseId ?? null),
     capitalisesAssetId: form.capitalisesAssetId,
     captureId: editingEvidence?.evidenceDocument?.captureId ?? null,
+    commercialSupplyReason: form.commercialSupplyReason.trim() || null,
   };
   const { data: formVerdict } = useQuery({
     queryKey: ["evidence-preview", formPreview],
@@ -691,12 +704,12 @@ export default function Bills() {
                   <Label className="text-xs text-muted-foreground">{t("Expense / Debit Account", "حساب المصروف / المدين")}</Label>
                   <Select value={String(form.debitAccountId ?? defaultExpenseId ?? "")}
                     onValueChange={v => setForm(p => ({ ...p, debitAccountId: Number(v) }))}>
-                    <SelectTrigger className="mt-1 h-8 text-sm">
+                    <SelectTrigger className="mt-1 h-8 text-sm" data-testid="bill-expense-account">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {expenseAccounts.map(a => (
-                        <SelectItem key={a.id} value={String(a.id)} className="text-xs">{a.label}</SelectItem>
+                        <SelectItem key={a.id} value={String(a.id)} className="text-xs" data-testid={`bill-expense-account-${a.systemCode ?? a.id}`}>{a.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -712,6 +725,8 @@ export default function Bills() {
 
                 {/* 🔴 Phase 13A: the server's verdict — what approval will decide about the VAT. */}
                 <VatEvidencePanel verdict={formVerdict} context="preview" />
+                <CommercialSupplyField verdict={formVerdict} value={form.commercialSupplyReason}
+                  onChange={(v) => setForm((p) => ({ ...p, commercialSupplyReason: v }))} />
                 <DuplicateWarning billId={editingBill?.id ?? null} vendorId={form.vendorId ? Number(form.vendorId) : null}
                   vendorReference={form.vendorReference} date={form.date} total={Number(form.total) || null}
                   captureId={editingEvidence?.evidenceDocument?.captureId ?? null} />
@@ -909,7 +924,7 @@ export default function Bills() {
                         </Button>
                       )}
                       {b.status === "draft" && (
-                        <Button variant="ghost" size="sm" className="text-xs h-7 text-info"
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-info" data-testid={`bill-post-${b.id}`}
                           onClick={() => { setPostReviewOpen(b); setPostDebitAccountId(b.expenseAccountId ?? null); }}>
                           {t("Post", "ترحيل")}
                         </Button>
@@ -1020,6 +1035,13 @@ export default function Bills() {
               {postReviewOpen.vatEvidence && postReviewOpen.vatEvidence.status !== "not_evaluated" && (
                 <VatEvidencePanel verdict={postReviewOpen.vatEvidence} />
               )}
+              {/* 🔴 L4: the reviewer reads the stated supply beside the warning, before approving the claim. */}
+              {postReviewOpen.commercialSupplyReason && (
+                <div className="rounded-lg border border-attention-surface/40 bg-attention-surface/10 px-3 py-2 text-xs space-y-1" data-testid="post-commercial-supply">
+                  <p className="font-medium">{t("Commercial supply stated for VAT on an out-of-scope account", "توريد تجاري مذكور لضريبة على حساب خارج النطاق")}</p>
+                  <p className="text-muted-foreground whitespace-pre-wrap" dir="auto">{postReviewOpen.commercialSupplyReason}</p>
+                </div>
+              )}
               {postReviewOpen.recordedAsExpense && (
                 <p className="text-xs text-muted-foreground" data-testid="post-expense-note">
                   {t("This is an EXPENSE: posting it also pays it from its bank on its paid date, so no payable is left.",
@@ -1030,6 +1052,7 @@ export default function Bills() {
                 className="w-full"
                 disabled={postMut.isPending}
                 onClick={() => postMut.mutate({ id: postReviewOpen.id, debitAccountId: effectivePostAccountId })}
+                data-testid="bill-post-confirm"
               >
                 {postMut.isPending ? t("Posting…", "جارٍ الترحيل…") : t("Confirm & Post", "تأكيد والترحيل")}
               </Button>

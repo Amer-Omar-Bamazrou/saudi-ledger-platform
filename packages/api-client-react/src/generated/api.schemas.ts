@@ -3812,6 +3812,11 @@ export interface Bill {
      */
   expenseAccountId?: number | null;
   /**
+     * L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.
+     * @nullable
+     */
+  commercialSupplyReason?: string | null;
+  /**
      * FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY's cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.
      * @nullable
      */
@@ -5149,6 +5154,11 @@ export interface VatEvidencePreviewInput {
   capitalisesAssetId?: number | null;
   /** @nullable */
   captureId?: string | null;
+  /**
+     * L4: the commercial supply stated for VAT on an out-of-scope account (BillHeaderInput).
+     * @nullable
+     */
+  commercialSupplyReason?: string | null;
 }
 
 /**
@@ -7837,6 +7847,12 @@ export interface BillHeaderInput {
   expensePaidFromBankAccountId?: number | null;
   /** @nullable */
   expensePaidAt?: string | null;
+  /**
+     * L4 (owner, 2026-11-25): on an OUT-OF-SCOPE expense account (the account's own VAT treatment 'O' — a statutory fee, GOSI, salaries…) VAT defaults to 0, and VAT above 0 is accepted only with the commercial supply stated here and why: without it the create, the edit and the approval are refused 422 `out_of_scope_vat_unstated`. The claim still needs a valid tax invoice (the evidence verdict). Blank is no statement; who stated it and when are kept.
+     * @maxLength 1000
+     * @nullable
+     */
+  commercialSupplyReason?: string | null;
 }
 
 /**
