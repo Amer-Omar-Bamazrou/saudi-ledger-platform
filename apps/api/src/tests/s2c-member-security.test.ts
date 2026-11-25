@@ -52,12 +52,14 @@ describeDb("19B S2c — member security: own sessions only, but for the admin", 
     }
   });
 
-  it("🔴 another member's sessions, the security trail and the member list (emails) refuse the viewer, the bookkeeper and the accountant", async () => {
+  // RESTATED (owner, 2026-11-25, item 4): the member list now ANSWERS a non-admin — names and roles, no email (was
+  // 403); another member's sessions and the security trail still refuse. Every email-absence assertion stands.
+  it("🔴 another member's sessions and the security trail refuse the viewer, the bookkeeper and the accountant; the member list answers them without any email", async () => {
     const routes = ["/auth/sessions/members", `/orgs/${orgId}/security-events`, `/orgs/${orgId}/members`];
     for (const who of NON_ADMINS) {
       for (const path of routes) {
         const r = await h.api(who, "GET", path);
-        expect([who, path, r.status]).toEqual([who, path, 403]);
+        expect([who, path, r.status]).toEqual([who, path, path === `/orgs/${orgId}/members` ? 200 : 403]);
         for (const other of ["admin", ...NON_ADMINS].filter((x) => x !== who)) expect([who, path, r.text.includes(h.email(other))]).toEqual([who, path, false]);
       }
     }

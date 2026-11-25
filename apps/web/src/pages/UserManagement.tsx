@@ -20,7 +20,8 @@ import { invitationStatusLabel, roleName } from "@/lib/walkLabels";
 import { Plus, KeyRound, ShieldCheck, Eye, BookUser, PencilRuler } from "lucide-react";
 
 interface User { id: number; email: string; name: string; role: string; isActive: boolean; createdAt: string; }
-interface Member { userId: number; name: string; email: string; role: string; status: string; }
+// Item 4 (owner, 2026-11-25): a non-admin's list carries names and roles only — no email.
+interface Member { userId: number; name: string; email?: string; role: string; status: string; }
 interface Invitation { id: string; email: string; role: string; status: string; expiresAt: string; createdAt: string; }
 
 // The active-org membership role governs access (M10). This page manages THAT
@@ -190,12 +191,31 @@ export default function UserManagement() {
   });
 
   // Wait for the memberships to load before deciding (avoids a flash of "denied").
+  // 🔴 Item 4 (owner, 2026-11-25): every member reads who is in the organization and in which role. Emails, two-step
+  // status and sessions stay the admin's; a member's own are under Security (and the server serves no more than this).
   if (orgsData && !isOrgAdmin) {
+    const members = membersData?.members ?? [];
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground text-sm">
-          {t("Organization admin access required.", "مطلوب صلاحية مسؤول المنظمة.")}
-        </p>
+      <div className="space-y-4 max-w-2xl" data-testid="members-read-only">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{t("Members", "الأعضاء")}</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {t("Who is in this organization, and in which role. Emails, two-step sign-in and sessions are shown to admins only; yours are under Security.",
+               "من في هذه المنظمة وبأي دور. تظهر عناوين البريد والتحقق بخطوتين والجلسات للمسؤولين فقط؛ وبياناتك أنت في قسم الأمان.")}
+          </p>
+        </div>
+        <Card>
+          <CardContent className="p-0">
+            <ul className="divide-y divide-border">
+              {members.map((m) => (
+                <li key={m.userId} className="flex items-center justify-between gap-3 px-4 py-3" data-testid={`member-row-${m.userId}`}>
+                  <span className="text-sm text-foreground truncate">{m.name}</span>
+                  <Badge variant="outline" className="shrink-0">{roleName(m.role, t)}</Badge>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       </div>
     );
   }

@@ -107,14 +107,16 @@ describeDb("19B review-v2 points — pinned", () => {
       });
     }
 
-    it("🔴 a non-admin listing members or invitations is refused — no colleague's or invitee's email in the answer; the admin reads both, the invitation link included", async () => {
+    // RESTATED (owner, 2026-11-25, item 4): a non-admin now LISTS members — names and roles, no email (was 403). The
+    // invitations stay refused; every email-absence assertion stands. members-list-names-roles.test.ts holds the rest.
+    it("🔴 a non-admin lists members without any colleague's email, and is refused the invitations — no colleague's or invitee's email in either answer; the admin reads both, the invitation link included", async () => {
       const sent = await h.api("admin", "POST", `/orgs/${orgId}/invitations`, { email: INVITEE, role: "viewer" });
       expect(sent.status, sent.text).toBe(201);
       expect(typeof sent.body.link).toBe("string");
       for (const who of ["viewer", "bookkeeper", "accountant"]) {
         for (const path of [`/orgs/${orgId}/members`, `/orgs/${orgId}/invitations`]) {
           const r = await h.api(who, "GET", path);
-          expect([who, path, r.status]).toEqual([who, path, 403]);
+          expect([who, path, r.status]).toEqual([who, path, path === `/orgs/${orgId}/members` ? 200 : 403]);
           expect([who, path, r.text.includes(INVITEE), ROLES.filter((x) => x !== who && r.text.includes(h.email(x)))]).toEqual([who, path, false, []]);
         }
       }
