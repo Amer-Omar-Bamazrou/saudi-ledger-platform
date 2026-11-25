@@ -97,7 +97,7 @@ export default function Vendors() {
               {[[("name"),(t("Vendor Name (English) *", "اسم المورد (بالإنجليزية) *"))],[("nameAr"),(t("Vendor Name (Arabic)", "اسم المورد (بالعربية)"))],[("taxNumber"),(t("VAT Number", "رقم ضريبة القيمة المضافة"))],[("crNumber"),(t("CR Number", "رقم السجل التجاري"))],[("phone"),(t("Phone", "الهاتف"))],[("email"),(t("Email", "البريد الإلكتروني"))],[("address"),(t("Address", "العنوان"))],[("city"),(t("City", "المدينة"))],[("iban"),("IBAN")],[("paymentTermsDays"),(t("Payment Terms (days)", "شروط الدفع (أيام)"))]].map(([k,l])=>(
                 <div key={k} className={k==="address"||k==="iban"?"col-span-2":""}>
                   <Label className="text-xs text-muted-foreground">{l}</Label>
-                  <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1 h-8 text-sm" />
+                  <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1 h-8 text-sm" data-testid={`vendor-${k}`} />
                 </div>
               ))}
               <div className="col-span-2">
@@ -141,7 +141,7 @@ export default function Vendors() {
                 </p>
               </div>
             </div>
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate(createBody(form))} disabled={!form.name || createMut.isPending}>
+            <Button className="w-full mt-4" onClick={()=>createMut.mutate(createBody(form))} disabled={!form.name || createMut.isPending} data-testid="vendor-create">
               {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Vendor", "إنشاء مورد")}
             </Button>
           </DialogContent>

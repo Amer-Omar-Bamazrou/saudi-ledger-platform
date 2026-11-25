@@ -30,7 +30,6 @@ import { DualDate } from "@/components/DualDate";
 import { PaymentHistory } from "@/components/PaymentHistory";
 import { VatEvidencePanel } from "@/components/VatEvidencePanel";
 import { CommercialSupplyField } from "@/components/CommercialSupplyField";
-import { refusalOf } from "@/lib/openingVatRefusals";
 import { DuplicateWarning } from "@/components/DuplicateWarning";
 import { SUPPLIER_DOCUMENT_KINDS, inputVatLabel, kindLabel, statusLabel as evidenceStatusLabel, type SupplierDocumentKind } from "@/lib/vatEvidence";
 
@@ -275,7 +274,7 @@ export default function Bills() {
       setOpen(false); setEditingBill(null); setEditingEvidence(null); setForm(makeEmpty());
       toast({ title: t("Changes saved", "تم حفظ التعديلات") });
     },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" } as any),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
   });
 
   const deleteBillMut = useMutation({
@@ -392,7 +391,7 @@ export default function Bills() {
         : canPostBill ? { title: t("Bill saved", "حُفظت الفاتورة") }
         : { title: t("Bill saved as a draft", "حُفظت الفاتورة كمسودة"), description: t("Submit it for approval from its row.", "قدّمها للاعتماد من صفّها.") });
     },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" } as any),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" } as any),
   });
 
   // Post an existing draft bill — opens a small account-selection dialog first
@@ -412,7 +411,7 @@ export default function Bills() {
     },
     onError: (e: Error) => toast(isEvidenceHold(e)
       ? { title: t("Not posted — the evidence does not support the claim", "لم تُرحّل — الإثبات لا يدعم الخصم"), description: e.message }
-      : { title: t("Posting failed", "فشل الترحيل"), description: refusalOf(e).words, variant: "destructive" } as any),
+      : { title: t("Posting failed", "فشل الترحيل"), description: e.message, variant: "destructive" } as any),
   });
 
   const payMut = useMutation({
