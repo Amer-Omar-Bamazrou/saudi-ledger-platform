@@ -1,5 +1,6 @@
 /** Vendors service — AP summary + supplier matching. Behavior preserved from pre-M6. */
 import { BadRequestError, NotFoundError } from "../lib/errors";
+import { assertPartyIdentifiers } from "../lib/saudiIdentifiers";
 import { pick } from "../lib/writeGuards";
 import { withValidIban } from "../lib/ibanGuard";
 import { WHT_PAYMENT_TYPES } from "@workspace/db";
@@ -136,6 +137,7 @@ export const vendorsService = {
   async create(data: unknown) {
     // H-8 (DR-23): a supplier's IBAN is checked the one way and stored normalised
     const { iban, ...values } = withValidIban(normalize(pick<VendorInsert>(data, VENDOR_FIELDS)));
+    assertPartyIdentifiers(values, null); // item 3: the VAT and CR numbers of a Saudi supplier, the company's own rules
     let [row] = await vendorsRepository.insert(values as VendorInsert);
     await auditService.created("vendor", row.id, row);
     const { held, applyNow } = await bankDetailChangesService.holdPartyIban("vendor_iban", row.id, null, iban ?? null, { atCreation: true });
@@ -151,6 +153,7 @@ export const vendorsService = {
     // the requester — or applied at once, the fallback — and the rest of the request is written.
     const all = withValidIban(normalize(pick<VendorInsert>(data, VENDOR_FIELDS)));
     const { iban, ...values } = all;
+    assertPartyIdentifiers(values, before); // item 3: a number set or changed here; one already held is never refused
     const { held, applyNow } = "iban" in all ? await bankDetailChangesService.holdPartyIban("vendor_iban", id, before.iban ?? null, iban ?? null) : { held: [], applyNow: false };
     let row: Vendor = before;
     if (Object.keys(values).length > 0) {
