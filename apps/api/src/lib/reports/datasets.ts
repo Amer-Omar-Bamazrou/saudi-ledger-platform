@@ -70,7 +70,150 @@ export const JOURNAL_LINES: DatasetDef = {
   filters: { date_from: "date", date_to: "date", account_id: "accountId", source_type: "sourceType" },
 };
 
-export const DATASETS: Readonly<Record<string, DatasetDef>> = { journal_lines: JOURNAL_LINES };
+const money = (key: string, label: string, labelAr: string): DatasetColumn => text(key, label, labelAr, { kind: "money" });
+const DOC_FILTERS = { date_from: "date", date_to: "date" } as const;
+
+/**
+ * 🔴 19B S5 (scope proposal §7.1 item 2) — SALES DOCUMENTS in the books: invoices, credit notes and debit notes (issued,
+ * never a draft; never a reversed or superseded item — the reports' one predicate). Amounts are stored POSITIVE; the
+ * direction is `sign` (`documentSign()`: a credit note reverses, a debit note does not), applied in the signed
+ * columns and nowhere else. A viewer dataset (D3).
+ */
+export const SALES_DOCUMENTS: DatasetDef = {
+  name: "sales_documents",
+  title: "Sales documents",
+  titleAr: "مستندات المبيعات",
+  node: "SalesDocumentsDatasetRow",
+  native: ["invoices"],
+  columns: [
+    text("documentId", "Document id", "معرّف المستند", { kind: "int" }),
+    text("documentNumber", "Number", "الرقم", { sortable: true }),
+    text("documentType", "Type", "النوع"),
+    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true }),
+    text("dueDate", "Due date", "تاريخ الاستحقاق", { kind: "date" }),
+    text("status", "Status", "الحالة"),
+    text("customerId", "Customer id", "معرّف العميل", { kind: "int" }),
+    text("customerName", "Customer", "العميل"),
+    text("currency", "Currency", "العملة"),
+    money("subtotal", "Subtotal", "المجموع قبل الضريبة"),
+    money("vatAmount", "VAT", "الضريبة"),
+    money("total", "Total", "الإجمالي"),
+    text("sign", "Sign", "الإشارة", { kind: "int" }),
+    money("signedSubtotal", "Signed subtotal", "المجموع قبل الضريبة بالإشارة"),
+    money("signedVat", "Signed VAT", "الضريبة بالإشارة"),
+    money("signedTotal", "Signed total", "الإجمالي بالإشارة"),
+    money("paidAmount", "Paid", "المدفوع"),
+    text("isOpening", "Opening item", "بند افتتاحي"),
+  ],
+  filters: DOC_FILTERS,
+};
+
+/**
+ * 🔴 19B S5 (§7.1 item 3) — PURCHASE DOCUMENTS in the books: bills and supplier notes. `outstanding` is what the
+ * document still OWES by `repositories/billPosition` — the one definition, never total − paid_amount; a supplier
+ * credit note owes nothing. A viewer dataset (D3).
+ */
+export const PURCHASE_DOCUMENTS: DatasetDef = {
+  name: "purchase_documents",
+  title: "Purchase documents",
+  titleAr: "مستندات المشتريات",
+  node: "PurchaseDocumentsDatasetRow",
+  native: ["bills"],
+  columns: [
+    text("documentId", "Document id", "معرّف المستند", { kind: "int" }),
+    text("documentNumber", "Number", "الرقم", { sortable: true }),
+    text("supplierReference", "Supplier's number", "رقم مستند المورد"),
+    text("documentType", "Type", "النوع"),
+    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true }),
+    text("dueDate", "Due date", "تاريخ الاستحقاق", { kind: "date" }),
+    text("status", "Status", "الحالة"),
+    text("vendorId", "Supplier id", "معرّف المورد", { kind: "int" }),
+    text("vendorName", "Supplier", "المورد"),
+    text("currency", "Currency", "العملة"),
+    money("subtotal", "Subtotal", "المجموع قبل الضريبة"),
+    money("vatAmount", "VAT", "الضريبة"),
+    money("total", "Total", "الإجمالي"),
+    text("sign", "Sign", "الإشارة", { kind: "int" }),
+    money("signedSubtotal", "Signed subtotal", "المجموع قبل الضريبة بالإشارة"),
+    money("signedVat", "Signed VAT", "الضريبة بالإشارة"),
+    money("signedTotal", "Signed total", "الإجمالي بالإشارة"),
+    money("outstanding", "Outstanding", "المستحق"),
+    text("inputVat", "Input VAT", "ضريبة المدخلات"),
+    text("isOpening", "Opening item", "بند افتتاحي"),
+  ],
+  filters: DOC_FILTERS,
+};
+
+/**
+ * 🔴 19B S5 (§7.1 item 4) — CASH MOVEMENTS: the bank's lines in this company — payments, receipts, transfers — whatever
+ * their review state. `countsInAggregates` is the reports' own gate (`taxVisible`: accepted AND operating): a transfer
+ * or a settlement is listed, and is OUT of every income, expense, VAT, Zakat and budget figure. The line's text is the
+ * bank's (bank_narrative, on every row). Not a viewer dataset.
+ */
+export const CASH_MOVEMENTS: DatasetDef = {
+  name: "cash_movements",
+  title: "Cash movements",
+  titleAr: "الحركات النقدية",
+  node: "CashMovementsDatasetRow",
+  native: ["transactions"],
+  columns: [
+    text("transactionId", "Movement id", "معرّف الحركة", { kind: "int" }),
+    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true }),
+    text("description", "Bank text", "نص كشف البنك"),
+    text("type", "Direction", "الاتجاه"),
+    text("kind", "Kind", "النوع"),
+    money("amount", "Amount", "المبلغ"),
+    money("signedAmount", "Signed amount", "المبلغ بالإشارة"),
+    money("vatAmount", "VAT", "الضريبة"),
+    text("reviewStatus", "Review", "المراجعة"),
+    text("bankAccountId", "Bank account id", "معرّف الحساب البنكي", { kind: "int" }),
+    text("categoryId", "Account id", "معرّف الحساب", { kind: "int" }),
+    text("categoryName", "Account", "الحساب"),
+    text("countsInAggregates", "Counts in income, expense and VAT figures", "يدخل في أرقام الإيراد والمصروف والضريبة"),
+  ],
+  filters: DOC_FILTERS,
+};
+
+/**
+ * 🔴 19B S5 (§7.1 item 5) — VAT LINES: documents FILE. Each row is one ADDEND of the VAT return for the window — an
+ * invoice or bill line (S/Z/E/O), a header-only document, an advance adjustment, a bad-debt relief — with the box it
+ * joins, recorded by the return itself in the branch that adds it (`reportsService.vatReturnWithLines`). No new
+ * classification: the dataset cannot disagree with the return. Input VAT appears only where it is CLAIMED (13A), dated
+ * the day of the claim. The window is required — it is the return's. Not a viewer dataset.
+ */
+export const VAT_LINES: DatasetDef = {
+  name: "vat_lines",
+  title: "VAT lines",
+  titleAr: "سطور ضريبة القيمة المضافة",
+  node: "VatLinesDatasetRow",
+  native: ["invoices", "bills"],
+  columns: [
+    text("lineNo", "Line", "السطر", { kind: "int" }),
+    text("side", "Side", "الجانب"),
+    text("source", "Source", "المصدر"),
+    text("documentId", "Document id", "معرّف المستند", { kind: "int" }),
+    text("documentNumber", "Number", "الرقم"),
+    text("documentType", "Type", "النوع"),
+    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true }),
+    text("taxCategory", "Tax category", "الفئة الضريبية"),
+    money("taxable", "Taxable amount", "المبلغ الخاضع"),
+    money("vat", "VAT", "الضريبة"),
+    text("taxableBox", "Box (amount)", "الخانة (المبلغ)", { kind: "int" }),
+    text("vatBox", "Box (VAT)", "الخانة (الضريبة)", { kind: "int" }),
+  ],
+  filters: DOC_FILTERS,
+};
+
+/** The datasets whose window is REQUIRED (it is part of what the figure means). */
+export const WINDOW_REQUIRED: ReadonlySet<string> = new Set(["vat_lines"]);
+
+export const DATASETS: Readonly<Record<string, DatasetDef>> = {
+  journal_lines: JOURNAL_LINES,
+  sales_documents: SALES_DOCUMENTS,
+  purchase_documents: PURCHASE_DOCUMENTS,
+  cash_movements: CASH_MOVEMENTS,
+  vat_lines: VAT_LINES,
+};
 
 /** A column's class and the resource whose field grants decide it — from the class table, the one definition. */
 export function columnClass(ds: DatasetDef, key: string): { cls: "standard" | ProtectedFieldClass; resource: string | null; rowCondition?: RowCondition } {

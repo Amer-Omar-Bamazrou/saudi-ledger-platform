@@ -1083,6 +1083,14 @@ export const reportsService = {
 
   /** The VAT return over a DATE window, both ends inclusive (YYYY-MM-DD) — the tax obligations' last period and period to date. */
   async vatReturnBetween(dateFrom: string, dateTo: string, reviewAsOf: string | null = dateTo) {
+    return (await reportsService.vatReturnWithLines(dateFrom, dateTo, reviewAsOf)).report;
+  },
+
+  /**
+   * 🔴 19B S5 — the return AND its addends: every amount that joins a box, one row each, recorded in the branch that
+   * adds it (the `vat_lines` dataset reads them; tests/s5-report-datasets.test.ts holds Σ by box == every box).
+   */
+  async vatReturnWithLines(dateFrom: string, dateTo: string, reviewAsOf: string | null = dateTo) {
     for (const [name, v] of [["dateFrom", dateFrom], ["dateTo", dateTo]] as const) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new BadRequestError(`${name} is a date (YYYY-MM-DD), not ${JSON.stringify(v)}.`);
     }
@@ -1131,6 +1139,9 @@ export const reportsService = {
       (invLinesByDoc.get(l.invoiceId) ?? invLinesByDoc.set(l.invoiceId, []).get(l.invoiceId)!).push(l);
     }
 
+    const addends: VatReturnAddend[] = [];
+    const invDoc = (inv: (typeof invoiceRows)[number] | undefined) => ({ documentId: inv?.id ?? null, documentNumber: inv?.invoiceNumber ?? null, documentType: inv?.documentType ?? null, date: inv ? String(inv.date) : null });
+    const SALES_BOX: Record<string, 1 | 2 | 3> = { S: 1, Z: 2, E: 3 };
     let standardRatedSales = 0, outputVat = 0, zeroRatedSales = 0, exemptSales = 0;
     for (const inv of invoiceRows) {
       const sign = documentSign(inv.documentType);
@@ -1138,6 +1149,7 @@ export const reportsService = {
       if (lines.length === 0) {
         const subtotal = toNum(inv.subtotal);
         const vat = toNum(inv.vatAmount);
+        addends.push({ side: "sales", source: "invoice_header", ...invDoc(inv), taxCategory: vat > 0 ? "S" : "Z", taxable: sign * subtotal, vat: vat > 0 ? sign * vat : null, taxableBox: vat > 0 ? 1 : 2, vatBox: vat > 0 ? 6 : null });
         if (vat > 0) { standardRatedSales += sign * subtotal; outputVat += sign * vat; }
         else zeroRatedSales += sign * subtotal;
         continue;
@@ -1146,6 +1158,7 @@ export const reportsService = {
         const vat = toNum(line.vatAmount);
         const net = toNum(line.total) - vat;
         const code = line.taxCategoryCode ?? (vat > 0 ? "S" : "Z");
+        addends.push({ side: "sales", source: "invoice_line", ...invDoc(inv), taxCategory: code, taxable: sign * net, vat: code === "S" ? sign * vat : null, taxableBox: SALES_BOX[code] ?? null, vatBox: code === "S" ? 6 : null });
         if (code === "S") { standardRatedSales += sign * net; outputVat += sign * vat; }
         else if (code === "Z") zeroRatedSales += sign * net;
         else if (code === "E") exemptSales += sign * net;
@@ -1164,9 +1177,12 @@ export const reportsService = {
      * (invoices.approvable E3). Box 1 + box 6 over both periods then equal
      * the supply once; nothing is declared twice and nothing is dropped.
      */
-    for (const { row } of prepaymentRows) {
+    for (const { row, invoiceId } of prepaymentRows) {
       const taxable = toNum(row.taxableAmount);
       const tax = toNum(row.taxAmount);
+      if (SALES_BOX[row.taxCategoryCode ?? ""]) {
+        addends.push({ side: "sales", source: "advance_adjustment", ...invDoc(invoiceRows.find((i) => i.id === invoiceId)), taxCategory: row.taxCategoryCode, taxable: -taxable, vat: row.taxCategoryCode === "S" ? -tax : null, taxableBox: SALES_BOX[row.taxCategoryCode ?? ""]!, vatBox: row.taxCategoryCode === "S" ? 6 : null });
+      }
       if (row.taxCategoryCode === "S") { standardRatedSales -= taxable; outputVat -= tax; }
       else if (row.taxCategoryCode === "Z") zeroRatedSales -= taxable;
       else if (row.taxCategoryCode === "E") exemptSales -= taxable;
@@ -1182,7 +1198,15 @@ export const reportsService = {
      */
     const purchasesOf = (
       billSet: typeof billRows, lineSet: typeof billLines, prepaymentSet: typeof billPrepaymentRows,
+      selection: "dated" | "claimed",
     ) => {
+      // S5: the dated selection's addends are the PURCHASE amounts (boxes 9 and 10); the claimed selection's are the
+      // INPUT VAT (box 13), dated the day it is claimed. The same branch, the same value.
+      const pushPurchase = (bill: (typeof billSet)[number] | undefined, source: VatReturnAddend["source"], standard: boolean, taxable: number, vat: number) => {
+        const doc = { documentId: bill?.id ?? null, documentNumber: bill?.billNumber ?? null, documentType: bill?.documentType ?? null };
+        if (selection === "dated") addends.push({ side: "purchases", source, ...doc, date: bill ? String(bill.date) : null, taxCategory: standard ? "S" : "Z", taxable, vat: null, taxableBox: standard ? 9 : 10, vatBox: null });
+        else if (standard) addends.push({ side: "purchases", source, ...doc, date: bill ? String(bill.inputVatClaimedOn ?? bill.date) : null, taxCategory: "S", taxable: null, vat, taxableBox: null, vatBox: 13 });
+      };
       const billLinesByDoc = new Map<number, (typeof lineSet)[number][]>();
       for (const l of lineSet) {
         (billLinesByDoc.get(l.billId) ?? billLinesByDoc.set(l.billId, []).get(l.billId)!).push(l);
@@ -1207,6 +1231,7 @@ export const reportsService = {
         const sign = documentSign(bill.documentType);
         const lines = billLinesByDoc.get(bill.id) ?? [];
         if (lines.length === 0) {
+          pushPurchase(bill, "bill_header", toNum(bill.vatAmount) > 0, sign * toNum(bill.subtotal), sign * toNum(bill.vatAmount));
           if (toNum(bill.vatAmount) > 0) { standardRatedPurchases += sign * toNum(bill.subtotal); inputVat += sign * toNum(bill.vatAmount); }
           else zeroRatedPurchases += sign * toNum(bill.subtotal);
           continue;
@@ -1214,6 +1239,7 @@ export const reportsService = {
         for (const { line } of lines) {
           const vat = toNum(line.vatAmount);
           const net = toNum(line.total) - vat;
+          pushPurchase(bill, "bill_line", vat > 0, sign * net, sign * vat);
           if (vat > 0) { standardRatedPurchases += sign * net; inputVat += sign * vat; }
           else zeroRatedPurchases += sign * net;
         }
@@ -1233,16 +1259,17 @@ export const reportsService = {
        * credit note against the advance invoice: a bill row above, signed −1, in
        * the note's period (IR Art. 40(6)).
        */
-      for (const { row } of prepaymentSet) {
+      for (const { row, billId } of prepaymentSet) {
         const taxable = toNum(row.taxableAmount);
         const tax = toNum(row.taxAmount);
+        pushPurchase(billSet.find((b) => b.id === billId), "supplier_advance_adjustment", tax > 0, -taxable, -tax);
         if (tax > 0) { standardRatedPurchases -= taxable; inputVat -= tax; }
         else zeroRatedPurchases -= taxable;
       }
       return { standardRatedPurchases, zeroRatedPurchases, inputVat };
     };
-    const { standardRatedPurchases, zeroRatedPurchases } = purchasesOf(billRows, billLines, billPrepaymentRows);
-    const { inputVat } = purchasesOf(claimedBillRows, claimedBillLines, claimedBillPrepaymentRows);
+    const { standardRatedPurchases, zeroRatedPurchases } = purchasesOf(billRows, billLines, billPrepaymentRows, "dated");
+    const { inputVat } = purchasesOf(claimedBillRows, claimedBillLines, claimedBillPrepaymentRows, "claimed");
 
     /**
      * 🔴 2026-09-22 — BAD-DEBT RELIEF (IR Art. 40(7)): the Output Tax on
@@ -1254,9 +1281,10 @@ export const reportsService = {
      * previous system's return.
      */
     const badDebtReliefVat = fmt2(reliefRows.reduce((s, r) => s + toNum(r.reliefVat), 0));
+    for (const r of reliefRows) addends.push({ side: "sales", source: "bad_debt_relief", documentId: r.id, documentNumber: r.invoiceNumber, documentType: "invoice", date: r.claimedOn ? String(r.claimedOn) : null, taxCategory: "S", taxable: null, vat: -toNum(r.reliefVat), taxableBox: null, vatBox: 7 });
     const vatAdjustments = -badDebtReliefVat;
     const netVatDue = outputVat + vatAdjustments - inputVat;
-    return {
+    return { lines: addends, report: {
       period: { from: dateFrom, to: dateTo },
       depositReview: { asOf: review.asOf, needsReviewCount: review.needsReviewCount, needsReviewAmount: fmt2(review.needsReviewAmount), overdueCount: review.overdueCount },
       salesSection: {
@@ -1284,6 +1312,24 @@ export const reportsService = {
       vatRefund: netVatDue < 0 ? fmt2(-netVatDue) : 0,
       invoiceCount: invoiceRows.length,
       billCount: billRows.length,
-    };
+    } };
   },
 };
+
+/** 19B S5 — one addend of the VAT return: what joins which box, from which document (the `vat_lines` dataset's row). */
+export interface VatReturnAddend {
+  side: "sales" | "purchases";
+  source: "invoice_line" | "invoice_header" | "advance_adjustment" | "bill_line" | "bill_header" | "supplier_advance_adjustment" | "bad_debt_relief";
+  documentId: number | null;
+  documentNumber: string | null;
+  documentType: string | null;
+  date: string | null;
+  /** S, Z, E — or O (out of scope: listed, on no box). */
+  taxCategory: string | null;
+  /** The signed taxable amount joining `taxableBox`; null on an input-VAT or adjustment row. */
+  taxable: number | null;
+  /** The signed VAT joining `vatBox`; null where the row carries none. */
+  vat: number | null;
+  taxableBox: 1 | 2 | 3 | 9 | 10 | null;
+  vatBox: 6 | 7 | 13 | null;
+}

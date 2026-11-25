@@ -161,6 +161,196 @@ export interface JournalLinesDatasetRows {
 }
 
 /**
+ * 19B S5 — one row of the sales_documents dataset. Only the shown columns are present; a withheld column's key is absent (D4).
+ */
+export interface SalesDocumentsDatasetRow {
+  /** @nullable */
+  documentId?: number | null;
+  /** @nullable */
+  documentNumber?: string | null;
+  /** @nullable */
+  documentType?: string | null;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  status?: string | null;
+  /** @nullable */
+  customerId?: number | null;
+  /** @nullable */
+  customerName?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  subtotal?: number | null;
+  /** @nullable */
+  vatAmount?: number | null;
+  /** @nullable */
+  total?: number | null;
+  /** @nullable */
+  sign?: number | null;
+  /** @nullable */
+  signedSubtotal?: number | null;
+  /** @nullable */
+  signedVat?: number | null;
+  /** @nullable */
+  signedTotal?: number | null;
+  /** @nullable */
+  paidAmount?: number | null;
+  /** @nullable */
+  isOpening?: boolean | null;
+}
+
+export interface SalesDocumentsDatasetRows {
+  dataset: string;
+  columns: ReportDatasetColumn[];
+  rows: SalesDocumentsDatasetRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  withheld: ReportDatasetWithheld[];
+}
+
+/**
+ * 19B S5 — one row of the purchase_documents dataset. Only the shown columns are present; a withheld column's key is absent (D4).
+ */
+export interface PurchaseDocumentsDatasetRow {
+  /** @nullable */
+  documentId?: number | null;
+  /** @nullable */
+  documentNumber?: string | null;
+  /** @nullable */
+  supplierReference?: string | null;
+  /** @nullable */
+  documentType?: string | null;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  status?: string | null;
+  /** @nullable */
+  vendorId?: number | null;
+  /** @nullable */
+  vendorName?: string | null;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  subtotal?: number | null;
+  /** @nullable */
+  vatAmount?: number | null;
+  /** @nullable */
+  total?: number | null;
+  /** @nullable */
+  sign?: number | null;
+  /** @nullable */
+  signedSubtotal?: number | null;
+  /** @nullable */
+  signedVat?: number | null;
+  /** @nullable */
+  signedTotal?: number | null;
+  /** @nullable */
+  outstanding?: number | null;
+  /** @nullable */
+  inputVat?: string | null;
+  /** @nullable */
+  isOpening?: boolean | null;
+}
+
+export interface PurchaseDocumentsDatasetRows {
+  dataset: string;
+  columns: ReportDatasetColumn[];
+  rows: PurchaseDocumentsDatasetRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  withheld: ReportDatasetWithheld[];
+}
+
+/**
+ * 19B S5 — one row of the cash_movements dataset. Only the shown columns are present; a withheld column's key is absent (D4).
+ */
+export interface CashMovementsDatasetRow {
+  /** @nullable */
+  transactionId?: number | null;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  type?: string | null;
+  /** @nullable */
+  kind?: string | null;
+  /** @nullable */
+  amount?: number | null;
+  /** @nullable */
+  signedAmount?: number | null;
+  /** @nullable */
+  vatAmount?: number | null;
+  /** @nullable */
+  reviewStatus?: string | null;
+  /** @nullable */
+  bankAccountId?: number | null;
+  /** @nullable */
+  categoryId?: number | null;
+  /** @nullable */
+  categoryName?: string | null;
+  /** @nullable */
+  countsInAggregates?: boolean | null;
+}
+
+export interface CashMovementsDatasetRows {
+  dataset: string;
+  columns: ReportDatasetColumn[];
+  rows: CashMovementsDatasetRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  withheld: ReportDatasetWithheld[];
+}
+
+/**
+ * 19B S5 — one row of the vat_lines dataset. Only the shown columns are present; a withheld column's key is absent (D4).
+ */
+export interface VatLinesDatasetRow {
+  /** @nullable */
+  lineNo?: number | null;
+  /** @nullable */
+  side?: string | null;
+  /** @nullable */
+  source?: string | null;
+  /** @nullable */
+  documentId?: number | null;
+  /** @nullable */
+  documentNumber?: string | null;
+  /** @nullable */
+  documentType?: string | null;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  taxCategory?: string | null;
+  /** @nullable */
+  taxable?: number | null;
+  /** @nullable */
+  vat?: number | null;
+  /** @nullable */
+  taxableBox?: number | null;
+  /** @nullable */
+  vatBox?: number | null;
+}
+
+export interface VatLinesDatasetRows {
+  dataset: string;
+  columns: ReportDatasetColumn[];
+  rows: VatLinesDatasetRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  withheld: ReportDatasetWithheld[];
+}
+
+/**
  * 🔴 `advanceBalance`, `depositBalance` and `unidentifiedBalance` are exactly SUPPLIER_ADVANCES, SECURITY_DEPOSITS_PAID and UNIDENTIFIED_PAYMENTS. `payable` and `creditBalance` BOTH live in AP(vendor) — a purchase credit note posts its debit straight into AP — so the GL carries their difference; they are shown separately because "what we owe" and "what they owe us on a note" are different facts.
  */
 export interface SupplierPosition {
@@ -6258,6 +6448,8 @@ export interface ArAgingReport {
 export interface ApAgingItem {
   id: number;
   billNumber: string;
+  /** bill or debit_note — served since B7 and absent from the contract until 19B S5 found it (2026-11-25): no test had listed a payable through this route. */
+  documentType?: string;
   vendorName: string;
   vendorNameAr: string;
   /** @nullable */
@@ -14813,6 +15005,214 @@ export type ExportJournalLinesDatasetLang = typeof ExportJournalLinesDatasetLang
 
 
 export const ExportJournalLinesDatasetLang = {
+  en: 'en',
+  ar: 'ar',
+} as const;
+
+export type RunSalesDocumentsDatasetParams = {
+/**
+ * Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.
+ */
+columns?: string;
+date_from?: string;
+date_to?: string;
+/**
+ * A sortable column key; a leading '-' sorts descending (default: date).
+ */
+sort?: string;
+/**
+ * Not supported by this dataset (refused 400 report_group_not_supported).
+ */
+group?: string;
+/**
+ * @minimum 1
+ * @maximum 500
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ExportSalesDocumentsDatasetParams = {
+/**
+ * Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.
+ */
+columns?: string;
+date_from?: string;
+date_to?: string;
+/**
+ * A sortable column key; a leading '-' sorts descending (default: date).
+ */
+sort?: string;
+/**
+ * Not supported by this dataset (refused 400 report_group_not_supported).
+ */
+group?: string;
+lang?: ExportSalesDocumentsDatasetLang;
+};
+
+export type ExportSalesDocumentsDatasetLang = typeof ExportSalesDocumentsDatasetLang[keyof typeof ExportSalesDocumentsDatasetLang];
+
+
+export const ExportSalesDocumentsDatasetLang = {
+  en: 'en',
+  ar: 'ar',
+} as const;
+
+export type RunPurchaseDocumentsDatasetParams = {
+/**
+ * Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.
+ */
+columns?: string;
+date_from?: string;
+date_to?: string;
+/**
+ * A sortable column key; a leading '-' sorts descending (default: date).
+ */
+sort?: string;
+/**
+ * Not supported by this dataset (refused 400 report_group_not_supported).
+ */
+group?: string;
+/**
+ * @minimum 1
+ * @maximum 500
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ExportPurchaseDocumentsDatasetParams = {
+/**
+ * Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.
+ */
+columns?: string;
+date_from?: string;
+date_to?: string;
+/**
+ * A sortable column key; a leading '-' sorts descending (default: date).
+ */
+sort?: string;
+/**
+ * Not supported by this dataset (refused 400 report_group_not_supported).
+ */
+group?: string;
+lang?: ExportPurchaseDocumentsDatasetLang;
+};
+
+export type ExportPurchaseDocumentsDatasetLang = typeof ExportPurchaseDocumentsDatasetLang[keyof typeof ExportPurchaseDocumentsDatasetLang];
+
+
+export const ExportPurchaseDocumentsDatasetLang = {
+  en: 'en',
+  ar: 'ar',
+} as const;
+
+export type RunCashMovementsDatasetParams = {
+/**
+ * Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.
+ */
+columns?: string;
+date_from?: string;
+date_to?: string;
+/**
+ * A sortable column key; a leading '-' sorts descending (default: date).
+ */
+sort?: string;
+/**
+ * Not supported by this dataset (refused 400 report_group_not_supported).
+ */
+group?: string;
+/**
+ * @minimum 1
+ * @maximum 500
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ExportCashMovementsDatasetParams = {
+/**
+ * Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.
+ */
+columns?: string;
+date_from?: string;
+date_to?: string;
+/**
+ * A sortable column key; a leading '-' sorts descending (default: date).
+ */
+sort?: string;
+/**
+ * Not supported by this dataset (refused 400 report_group_not_supported).
+ */
+group?: string;
+lang?: ExportCashMovementsDatasetLang;
+};
+
+export type ExportCashMovementsDatasetLang = typeof ExportCashMovementsDatasetLang[keyof typeof ExportCashMovementsDatasetLang];
+
+
+export const ExportCashMovementsDatasetLang = {
+  en: 'en',
+  ar: 'ar',
+} as const;
+
+export type RunVatLinesDatasetParams = {
+/**
+ * Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.
+ */
+columns?: string;
+date_from?: string;
+date_to?: string;
+/**
+ * A sortable column key; a leading '-' sorts descending (default: date).
+ */
+sort?: string;
+/**
+ * Not supported by this dataset (refused 400 report_group_not_supported).
+ */
+group?: string;
+/**
+ * @minimum 1
+ * @maximum 500
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ExportVatLinesDatasetParams = {
+/**
+ * Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.
+ */
+columns?: string;
+date_from?: string;
+date_to?: string;
+/**
+ * A sortable column key; a leading '-' sorts descending (default: date).
+ */
+sort?: string;
+/**
+ * Not supported by this dataset (refused 400 report_group_not_supported).
+ */
+group?: string;
+lang?: ExportVatLinesDatasetLang;
+};
+
+export type ExportVatLinesDatasetLang = typeof ExportVatLinesDatasetLang[keyof typeof ExportVatLinesDatasetLang];
+
+
+export const ExportVatLinesDatasetLang = {
   en: 'en',
   ar: 'ar',
 } as const;

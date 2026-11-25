@@ -368,6 +368,11 @@ export const NAV_TREE: readonly NavSection[] = [
         children: [
           built("/reports/journal-report", "Journal Report", "تقرير اليومية"),
           built("/reports/journal-lines", "Journal Lines", "سطور القيود"), // 19B S4: the first report dataset
+          // 19B S5: the remaining datasets
+          built("/reports/sales-documents", "Sales Documents", "مستندات المبيعات"),
+          built("/reports/purchase-documents", "Purchase Documents", "مستندات المشتريات"),
+          built("/reports/cash-movements", "Cash Movements", "الحركات النقدية"),
+          built("/reports/vat-lines", "VAT Lines", "سطور ضريبة القيمة المضافة"),
           built("/reports/general-ledger", "General Ledger", "دفتر الأستاذ العام"),
           // 🔴 THESE FIVE WERE FOUND BY THE COVERAGE CHECK, NOT BY READING.
           // Every one is a real, working report page that the §4 spec never

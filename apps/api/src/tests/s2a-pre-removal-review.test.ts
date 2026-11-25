@@ -100,7 +100,7 @@ describeDb("19B S2a pre-removal review — with the twelve grants removed", () =
     const later = (r: { resource: string }) => r.resource === "bank_detail" || r.resource.startsWith("report_dataset.");
     const withoutLater = PERMISSION_MATRIX.filter((r) => !later(r));
     // 19B S2b removed its seven (S2B_REMOVALS) — outside S2a's set too, and none of the twelve (field-class-grants pins both)
-    expect([withoutLater.length, S2A_MATRIX.filter((r) => !later(r)).length, PERMISSION_MATRIX.filter((r) => r.resource === "bank_detail").length, PERMISSION_MATRIX.filter((r) => r.resource.startsWith("report_dataset.")).length]).toEqual([395 - 12 - 7 - 9, 395 - 12 - 7 - 9, 6, 22]); // and 19B S2c removed its nine (S2C_REMOVALS)
+    expect([withoutLater.length, S2A_MATRIX.filter((r) => !later(r)).length, PERMISSION_MATRIX.filter((r) => r.resource === "bank_detail").length, PERMISSION_MATRIX.filter((r) => r.resource.startsWith("report_dataset.")).length]).toEqual([395 - 12 - 7 - 9, 395 - 12 - 7 - 9, 6, 102]); // and 19B S2c removed its nine (S2C_REMOVALS). RESTATED for 19B S5 (2026-11-25): report-act grants 22 → 102 (four more datasets: 22 + 22 + 18 + 18)
   });
 
   // ── B ──

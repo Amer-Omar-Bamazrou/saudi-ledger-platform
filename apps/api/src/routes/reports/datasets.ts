@@ -9,4 +9,13 @@ const router = Router();
 router.get("/", reportsController.datasets);
 router.get("/journal_lines/rows", reportsController.journalLinesRows);
 router.get("/journal_lines/export", reportsController.journalLinesExport);
+// 19B S5 — the remaining datasets: the same two acts, each through decide().
+router.get("/sales_documents/rows", reportsController.datasetRows("sales_documents"));
+router.get("/sales_documents/export", reportsController.datasetExport("sales_documents"));
+router.get("/purchase_documents/rows", reportsController.datasetRows("purchase_documents"));
+router.get("/purchase_documents/export", reportsController.datasetExport("purchase_documents"));
+router.get("/cash_movements/rows", reportsController.datasetRows("cash_movements"));
+router.get("/cash_movements/export", reportsController.datasetExport("cash_movements"));
+router.get("/vat_lines/rows", reportsController.datasetRows("vat_lines"));
+router.get("/vat_lines/export", reportsController.datasetExport("vat_lines"));
 export default router;
