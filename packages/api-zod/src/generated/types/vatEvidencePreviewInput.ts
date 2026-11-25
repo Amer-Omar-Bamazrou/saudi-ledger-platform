@@ -30,4 +30,9 @@ export interface VatEvidencePreviewInput {
   capitalisesAssetId?: number | null;
   /** @nullable */
   captureId?: string | null;
+  /**
+     * L4: the commercial supply stated for VAT on an out-of-scope account (BillHeaderInput).
+     * @nullable
+     */
+  commercialSupplyReason?: string | null;
 }

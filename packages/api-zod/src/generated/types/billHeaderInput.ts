@@ -72,4 +72,10 @@ export interface BillHeaderInput {
   expensePaidFromBankAccountId?: number | null;
   /** @nullable */
   expensePaidAt?: string | null;
+  /**
+     * L4 (owner, 2026-11-25): on an OUT-OF-SCOPE expense account (the account's own VAT treatment 'O' — a statutory fee, GOSI, salaries…) VAT defaults to 0, and VAT above 0 is accepted only with the commercial supply stated here and why: without it the create, the edit and the approval are refused 422 `out_of_scope_vat_unstated`. The claim still needs a valid tax invoice (the evidence verdict). Blank is no statement; who stated it and when are kept.
+     * @maxLength 1000
+     * @nullable
+     */
+  commercialSupplyReason?: string | null;
 }

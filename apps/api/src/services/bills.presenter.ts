@@ -53,6 +53,8 @@ export function buildBillOut(bill: Bill, vendor?: Vendor | null, items?: BillIte
     paidAt: bill.paidAt,
     reviewNote: bill.reviewNote,
     expenseAccountId: bill.expenseAccountId ?? null,
+    // 🔴 L4: the commercial supply stated for VAT on an out-of-scope account — shown in review beside the warning.
+    commercialSupplyReason: bill.commercialSupplyReason ?? null,
     // FA-B: the draft fixed asset this bill buys (its approval capitalises it).
     capitalisesAssetId: bill.capitalisesAssetId ?? null,
     // 🔴 Phase 13A: the supplier document held, and the SERVER's verdict on

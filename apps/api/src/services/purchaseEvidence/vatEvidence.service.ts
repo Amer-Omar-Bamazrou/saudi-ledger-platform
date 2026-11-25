@@ -34,7 +34,7 @@ function firstDayAfterMonth(period: string): string {
   const [y, m] = period.split("-").map(Number) as [number, number];
   return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
 }
-import { SUPPLIER_DOCUMENT_KINDS, evaluateVatEvidence, figuresConfirmationCurrent, supplierVatDiscrepancy, withinClaimWindow, type VatEvidenceVerdict } from "./vatEvidence";
+import { OUT_OF_SCOPE_RULE_DOCUMENTS, SUPPLIER_DOCUMENT_KINDS, evaluateVatEvidence, figuresConfirmationCurrent, isOutOfScopeExpenseAccount, supplierVatDiscrepancy, withinClaimWindow, type VatEvidenceVerdict } from "./vatEvidence";
 
 type Bill = typeof billsTable.$inferSelect;
 type Vendor = typeof vendorsTable.$inferSelect;
@@ -60,6 +60,53 @@ export async function blockedAccount(expenseAccountId: number | null | undefined
     ? await categoriesRepository.findById(Number(expenseAccountId))
     : await categoriesRepository.findBySystemCode("PURCHASES");
   return cat?.inputVatBlocked ? { name: cat.name } : null;
+}
+
+/** The expense line's account — the one chosen, or the PURCHASES default when none is (as `blockedAccount`). */
+async function expenseAccountOf(expenseAccountId: number | null | undefined) {
+  return expenseAccountId != null
+    ? await categoriesRepository.findById(Number(expenseAccountId))
+    : await categoriesRepository.findBySystemCode("PURCHASES");
+}
+
+/** 🔴 L4: the expense account when it is OUT OF SCOPE (`isOutOfScopeExpenseAccount`), with the supply stated for VAT on it. */
+export async function outOfScopeAccount(expenseAccountId: number | null | undefined, commercialSupplyReason: string | null | undefined): Promise<{ name: string; commercialSupplyReason: string | null } | null> {
+  const cat = await expenseAccountOf(expenseAccountId);
+  return cat && isOutOfScopeExpenseAccount(cat) ? { name: cat.name, commercialSupplyReason: commercialSupplyReason ?? null } : null;
+}
+
+/** 🔴 L4: a stated commercial supply, as stored — trimmed; blank is no statement. */
+export function normaliseCommercialSupplyReason(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+/**
+ * 🔴 L4 (owner, 2026-11-25) — VAT on an OUT-OF-SCOPE expense account needs a STATED commercial supply. Asked at
+ * entry, at edit and at approval (the account the approval actually resolves), so no path claims it unstated; the
+ * claim itself still waits on a valid tax invoice (the 13A verdict). A credit note reduces a claim and is not asked;
+ * a capitalised purchase posts to the asset, not an expense account.
+ */
+export async function assertOutOfScopeVatStated(f: {
+  documentType: string | null | undefined;
+  expenseAccountId: number | null | undefined;
+  capitalisesAssetId: number | null | undefined;
+  vatAmount: number;
+  commercialSupplyReason: string | null | undefined;
+}): Promise<void> {
+  if (!OUT_OF_SCOPE_RULE_DOCUMENTS.includes(f.documentType ?? "bill")) return;
+  if (f.capitalisesAssetId != null || !(f.vatAmount > 0) || normaliseCommercialSupplyReason(f.commercialSupplyReason)) return;
+  const cat = await expenseAccountOf(f.expenseAccountId);
+  if (!cat || !isOutOfScopeExpenseAccount(cat)) return;
+  throw new BusinessRuleError(422, {
+    code: "out_of_scope_vat_unstated",
+    field: "commercialSupplyReason",
+    error:
+      `"${cat.name}" is outside the scope of VAT (a statutory fee, a GOSI contribution or a salary is not a supply), so its VAT is 0. ` +
+      "To claim VAT on it, state the commercial supply and why, and hold the supplier's valid tax invoice. Otherwise set the VAT to 0, or choose the account the purchase belongs to.",
+    errorAr:
+      `الحساب «${cat.nameAr || cat.name}» خارج نطاق ضريبة القيمة المضافة (الرسوم النظامية واشتراكات التأمينات والرواتب ليست توريدات)، لذا ضريبته صفر. ` +
+      "لخصم ضريبة عليه اذكر التوريد التجاري وسببه، مع فاتورة ضريبية صحيحة من المورد. وإلا فاجعل الضريبة صفرًا، أو اختر الحساب الذي يخص هذا الشراء.",
+  });
 }
 
 /**
@@ -159,6 +206,9 @@ export const vatEvidenceService = {
         ? null
         : await blockedAccount(o.expenseAccountId !== undefined ? o.expenseAccountId : bill.expenseAccountId),
       art50BlockedOriginal: await art50BlockedOriginal(bill),
+      outOfScopeExpenseAccount: bill.capitalisesAssetId != null
+        ? null
+        : await outOfScopeAccount(o.expenseAccountId !== undefined ? o.expenseAccountId : bill.expenseAccountId, bill.commercialSupplyReason),
       capture: capture && capture.status !== "discarded" ? { qrPayload: capture.qrPayload, signatureStatus: capture.signatureStatus } : null,
       supplierVat: await supplierVatOf(bill),
     });
@@ -314,6 +364,7 @@ export const vatEvidenceService = {
     documentType?: string | null; supplierDocumentKind?: string | null; vendorId?: number | null;
     vendorReference?: string | null; date?: string | null; subtotal?: number | null; vatAmount?: number | null; total?: number | null;
     expenseAccountId?: number | null; capitalisesAssetId?: number | null; captureId?: string | null;
+    commercialSupplyReason?: string | null;
   }): Promise<VatEvidenceVerdict> {
     assertSupplierDocumentKind(body.supplierDocumentKind);
     const vendor = body.vendorId != null ? (await vendorsRepository.findById(Number(body.vendorId)))[0] ?? null : null;
@@ -335,6 +386,7 @@ export const vatEvidenceService = {
       date: body.date ?? "",
       capitalisesVat: await capitalisesVat(body.capitalisesAssetId, vat),
       blockedExpenseAccount: body.capitalisesAssetId != null ? null : await blockedAccount(body.expenseAccountId),
+      outOfScopeExpenseAccount: body.capitalisesAssetId != null ? null : await outOfScopeAccount(body.expenseAccountId, normaliseCommercialSupplyReason(body.commercialSupplyReason)),
       capture: capture && capture.status !== "discarded" ? { qrPayload: capture.qrPayload, signatureStatus: capture.signatureStatus } : null,
     });
   },

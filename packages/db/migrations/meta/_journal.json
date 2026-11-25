@@ -1205,6 +1205,13 @@
       "when": 1795457603814,
       "tag": "0171_19b_s4_permission_refusal_events",
       "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1795565153541,
+      "tag": "0172_l4_out_of_scope_vat_statement",
+      "breakpoints": true
     }
   ]
 }

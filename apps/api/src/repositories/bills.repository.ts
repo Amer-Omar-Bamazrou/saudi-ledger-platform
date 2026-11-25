@@ -29,6 +29,8 @@ export const BILL_DRAFT_EDITABLE = [
   "billNumber", "vendorReference", "date", "dueDate", "vendorId", "currency",
   "notes", "reviewNote", "subtotal", "vatAmount", "total", "expenseAccountId", "capitalisesAssetId",
   "supplierDocumentKind", "recordedAsExpense", "expensePaidFromBankAccountId", "expensePaidAt",
+  // L4: the commercial supply stated for VAT on an out-of-scope account — an approval posts only while it is unchanged.
+  "commercialSupplyReason",
 ] as const satisfies readonly (keyof BillRow)[];
 
 /**

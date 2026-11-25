@@ -76,6 +76,19 @@ export function flagText(f: EvidenceFlag, t: T): string {
     case "qr_signature_failed": return t("The invoice's ZATCA signature does NOT match its contents — it may have been altered. Obtain a genuine copy from the supplier.", "توقيع الهيئة على الفاتورة لا يطابق محتواها — قد تكون معدّلة. احصل على نسخة أصلية من المورد.");
     case "qr_signature_unchecked": return t("The invoice's ZATCA signature could not be checked.", "تعذّر التحقق من توقيع الهيئة على الفاتورة.");
     case "art50_blocked_expense_account": return t("This expense account is blocked input VAT (VAT IR Art. 50): the VAT is recorded as part of the expense's cost, and no input VAT is claimed.", "حساب المصروف هذا مصنّف ضريبة مدخلات محظورة الخصم (المادة 50 من اللائحة): تُسجَّل الضريبة ضمن تكلفة المصروف، ولا تُخصم ضريبة مدخلات.");
+    // 🔴 L4 (owner, 2026-11-25) — an out-of-scope expense account.
+    case "out_of_scope_account": return t(
+      "This expense account is outside the scope of VAT (a statutory fee, a GOSI contribution or a salary is not a supply), so its VAT is 0. To claim VAT on it, state the commercial supply and why; the claim still needs a valid tax invoice.",
+      "حساب المصروف هذا خارج نطاق ضريبة القيمة المضافة (الرسوم النظامية واشتراكات التأمينات والرواتب ليست توريدات)، لذا ضريبته صفر. لخصم ضريبة عليه اذكر التوريد التجاري وسببه، ويبقى الخصم مشروطًا بفاتورة ضريبية صحيحة.",
+    );
+    case "out_of_scope_account_vat_unstated": return t(
+      "This expense account is outside the scope of VAT. Set the VAT to 0, or state the commercial supply and why — it cannot be saved or approved with VAT until one of them is done.",
+      "حساب المصروف هذا خارج نطاق ضريبة القيمة المضافة. اجعل الضريبة صفرًا، أو اذكر التوريد التجاري وسببه — لا يُحفظ ولا يُعتمد بضريبة حتى يتم أحدهما.",
+    );
+    case "out_of_scope_account_commercial_supply": return t(
+      "This expense account is outside the scope of VAT; its VAT is claimed only because a commercial supply was stated. Check that the purchase is a supply charged with VAT, and that a valid tax invoice is held.",
+      "حساب المصروف هذا خارج نطاق ضريبة القيمة المضافة، وتُخصم ضريبته فقط لأنه ذُكر أنه توريد تجاري. تحقّق من أن الشراء توريد خاضع للضريبة، ومن وجود فاتورة ضريبية صحيحة.",
+    );
     case "vat_capitalised_fixed_asset": return t("A fixed asset with 0 % VAT recovery: its VAT is part of the asset's cost and no input VAT is claimed.", "أصل ثابت بنسبة استرداد 0%: تُضاف ضريبته إلى تكلفة الأصل ولا تُخصم ضريبة مدخلات.");
     case "vat_rate_not_standard": return t("The VAT is not 15 % of the subtotal — check the figures.", "الضريبة ليست 15% من المجموع قبل الضريبة — راجع الأرقام.");
     case "totals_do_not_reconcile": return t("The subtotal plus VAT does not equal the total.", "المجموع قبل الضريبة زائد الضريبة لا يساوي الإجمالي.");
@@ -127,6 +140,9 @@ export function flagShort(code: string, t: T): string {
     case "qr_vat_mismatch": return t("QR: VAT differs", "الرمز: الضريبة مختلفة");
     case "qr_signature_failed": return t("Signature failed", "فشل التحقق من التوقيع");
     case "art50_blocked_expense_account": return t("Blocked VAT (Art. 50)", "ضريبة محظورة الخصم (المادة 50)");
+    case "out_of_scope_account": return t("Out of scope", "خارج النطاق");
+    case "out_of_scope_account_vat_unstated": return t("Out of scope — supply not stated", "خارج النطاق — التوريد غير مذكور");
+    case "out_of_scope_account_commercial_supply": return t("Out of scope — supply stated", "خارج النطاق — التوريد مذكور");
     case "supplier_vat_above_rate": return t("VAT above 15 %", "ضريبة أعلى من 15%");
     case "supplier_vat_below_rate_unconfirmed": return t("VAT below 15 % — to confirm", "ضريبة أقل من 15% — بانتظار التأكيد");
     default: return code;

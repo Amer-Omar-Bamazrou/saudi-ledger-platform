@@ -28,7 +28,7 @@ import { billsRepository } from "../repositories/bills.repository";
 import { assetCapitalisationService } from "./assets/capitalisation.service";
 import { categoriesRepository } from "../repositories/categories.repository";
 import { captureService } from "./capture/capture.service";
-import { blockedAccount, vatEvidenceService } from "./purchaseEvidence/vatEvidence.service";
+import { assertOutOfScopeVatStated, blockedAccount, vatEvidenceService } from "./purchaseEvidence/vatEvidence.service";
 import { describeHold, inputVatTreatment, type VatEvidenceVerdict } from "./purchaseEvidence/vatEvidence";
 import { payBill } from "./bills.payment";
 import { decideWithholding } from "./accounting/wht";
@@ -402,6 +402,13 @@ async function postBillToGL(row: BillRow, opts: BillApproveOptions, actor: Appro
   const debitLine = plan
     ? { accountId: plan.costAccountId, accountName: plan.costAccountName, description: `Asset ${plan.asset.assetNumber} — ${plan.asset.name}` }
     : { ...(await resolveExpenseLine(debitAccountId ?? bill.expenseAccountId ?? undefined, debitAccount)), description: `Bill ${bill.billNumber}` };
+  // 🔴 L4: VAT on the account this approval ACTUALLY resolves (the body may name another) needs a stated supply.
+  if (!plan) {
+    await assertOutOfScopeVatStated({
+      documentType: bill.documentType, expenseAccountId: "accountId" in debitLine ? debitLine.accountId : null,
+      capitalisesAssetId: null, vatAmount, commercialSupplyReason: bill.commercialSupplyReason,
+    });
+  }
   let debitAmount = plan ? plan.capitalised : subtotal;
   /**
    * 🔴 Z-AP1 — a FINAL bill that deducts the supplier's advance tax

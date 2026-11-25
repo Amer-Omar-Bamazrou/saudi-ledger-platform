@@ -865,6 +865,20 @@ export const CONTROLS: readonly Control[] = [
     provingTests: ["phase18-vat-g1-decisions-6-8-13.test.ts"],
   },
   {
+    id: "L4",
+    title: "VAT on an out-of-scope expense account (a statutory fee, GOSI, salaries…) defaults to 0 and is claimed only on a stated commercial supply, with its reason, who and when — refused at entry, edit and approval without one; the claim still needs a valid tax invoice (owner, 2026-11-25)",
+    answers: [],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: ["out_of_scope_vat_unstated"],
+    points: [
+      check("bills", "bills_commercial_supply_chk"),
+      code(`${API}/services/purchaseEvidence/vatEvidence.service.ts`, "assertOutOfScopeVatStated"),
+      code(`${API}/services/purchaseEvidence/vatEvidence.ts`, "isOutOfScopeExpenseAccount"),
+    ],
+    provingTests: ["l4-out-of-scope-vat.test.ts"],
+  },
+  {
     id: "G2a",
     title: "An error in a filed VAT return is recorded, append-only, and routed",
     answers: ["G21"],
