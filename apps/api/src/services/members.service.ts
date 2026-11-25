@@ -68,9 +68,25 @@ function invitationRequired(): BusinessRuleError {
 }
 
 export const membersService = {
+  /**
+   * 🔴 Item 4 (owner, 2026-11-25): every ACTIVE member of THIS organization lists its members. The admin, as before,
+   * with every membership and its email; every other role with the active members' id, name, role and membership
+   * status ONLY. Another member's email, two-step status and sessions stay the admin's (this route serves no two-step
+   * status; another member's sessions are /auth/sessions/members, admin-only), and every member keeps their own at
+   * /auth/me, /auth/mfa and /auth/sessions. The route runs before an organization role is resolved, so the response
+   * seam withholds nothing here (seam.ts): THIS projection is what keeps the emails out
+   * (tests/members-list-names-roles.test.ts).
+   */
   async list(actorUserId: number, orgId: string) {
-    await assertOrgAdmin(actorUserId, orgId);
-    return { members: await membersRepository.listMembers(orgId) };
+    const role = await membersRepository.activeRole(actorUserId, orgId);
+    if (!role) throw new ForbiddenError("You must be a member of this organization to see its members.");
+    const members = await membersRepository.listMembers(orgId);
+    if (role === "admin") return { members };
+    return {
+      members: members
+        .filter((m) => m.status === "active" && m.isActive)
+        .map(({ userId, name, role: memberRole, status }) => ({ userId, name, role: memberRole, status })),
+    };
   },
 
   /**
