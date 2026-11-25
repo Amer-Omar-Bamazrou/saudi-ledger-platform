@@ -39,4 +39,9 @@ export interface BadDebtRelief {
      * @nullable
      */
   journalEntryId: number | null;
+  /**
+     * L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.
+     * @nullable
+     */
+  notRelatedPartyDeclaredAt?: string | null;
 }

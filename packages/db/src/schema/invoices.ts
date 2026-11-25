@@ -280,6 +280,13 @@ export const invoicesTable = pgTable(
     badDebtReliefSource: text("bad_debt_relief_source"),
     badDebtReliefJournalEntryId: integer("bad_debt_relief_journal_entry_id"),
     /**
+     * 🔴 L5 (owner, 2026-11-25) — VAT IR Art. 40(7)(b): the customer is not a related party. Until the platform records
+     * related parties it is a STATED declaration, made at the write-off: who stated it and when (both set together, by
+     * `badDebtService.writeOffWithRelief`). NULL on a relief recorded before the rule, and on a migrated relief.
+     */
+    badDebtReliefUnrelatedDeclaredBy: integer("bad_debt_relief_unrelated_declared_by"),
+    badDebtReliefUnrelatedDeclaredAt: timestamp("bad_debt_relief_unrelated_declared_at", { withTimezone: true }),
+    /**
      * 🔴 THE Art. 40(9) DOCUMENT: `document_type = 'recovery_invoice'` — a
      * tax invoice (ZATCA 388) issued because consideration was received on a
      * receivable whose output tax had been relieved. Its OWN document type

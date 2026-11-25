@@ -18,6 +18,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,8 @@ export function WriteOffBadDebtDialog({ invoice, open, onClose }: { invoice: Inv
   const [certificateRef, setCertificateRef] = useState("");
   const [legalRef, setLegalRef] = useState("");
   const [note, setNote] = useState("");
+  // 🔴 L5: Art. 40(7)(b) — a STATED declaration until the platform records related parties; never pre-ticked.
+  const [notRelated, setNotRelated] = useState(false);
   const unpaid = Math.round((invoice.total - invoice.paidAmount - invoice.creditedAmount - (invoice.writtenOffAmount ?? 0)) * 100) / 100;
   const vatShare = invoice.total > 0 ? invoice.vatAmount / invoice.total : 0;
   const reliefVat = Math.round(unpaid * vatShare * 100) / 100;
@@ -46,7 +49,7 @@ export function WriteOffBadDebtDialog({ invoice, open, onClose }: { invoice: Inv
 
   const mut = useMutation({
     mutationFn: () => {
-      const body: WriteOffBadDebtInput = { claimedOn, certificateRef: certificateRef.trim(), legalRef: legalRef.trim() || null, note: note.trim() || null };
+      const body: WriteOffBadDebtInput = { claimedOn, certificateRef: certificateRef.trim(), legalRef: legalRef.trim() || null, note: note.trim() || null, notRelatedPartyDeclared: notRelated };
       return apiFetch<Invoice>(`/invoices/${invoice.id}/bad-debt-relief`, { method: "POST", body: JSON.stringify(body) });
     },
     onSuccess: (inv) => {
@@ -55,7 +58,7 @@ export function WriteOffBadDebtDialog({ invoice, open, onClose }: { invoice: Inv
       onClose();
     },
   });
-  const valid = certificateRef.trim().length > 0 && (!needsLegal || legalRef.trim().length > 0) && unpaid > 0;
+  const valid = certificateRef.trim().length > 0 && (!needsLegal || legalRef.trim().length > 0) && unpaid > 0 && notRelated;
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -63,8 +66,8 @@ export function WriteOffBadDebtDialog({ invoice, open, onClose }: { invoice: Inv
         <DialogHeader>
           <DialogTitle>{t("Write off as a bad debt", "شطب كدين معدوم")}</DialogTitle>
           <DialogDescription>
-            {t("The unpaid consideration is written off and the VAT on it is claimed back in the return (Art. 40(7)). Twelve months must have passed since the supply, and a certified accountant must have certified the write-off. The tax invoice stays issued; nothing is owed on it any more.",
-               "يُشطب المبلغ غير المسدد وتُسترد الضريبة عليه في الإقرار (المادة 40(7)). يلزم مرور اثني عشر شهراً على التوريد وشهادة محاسب قانوني بالشطب. تبقى الفاتورة الضريبية صادرة ولا يُستحق عليها شيء بعد ذلك.")}
+            {t("The unpaid consideration is written off and the VAT on it is claimed back in the return (Art. 40(7)). The invoice's VAT must have been declared in a filed return, the customer must not be a related party, twelve months must have passed since the supply, and a certified accountant must have certified the write-off. The tax invoice stays issued; nothing is owed on it any more.",
+               "يُشطب المبلغ غير المسدد وتُسترد الضريبة عليه في الإقرار (المادة 40(7)). يلزم أن تكون ضريبة الفاتورة قد صُرّح بها في إقرار مُقدَّم، وألّا يكون العميل طرفاً ذا علاقة، ومرور اثني عشر شهراً على التوريد، وشهادة محاسب قانوني بالشطب. تبقى الفاتورة الضريبية صادرة ولا يُستحق عليها شيء بعد ذلك.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1 rounded-md border border-border p-3 text-sm">
@@ -87,6 +90,10 @@ export function WriteOffBadDebtDialog({ invoice, open, onClose }: { invoice: Inv
               <Input value={legalRef} onChange={(e) => setLegalRef(e.target.value)} className="mt-1 h-9" placeholder={t("e.g. court order no. …", "مثال: أمر المحكمة رقم …")} data-testid="bad-debt-legal" />
             </div>
           )}
+          <label className="flex items-start gap-2 text-sm" data-testid="bad-debt-not-related">
+            <Checkbox checked={notRelated} onCheckedChange={(v) => setNotRelated(v === true)} className="mt-0.5" data-testid="bad-debt-not-related-check" />
+            <span>{t("I declare that this customer is not a related party (VAT IR Art. 40(7)(b)).", "أُقرّ بأن هذا العميل ليس طرفاً ذا علاقة (المادة 40(7)(ب) من اللائحة).")}</span>
+          </label>
           <div>
             <Label className="text-xs text-muted-foreground">{t("Note", "ملاحظة")}</Label>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} className="mt-1" rows={2} data-testid="bad-debt-note" />

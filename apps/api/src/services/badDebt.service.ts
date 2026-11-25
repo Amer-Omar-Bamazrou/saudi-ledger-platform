@@ -68,6 +68,7 @@ import { buildInvoiceOut } from "./invoices.presenter";
 import { splitGross } from "./advanceInvoices.service";
 import { assertTaxPointPeriodOpen } from "./advanceInvoices.service";
 import { isIntegerId } from "../lib/inputGuards";
+import { periodRecordsService } from "./periodRecords.service";
 
 const TOL = 0.005;
 const num = (v: unknown) => (v == null ? 0 : Number(v));
@@ -124,7 +125,7 @@ export const badDebtService = {
    */
   async writeOffWithRelief(
     invoiceId: number,
-    body: { claimedOn?: string | null; certificateRef?: unknown; legalRef?: unknown; returnPeriod?: unknown; note?: unknown; idempotencyKey?: string | null },
+    body: { claimedOn?: string | null; certificateRef?: unknown; legalRef?: unknown; returnPeriod?: unknown; note?: unknown; idempotencyKey?: string | null; notRelatedPartyDeclared?: unknown },
     userId: number | null,
   ) {
     const claimedOn = body.claimedOn ? assertDateString(body.claimedOn, "claimedOn") : businessToday();
@@ -166,6 +167,33 @@ export const badDebtService = {
     if (unpaid > BAD_DEBT_LEGAL_PROCEDURES_THRESHOLD && !legalRef) {
       throw new BusinessRuleError(422, { code: "bad_debt_legal_procedures_required", error: `${fmt(unpaid)} unpaid on ${inv.invoiceNumber} exceeds SAR ${BAD_DEBT_LEGAL_PROCEDURES_THRESHOLD.toLocaleString("en-US")}: the relief needs evidence of formal legal procedures taken without success (Art. 40(7)(e)) — a judicial ruling, a bankruptcy, a court order.`, field: "legalRef" });
     }
+    /**
+     * 🔴 L5 (owner, 2026-11-25; the Arabic text verified) — Art. 40(7)(a): the tax on the supply was REPORTED, i.e. the
+     * invoice's output VAT was declared in a FILED return. The invoice's tax period (its month) must lie inside a VAT
+     * return recorded filed (an original filing, a month or a quarter — periodRecordsService, the one reader).
+     */
+    const month = inv.date.slice(0, 7);
+    if (!(await periodRecordsService.filedVatPeriodOf(inv.date))) {
+      throw new BusinessRuleError(422, {
+        code: "bad_debt_output_vat_not_filed",
+        error: `${inv.invoiceNumber}'s output VAT (period ${month}) is not in a VAT return recorded as filed. Bad-debt relief applies only to tax that was declared (VAT IR Art. 40(7)(a)): record the filed return for ${month} under Tax → VAT return filings, then claim the relief.`,
+        errorAr: `ضريبة المخرجات على ${inv.invoiceNumber} (الفترة ${month}) ليست في إقرار ضريبي مسجّل على أنه مُقدَّم. لا يُسترد إلا ما صُرّح به من ضريبة (المادة 40(7)(أ) من اللائحة): سجّل الإقرار المقدَّم عن ${month} في الضرائب ← الإقرارات المقدَّمة، ثم اطلب الاسترداد.`,
+        field: "id",
+        period: month,
+      });
+    }
+    /**
+     * 🔴 L5 — Art. 40(7)(b): the customer is not a related party. Until the platform records related parties this is a
+     * STATED declaration by the person claiming the relief; who and when are kept on the invoice.
+     */
+    if (body.notRelatedPartyDeclared !== true) {
+      throw new BusinessRuleError(422, {
+        code: "bad_debt_related_party_declaration_required",
+        error: `State that the customer of ${inv.invoiceNumber} is not a related party: bad-debt relief is not available on a supply to a related person (VAT IR Art. 40(7)(b)).`,
+        errorAr: `صرّح بأن عميل ${inv.invoiceNumber} ليس طرفًا ذا علاقة: لا يجوز استرداد ضريبة الديون المعدومة عن توريد لشخص ذي علاقة (المادة 40(7)(ب) من اللائحة).`,
+        field: "notRelatedPartyDeclared",
+      });
+    }
     await checkPeriodOpen(claimedOn);
 
     // The unpaid consideration's VAT share — proportional to the document's own split.
@@ -194,6 +222,8 @@ export const badDebtService = {
       badDebtReliefLegalRef: legalRef,
       badDebtReliefSource: "recorded",
       badDebtReliefJournalEntryId: je.id,
+      badDebtReliefUnrelatedDeclaredBy: userId,
+      badDebtReliefUnrelatedDeclaredAt: new Date(),
     } as Partial<Invoice>);
     const [cust] = await customersRepository.findById(inv.customerId);
     const out = buildInvoiceOut(updated!, cust ?? null, await invoicesRepository.itemsByInvoice(inv.id));
@@ -202,7 +232,7 @@ export const badDebtService = {
       entityType: "invoice",
       entityId: inv.id,
       before: { outstanding: unpaid, writtenOffAmount: num(inv.writtenOffAmount) },
-      after: { writtenOffAmount: unpaid, badDebtReliefVatAmount: reliefVat, claimedOn, returnPeriod, certificateRef, legalRef, journalEntryId: je.id, note: typeof body.note === "string" ? body.note : null },
+      after: { writtenOffAmount: unpaid, badDebtReliefVatAmount: reliefVat, claimedOn, returnPeriod, certificateRef, legalRef, journalEntryId: je.id, notRelatedPartyDeclared: true, outputVatFiledPeriod: month, note: typeof body.note === "string" ? body.note : null },
     });
     return out;
   },

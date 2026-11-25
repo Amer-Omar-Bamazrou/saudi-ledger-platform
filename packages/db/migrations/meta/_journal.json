@@ -1212,6 +1212,13 @@
       "when": 1795565153541,
       "tag": "0172_l4_out_of_scope_vat_statement",
       "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1795617374750,
+      "tag": "0173_l5_bad_debt_unrelated_declaration",
+      "breakpoints": true
     }
   ]
 }
