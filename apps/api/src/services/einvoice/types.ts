@@ -43,8 +43,15 @@ export type TaxCategoryCode = "S" | "Z" | "E" | "O";
  *   district         cbc:CitySubdivisionName   BR-KSA-09, BR-KSA-10  (KSA-3)
  *   city             cbc:CityName              BR-KSA-09, BR-KSA-10
  *   postalCode       cbc:PostalZone            BR-KSA-09, BR-KSA-10
- *   province         cbc:CountrySubentity      BR-KSA-10 ONLY  (buyer, BT-54)
+ *   province         cbc:CountrySubentity      none, LIVE 2026-11-24 (buyer, BT-54; optional)
  *   countryCode      cac:Country/cbc:Id…       BR-KSA-09, BR-KSA-10
+ *
+ * Status (2026-11-25), the BUYER, from ZATCA's live sandbox (2026-11-24,
+ * customer-form-standard-invoice-live.test.ts): a Saudi buyer is BR-KSA-63 (street,
+ * building number, postal code, city, district, country) and BR-KSA-67 (postal code
+ * 5 digits); BR-KSA-10 is a buyer OUTSIDE Saudi Arabia (street, city, country). No
+ * live rule asked for the province — a buyer without one PASSED. The platform's
+ * check before approval: einvoice/buyerAddress.ts.
  */
 export interface NationalAddress {
   buildingNumber: string | null;
@@ -53,7 +60,7 @@ export interface NationalAddress {
   city: string | null;
   postalCode: string | null;
   additionalNumber: string | null;
-  /** Province / region. Required on the BUYER of a standard invoice. */
+  /** Province / region. Optional — no live rule requires it (2026-11-24); carried when present. */
   province: string | null;
   /** ISO 3166 alpha-2. Defaults to SA. */
   countryCode: string;

@@ -48,20 +48,25 @@ export const customersTable = pgTable(
     postalCode: text("postal_code"),
     /**
      * Saudi National Address "additional number" — the buyer-side mirror of
-     * `companies.additional_number` (M12.2). Not itself required by BR-KSA-10;
-     * carried for completeness when the buyer supplies a full national address.
+     * `companies.additional_number` (M12.2). Not required; if present it must be
+     * 4 digits (KSA-19, the pinned XML standard) — `buyer_address_incomplete`.
      */
     additionalNumber: text("additional_number"),
     /**
      * Country subentity / province (`cbc:CountrySubentity`, BT-54) — M12.2.
      *
-     * **REQUIRED for STANDARD (B2B) invoices by BR-KSA-10**, which is a
-     * *hard error*. Its human-readable message lists only "street (BT-50), city
-     * (BT-52), postal code (BT-53), country code (BT-55)" — but the actual
-     * schematron ALSO asserts `cbc:CountrySubentity` and
-     * `cbc:CitySubdivisionName`. Found by running ZATCA's own validator; the
-     * message alone would have sent you looking in the wrong place.
-     * Not required on the seller (BR-KSA-09 omits it, and is only a warning).
+     * Status (2026-11-25): NOT required by ZATCA's live sandbox. Evidence (LIVE,
+     * 2026-11-24, `customer-form-standard-invoice-live.test.ts`): a standard
+     * invoice to a Saudi buyer is checked by BR-KSA-63 (street, building number,
+     * postal code, city, district, country — no province) and BR-KSA-67 (postal
+     * code 5 digits); BR-KSA-10 now applies to a buyer OUTSIDE Saudi Arabia
+     * (street, city, country). The sandbox returned all of them as warnings, and
+     * an invoice whose buyer had the full national address and NO province
+     * PASSED with no warning. An earlier SDK run (M12.2) had read BR-KSA-10 as a
+     * hard error asserting the province; the live API outranks the SDK. What the
+     * platform requires before approval is `buyer_address_incomplete`
+     * (apps/api/src/services/einvoice/buyerAddress.ts). Kept, optional, and
+     * carried in the XML (BT-54) when present.
      */
     province: text("province"),
     currency: text("currency").default("SAR"),
