@@ -49,6 +49,7 @@ const KIND_LABELS: Record<string, { en: string; ar: string }> = {
   undeclared_transfer: { en: "Transfer with no declared destination", ar: "تحويل بدون وجهة معلنة" },
   unposted_transaction: { en: "Accepted row not in the ledger", ar: "معاملة مقبولة غير مرحلة" },
   missing_arabic_lines: { en: "Arabic PDF will print English lines", ar: "ستطبع بنود إنجليزية في الفاتورة العربية" },
+  input_vat_nonpayment: { en: "Input VAT on a bill unpaid after twelve months", ar: "ضريبة مدخلات على فاتورة مورد غير مسددة بعد اثني عشر شهرًا" },
 };
 
 function factLine(f: Finding, t: (en: string, ar: string) => string): string {
@@ -94,6 +95,14 @@ function factLine(f: Finding, t: (en: string, ar: string) => string): string {
         `${x.invoiceNumber}: ${x.missing} of ${x.totalLines} line(s) have no Arabic description — the tax invoice will print their English text.`,
         `${x.invoiceNumber}: ${x.missing} من ${x.totalLines} بند بلا وصف عربي — ستطبع الفاتورة الضريبية نصها الإنجليزي.`,
       );
+    case "input_vat_nonpayment": {
+      // L3: detection only — nothing posts; the reader adjusts the return (Art. 40(10)).
+      const period = x.returnPeriod ? (x.returnPeriod.from === x.returnPeriod.to ? x.returnPeriod.from : `${x.returnPeriod.from} – ${x.returnPeriod.to}`) : null;
+      return t(
+        `${x.billNumber}${x.vendorName ? ` (${x.vendorName})` : ""}, supplied ${x.supplyDate}: ${fmtNum(x.unpaid)} still unpaid twelve months after the month following the supply. The input VAT on it, ${fmtNum(x.unpaidVat)}, is reversed in the return for ${period ?? `the tax period containing ${x.triggerMonth} (the tax period is not declared)`} (VAT IR Art. 40(10)); a later payment restores it. Nothing has been posted.`,
+        `${x.billNumber}${x.vendorName ? ` (${x.vendorName})` : ""}، توريد ${x.supplyDate}: لا يزال ${fmtNum(x.unpaid)} غير مسدد بعد اثني عشر شهرًا من الشهر التالي للتوريد. تُعكس ضريبة المدخلات عليه، ${fmtNum(x.unpaidVat)}، في إقرار ${period ?? `الفترة الضريبية التي تشمل ${x.triggerMonth} (لم تُحدَّد الفترة الضريبية للمنشأة)`} (المادة 40(10) من اللائحة)، ويُعاد خصمها عند السداد لاحقًا. لم يُرحَّل شيء.`,
+      );
+    }
     case "unposted_transaction":
       return t(
         `${fmtNum(x.amount)} on ${x.date} — "${x.description}" is accepted but has no ledger entry.`,
