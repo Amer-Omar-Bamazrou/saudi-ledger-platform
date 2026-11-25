@@ -18,7 +18,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { refusalOf } from "@/lib/openingVatRefusals";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
@@ -99,7 +98,7 @@ export function WriteOffBadDebtDialog({ invoice, open, onClose }: { invoice: Inv
             <Label className="text-xs text-muted-foreground">{t("Note", "ملاحظة")}</Label>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} className="mt-1" rows={2} data-testid="bad-debt-note" />
           </div>
-          {mut.error && <p className="text-sm text-destructive" data-testid="bad-debt-error">{refusalOf(mut.error).words}</p>}
+          {mut.error && <p className="text-sm text-destructive" data-testid="bad-debt-error">{(mut.error as Error).message}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={onClose}>{t("Cancel", "إلغاء")}</Button>
             <Button onClick={() => mut.mutate()} disabled={!valid || mut.isPending} data-testid="bad-debt-submit">
