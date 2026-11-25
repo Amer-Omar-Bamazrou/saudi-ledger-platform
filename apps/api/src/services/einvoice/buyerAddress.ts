@@ -20,6 +20,7 @@
  */
 import { BusinessRuleError } from "../../lib/errors";
 import { subtypeFor } from "./einvoiceInput.assembler";
+import { isSaudiParty } from "../../lib/saudiIdentifiers";
 
 export interface BuyerAddressFields {
   taxNumber?: string | null;
@@ -48,8 +49,8 @@ const blank = (v: string | null | undefined) => (v ?? "").trim() === "";
 /** The fields a standard invoice's buyer is missing (none for a simplified invoice's buyer). */
 export function missingBuyerAddressFields(buyer: BuyerAddressFields | null | undefined): Field[] {
   if (!buyer || subtypeFor(buyer.taxNumber) !== "standard") return [];
-  const country = (buyer.country ?? "").trim().toUpperCase() || "SA";
-  if (country === "SA") {
+  // a Saudi buyer: country SA or unset — the one reading (lib/saudiIdentifiers.ts isSaudiParty)
+  if (isSaudiParty(buyer.country)) {
     const missing: Field[] = [];
     if (blank(buyer.street)) missing.push("street");
     if (blank(buyer.buildingNumber)) missing.push("buildingNumber");

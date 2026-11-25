@@ -24,6 +24,7 @@ import { round2 } from "../lib/money";
 import { isCalendarDate, isReservedOpeningNumber } from "@workspace/shared";
 import { assertTaxCategoryCode } from "../lib/writeGuards";
 import { BadRequestError, BusinessRuleError, NotFoundError } from "../lib/errors";
+import { partyIdentifierFailures } from "../lib/saudiIdentifiers";
 import { migrationRepository } from "../repositories/migration.repository";
 import { auditService } from "./audit.service";
 import { migrationService } from "./migration.service";
@@ -377,6 +378,21 @@ export const migrationStagingService = {
         decision: null as string | null,
       };
     });
+    // 🔴 Item 3 (owner, 2026-11-25): the VAT and CR numbers checked at IMPORT with the customer record's own rules. The
+    // import carries no country, and the record it creates is Saudi (the country's default), so each row is judged as
+    // a Saudi party. Every failing row is named and NOTHING is staged; the file is corrected and imported again.
+    const failing = values.flatMap((v, i) => partyIdentifierFailures({ taxNumber: v.taxNumber, crNumber: v.crNumber, country: null })
+      .map((f) => ({ row: i, sourceId: v.sourceId, ...f })));
+    if (failing.length > 0) {
+      const shown = failing.slice(0, 10);
+      const more = failing.length - shown.length;
+      throw new BusinessRuleError(400, {
+        code: "party_identifier_invalid",
+        error: `${failing.length} number(s) in this file are not valid; nothing was imported. ` + shown.map((f) => `rows[${f.row}] (${f.sourceId}): ${f.error}`).join(" ") + (more > 0 ? ` …and ${more} more.` : ""),
+        errorAr: `${failing.length} من الأرقام في هذا الملف غير صحيحة؛ لم يُستورد شيء. ` + shown.map((f) => `الصف ${f.row} (${f.sourceId}): ${f.errorAr}`).join(" ") + (more > 0 ? ` …و${more} أخرى.` : ""),
+        rows: failing.map(({ row, sourceId, field, identifier, reason }) => ({ row, sourceId, field, identifier, reason })),
+      });
+    }
     await migrationRepository.deleteParties(batchId);
     const inserted = await migrationRepository.insertParties(values);
     // A party with no look-alike among existing records is `create` — the only

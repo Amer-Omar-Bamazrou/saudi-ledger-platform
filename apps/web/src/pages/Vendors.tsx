@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { arabicNameStatus } from "@/lib/arabicUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
+import { refusalOf } from "@/lib/openingVatRefusals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,7 +72,8 @@ export default function Vendors() {
     mutationFn: (body: CreateVendorInput) => apiFetch("/vendors", { method: "POST", body: JSON.stringify(body) }),
     // 19B S3: an IBAN given with the supplier is HELD for an accountant or admin who did not enter it (or applied at once, the fallback)
     onSuccess: (res: unknown, body: CreateVendorInput) => { qc.invalidateQueries({ queryKey: ["vendors"] }); setOpen(false); setForm(emptyForm); toast(ibanSaveNotice(res, !!body.iban, t) ?? { title: t("Vendor created", "تم إنشاء المورد") }); },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    // item 3: the server's refusal in the reader's language (a VAT or CR number names its type and reason)
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
 
   /**
@@ -97,7 +99,7 @@ export default function Vendors() {
               {[[("name"),(t("Vendor Name (English) *", "اسم المورد (بالإنجليزية) *"))],[("nameAr"),(t("Vendor Name (Arabic)", "اسم المورد (بالعربية)"))],[("taxNumber"),(t("VAT Number", "رقم ضريبة القيمة المضافة"))],[("crNumber"),(t("CR Number", "رقم السجل التجاري"))],[("phone"),(t("Phone", "الهاتف"))],[("email"),(t("Email", "البريد الإلكتروني"))],[("address"),(t("Address", "العنوان"))],[("city"),(t("City", "المدينة"))],[("iban"),("IBAN")],[("paymentTermsDays"),(t("Payment Terms (days)", "شروط الدفع (أيام)"))]].map(([k,l])=>(
                 <div key={k} className={k==="address"||k==="iban"?"col-span-2":""}>
                   <Label className="text-xs text-muted-foreground">{l}</Label>
-                  <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1 h-8 text-sm" />
+                  <Input value={(form as any)[k]} onChange={e=>setForm(p=>({...p,[k]:e.target.value}))} className="mt-1 h-8 text-sm" data-testid={`vendor-${k}`} />
                 </div>
               ))}
               <div className="col-span-2">
@@ -141,7 +143,7 @@ export default function Vendors() {
                 </p>
               </div>
             </div>
-            <Button className="w-full mt-4" onClick={()=>createMut.mutate(createBody(form))} disabled={!form.name || createMut.isPending}>
+            <Button className="w-full mt-4" onClick={()=>createMut.mutate(createBody(form))} disabled={!form.name || createMut.isPending} data-testid="vendor-create">
               {createMut.isPending ? t("Creating...", "جارٍ الإنشاء...") : t("Create Vendor", "إنشاء مورد")}
             </Button>
           </DialogContent>

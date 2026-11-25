@@ -14,6 +14,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CreateCustomerInput, Customer, FieldAccess, UpdateCustomerInput } from "@workspace/api-client-react";
 import { CUSTOMER_FORM_FIELDS, blankCustomerForm, customerFormBody, standardInvoiceAddressGaps, type CustomerFormField, type CustomerFormValues } from "@workspace/shared";
 import { apiFetch } from "@/lib/api";
+import { refusalOf } from "@/lib/openingVatRefusals";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,7 +73,8 @@ export function CustomerForm({ mode, customer, access, open, onOpenChange }: {
       onOpenChange(false);
       toast({ title: mode === "create" ? t("Customer created", "تم إنشاء العميل") : t("Customer saved", "تم حفظ بيانات العميل") });
     },
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
+    // item 3: the server's refusal in the reader's language (a VAT or CR number names its type and reason)
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
   });
 
   const gaps = standardInvoiceAddressGaps(form);

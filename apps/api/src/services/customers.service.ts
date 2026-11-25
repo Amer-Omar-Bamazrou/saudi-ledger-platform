@@ -3,6 +3,7 @@
  * Behavior preserved exactly from the pre-M6 route handler.
  */
 import { NotFoundError } from "../lib/errors";
+import { assertPartyIdentifiers } from "../lib/saudiIdentifiers";
 import { pick, assertAmount } from "../lib/writeGuards";
 import { auditService } from "./audit.service";
 import { customersRepository, type CustomerListFilter } from "../repositories/customers.repository";
@@ -130,6 +131,7 @@ export const customersService = {
   // and any future sensitive column. `creditLimit` is validated ≥ 0.
   async create(data: unknown) {
     const values = normalize(pick<CustomerInsert>(data, CUSTOMER_FIELDS));
+    assertPartyIdentifiers(values, null); // item 3: the VAT and CR numbers of a Saudi customer, the company's own rules
     const [row] = await customersRepository.insert(values as CustomerInsert);
     await auditService.created("customer", row.id, row);
     return toView(row);
@@ -139,6 +141,7 @@ export const customersService = {
     const [before] = await customersRepository.findById(id);
     if (!before) throw new NotFoundError("Not found");
     const values = normalize(pick<CustomerInsert>(data, CUSTOMER_FIELDS));
+    assertPartyIdentifiers(values, before); // item 3: a number set or changed here; one already held is never refused
     const [row] = await customersRepository.update(id, values);
     await auditService.updated("customer", id, before, row);
     return toView(row);
