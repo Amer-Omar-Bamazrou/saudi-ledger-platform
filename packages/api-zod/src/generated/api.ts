@@ -6212,6 +6212,7 @@ export const GetApAgingReportResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.number(),
   "billNumber": zod.string(),
+  "documentType": zod.string().optional().describe('bill or debit_note — served since B7 and absent from the contract until 19B S5 found it (2026-11-25): no test had listed a payable through this route.'),
   "vendorName": zod.string(),
   "vendorNameAr": zod.string(),
   "dueDate": zod.string().nullable(),
@@ -6358,6 +6359,321 @@ export const ExportJournalLinesDatasetQueryParams = zod.object({
 })
 
 export const ExportJournalLinesDatasetResponse = zod.unknown()
+
+
+/**
+ * @summary 19B S5 — run the sales_documents dataset: sales documents in the books (invoices, credit notes and debit notes; amounts stored positive, the direction in `sign`), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+export const runSalesDocumentsDatasetQueryLimitMax = 500;
+
+export const runSalesDocumentsDatasetQueryOffsetMin = 0;
+
+
+
+export const RunSalesDocumentsDatasetQueryParams = zod.object({
+  "columns": zod.coerce.string().optional().describe('Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.'),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
+  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "limit": zod.coerce.number().min(1).max(runSalesDocumentsDatasetQueryLimitMax).optional(),
+  "offset": zod.coerce.number().min(runSalesDocumentsDatasetQueryOffsetMin).optional()
+})
+
+export const RunSalesDocumentsDatasetResponse = zod.object({
+  "dataset": zod.string(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "kind": zod.enum(['text', 'money', 'date', 'int']),
+  "class": zod.string().describe('The column\'s field class, from the class table (standard, bank_narrative, …)'),
+  "level": zod.enum(['read', 'last4', 'none']),
+  "conditional": zod.string().nullish().describe('When the class applies only to some rows: which (e.g. a line built from a bank line)'),
+  "filterable": zod.boolean(),
+  "sortable": zod.boolean()
+}).describe('19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).')),
+  "rows": zod.array(zod.object({
+  "documentId": zod.number().nullish(),
+  "documentNumber": zod.string().nullish(),
+  "documentType": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "subtotal": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "total": zod.number().nullish(),
+  "sign": zod.number().nullish(),
+  "signedSubtotal": zod.number().nullish(),
+  "signedVat": zod.number().nullish(),
+  "signedTotal": zod.number().nullish(),
+  "paidAmount": zod.number().nullish(),
+  "isOpening": zod.boolean().nullish()
+}).describe('19B S5 — one row of the sales_documents dataset. Only the shown columns are present; a withheld column\'s key is absent (D4).\n')),
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "withheld": zod.array(zod.object({
+  "path": zod.string(),
+  "class": zod.string(),
+  "level": zod.enum(['none', 'last4']),
+  "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
+}))
+})
+
+
+/**
+ * @summary 19B S5 — export the sales_documents dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+export const ExportSalesDocumentsDatasetQueryParams = zod.object({
+  "columns": zod.coerce.string().optional().describe('Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.'),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
+  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "lang": zod.enum(['en', 'ar']).optional()
+})
+
+export const ExportSalesDocumentsDatasetResponse = zod.unknown()
+
+
+/**
+ * @summary 19B S5 — run the purchase_documents dataset: purchase documents in the books (bills and supplier notes; `outstanding` is the bill position, the one definition), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+export const runPurchaseDocumentsDatasetQueryLimitMax = 500;
+
+export const runPurchaseDocumentsDatasetQueryOffsetMin = 0;
+
+
+
+export const RunPurchaseDocumentsDatasetQueryParams = zod.object({
+  "columns": zod.coerce.string().optional().describe('Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.'),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
+  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "limit": zod.coerce.number().min(1).max(runPurchaseDocumentsDatasetQueryLimitMax).optional(),
+  "offset": zod.coerce.number().min(runPurchaseDocumentsDatasetQueryOffsetMin).optional()
+})
+
+export const RunPurchaseDocumentsDatasetResponse = zod.object({
+  "dataset": zod.string(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "kind": zod.enum(['text', 'money', 'date', 'int']),
+  "class": zod.string().describe('The column\'s field class, from the class table (standard, bank_narrative, …)'),
+  "level": zod.enum(['read', 'last4', 'none']),
+  "conditional": zod.string().nullish().describe('When the class applies only to some rows: which (e.g. a line built from a bank line)'),
+  "filterable": zod.boolean(),
+  "sortable": zod.boolean()
+}).describe('19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).')),
+  "rows": zod.array(zod.object({
+  "documentId": zod.number().nullish(),
+  "documentNumber": zod.string().nullish(),
+  "supplierReference": zod.string().nullish(),
+  "documentType": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "subtotal": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "total": zod.number().nullish(),
+  "sign": zod.number().nullish(),
+  "signedSubtotal": zod.number().nullish(),
+  "signedVat": zod.number().nullish(),
+  "signedTotal": zod.number().nullish(),
+  "outstanding": zod.number().nullish(),
+  "inputVatState": zod.string().nullish(),
+  "isOpening": zod.boolean().nullish()
+}).describe('19B S5 — one row of the purchase_documents dataset. Only the shown columns are present; a withheld column\'s key is absent (D4).\n')),
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "withheld": zod.array(zod.object({
+  "path": zod.string(),
+  "class": zod.string(),
+  "level": zod.enum(['none', 'last4']),
+  "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
+}))
+})
+
+
+/**
+ * @summary 19B S5 — export the purchase_documents dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+export const ExportPurchaseDocumentsDatasetQueryParams = zod.object({
+  "columns": zod.coerce.string().optional().describe('Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.'),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
+  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "lang": zod.enum(['en', 'ar']).optional()
+})
+
+export const ExportPurchaseDocumentsDatasetResponse = zod.unknown()
+
+
+/**
+ * @summary 19B S5 — run the cash_movements dataset: cash movements (the bank's lines in this company; `countsInAggregates` is false for a transfer or a settlement, which is in no income, expense or VAT figure), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+export const runCashMovementsDatasetQueryLimitMax = 500;
+
+export const runCashMovementsDatasetQueryOffsetMin = 0;
+
+
+
+export const RunCashMovementsDatasetQueryParams = zod.object({
+  "columns": zod.coerce.string().optional().describe('Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.'),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
+  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "limit": zod.coerce.number().min(1).max(runCashMovementsDatasetQueryLimitMax).optional(),
+  "offset": zod.coerce.number().min(runCashMovementsDatasetQueryOffsetMin).optional()
+})
+
+export const RunCashMovementsDatasetResponse = zod.object({
+  "dataset": zod.string(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "kind": zod.enum(['text', 'money', 'date', 'int']),
+  "class": zod.string().describe('The column\'s field class, from the class table (standard, bank_narrative, …)'),
+  "level": zod.enum(['read', 'last4', 'none']),
+  "conditional": zod.string().nullish().describe('When the class applies only to some rows: which (e.g. a line built from a bank line)'),
+  "filterable": zod.boolean(),
+  "sortable": zod.boolean()
+}).describe('19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).')),
+  "rows": zod.array(zod.object({
+  "transactionId": zod.number().nullish(),
+  "date": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "type": zod.string().nullish(),
+  "kind": zod.string().nullish(),
+  "amount": zod.number().nullish(),
+  "signedAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "reviewStatus": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish(),
+  "categoryId": zod.number().nullish(),
+  "categoryName": zod.string().nullish(),
+  "countsInAggregates": zod.boolean().nullish()
+}).describe('19B S5 — one row of the cash_movements dataset. Only the shown columns are present; a withheld column\'s key is absent (D4).\n')),
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "withheld": zod.array(zod.object({
+  "path": zod.string(),
+  "class": zod.string(),
+  "level": zod.enum(['none', 'last4']),
+  "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
+}))
+})
+
+
+/**
+ * @summary 19B S5 — export the cash_movements dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+export const ExportCashMovementsDatasetQueryParams = zod.object({
+  "columns": zod.coerce.string().optional().describe('Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.'),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
+  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "lang": zod.enum(['en', 'ar']).optional()
+})
+
+export const ExportCashMovementsDatasetResponse = zod.unknown()
+
+
+/**
+ * @summary 19B S5 — run the vat_lines dataset: VAT lines (each addend of the VAT return for the window, with the box it joins; date_from and date_to are required), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+export const runVatLinesDatasetQueryLimitMax = 500;
+
+export const runVatLinesDatasetQueryOffsetMin = 0;
+
+
+
+export const RunVatLinesDatasetQueryParams = zod.object({
+  "columns": zod.coerce.string().optional().describe('Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.'),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
+  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "limit": zod.coerce.number().min(1).max(runVatLinesDatasetQueryLimitMax).optional(),
+  "offset": zod.coerce.number().min(runVatLinesDatasetQueryOffsetMin).optional()
+})
+
+export const RunVatLinesDatasetResponse = zod.object({
+  "dataset": zod.string(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "kind": zod.enum(['text', 'money', 'date', 'int']),
+  "class": zod.string().describe('The column\'s field class, from the class table (standard, bank_narrative, …)'),
+  "level": zod.enum(['read', 'last4', 'none']),
+  "conditional": zod.string().nullish().describe('When the class applies only to some rows: which (e.g. a line built from a bank line)'),
+  "filterable": zod.boolean(),
+  "sortable": zod.boolean()
+}).describe('19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).')),
+  "rows": zod.array(zod.object({
+  "lineNo": zod.number().nullish(),
+  "side": zod.string().nullish(),
+  "source": zod.string().nullish(),
+  "documentId": zod.number().nullish(),
+  "documentNumber": zod.string().nullish(),
+  "documentType": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "taxCategory": zod.string().nullish(),
+  "taxable": zod.number().nullish(),
+  "vat": zod.number().nullish(),
+  "taxableBox": zod.number().nullish(),
+  "vatBox": zod.number().nullish()
+}).describe('19B S5 — one row of the vat_lines dataset. Only the shown columns are present; a withheld column\'s key is absent (D4).\n')),
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number(),
+  "withheld": zod.array(zod.object({
+  "path": zod.string(),
+  "class": zod.string(),
+  "level": zod.enum(['none', 'last4']),
+  "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
+}))
+})
+
+
+/**
+ * @summary 19B S5 — export the vat_lines dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+export const ExportVatLinesDatasetQueryParams = zod.object({
+  "columns": zod.coerce.string().optional().describe('Comma-separated column keys to show (default: every column). A column the role may not read comes back withheld.'),
+  "date_from": zod.date().optional(),
+  "date_to": zod.date().optional(),
+  "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
+  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "lang": zod.enum(['en', 'ar']).optional()
+})
+
+export const ExportVatLinesDatasetResponse = zod.unknown()
 
 
 /**

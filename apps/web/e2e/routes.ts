@@ -106,6 +106,10 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/reports/general-ledger": "app",
   "/reports/journal-report": "app",
   "/reports/journal-lines": "app", // 19B S4: the first report dataset
+  "/reports/sales-documents": "app", // 19B S5: the remaining datasets
+  "/reports/purchase-documents": "app",
+  "/reports/cash-movements": "app",
+  "/reports/vat-lines": "app",
   "/reports/owner-equity": "app",
   "/reports/tax-journal-entries": "app",
   "/review": "app",

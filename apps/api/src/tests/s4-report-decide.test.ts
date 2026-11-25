@@ -38,7 +38,7 @@ describe("19B S4 — decide(): the role × act matrix, generated from the one ma
       }
     }
     expect(cases).toEqual([]);
-    expect(Object.keys(DATASETS).length * ROLES.length * REPORT_ACTS.length).toBe(24); // the frame: 1 dataset × 4 roles × 6 acts
+    expect(Object.keys(DATASETS).length * ROLES.length * REPORT_ACTS.length).toBe(120); // the frame: 5 datasets × 4 roles × 6 acts (RESTATED for 19B S5, 2026-11-25: was 24, one dataset)
   });
 
   it("🔴 the grants are v4 §6.2's: a viewer runs, exports, schedules and saves — never delivers to others or shares", () => {

@@ -19,7 +19,9 @@ import { decide, NO_USE, type DecidedColumn, type Has, type Use } from "../../li
 import { reportDatasetsRepository, type JournalLinesFilter, type JournalLinesSortKey, type JournalLineRow } from "../../repositories/reportDatasets.repository";
 import { refusalEventsService } from "../refusalEvents.service";
 import { DATASET_EXPORT_MAX_ROWS, exportDatasetCsv, type DatasetDocument, type ExportColumn, type ExportRow } from "./reportExport.service";
-import { DATASETS } from "../../lib/reports/datasets";
+import { DATASETS, WINDOW_REQUIRED } from "../../lib/reports/datasets";
+import { documentDatasetsRepository, type WindowFilter } from "../../repositories/reportDatasets.repository";
+import { reportsService } from "../reports.service";
 import { MAX_ID } from "../reports.service";
 
 export interface DatasetActor { userId: number | null; organizationId: string; companyId: string | null }
@@ -85,7 +87,109 @@ function visible(c: DecidedColumn, row: DatasetRow): boolean {
   return c.level === "read" || (c.rowCondition != null && !rowConditionApplies(c.rowCondition, row));
 }
 
+type Sort = { key: string; desc: boolean } | null;
+type Page = { limit: number; offset: number } | null;
+type Reader = (f: WindowFilter, sort: Sort, page: Page) => Promise<{ rows: DatasetRow[]; total: number }>;
+
+/**
+ * 🔴 19B S5 — each remaining dataset's READ. The VAT lines are the return's own addends for the window
+ * (`vatReturnWithLines`), numbered in the order the return adds them; they are few per window, so the page is cut here.
+ */
+const READERS: Record<string, Reader> = {
+  sales_documents: (f, s, p) => documentDatasetsRepository.salesDocuments(f, s, p),
+  purchase_documents: (f, s, p) => documentDatasetsRepository.purchaseDocuments(f, s, p),
+  cash_movements: (f, s, p) => documentDatasetsRepository.cashMovements(f, s, p),
+  vat_lines: async (f, s, p) => {
+    const { lines } = await reportsService.vatReturnWithLines(f.dateFrom!, f.dateTo!);
+    const all: DatasetRow[] = lines.map((l, i) => ({ lineNo: i + 1, ...l }));
+    if (s?.key === "date") all.sort((a, b) => String(a.date ?? "").localeCompare(String(b.date ?? "")) * (s.desc ? -1 : 1));
+    return { rows: p ? all.slice(p.offset, p.offset + p.limit) : all, total: all.length };
+  },
+};
+
+/** A dataset whose figure is a WINDOW's (the VAT return's) is refused without one — never run on a guessed period. */
+function requireWindow(ds: DatasetDef, filter: { dateFrom?: string; dateTo?: string }) {
+  if (WINDOW_REQUIRED.has(ds.name) && !(filter.dateFrom && filter.dateTo)) {
+    throw badRequest(`The ${ds.title} report needs a period: date_from and date_to.`, `يحتاج تقرير «${ds.titleAr}» إلى فترة: date_from و date_to.`);
+  }
+}
+
 export const reportDatasetsService = {
+  /** 19B S5 — RUN one of the remaining datasets: the same decision, withholding and paging as journal lines. */
+  async rows(ds: DatasetDef, has: Has, q: Query) {
+    const { use, filter, sort, page } = parseRequest(ds, q, true);
+    const d = decide(has, ds, "run", use);
+    if (!d.allowed) throw refusalError(d);
+    requireWindow(ds, filter);
+    const { rows, total } = await READERS[ds.name]!(filter, sort, page);
+    const out = rows.map((r) => {
+      const o: Record<string, unknown> = {};
+      for (const c of d.columns) if (visible(c, r)) o[c.column.key] = r[c.column.key];
+      return o;
+    });
+    const withheld = d.withheld.map((c) => ({
+      path: `rows[].${c.column.key}`,
+      class: c.cls,
+      level: c.level === "last4" ? "last4" : "none",
+      rows: rows.filter((r) => !visible(c, r)).length,
+    }));
+    return { dataset: ds.name, columns: d.columns.map(columnOut), rows: out, total, limit: page!.limit, offset: page!.offset, withheld };
+  },
+
+  /** 19B S5 — EXPORT one of the remaining datasets: refused exports recorded (D6), too many rows refused with the count. */
+  async export(ds: DatasetDef, has: Has, actor: DatasetActor, q: Query, lang: "en" | "ar", readDecider: ReadDecider) {
+    const { use, filter, sort } = parseRequest(ds, q, false);
+    const d = decide(has, ds, "export", use);
+    if (!d.allowed) {
+      if (d.status === 403) {
+        await refusalEventsService.record({
+          action: "export", actorUserId: actor.userId, organizationId: actor.organizationId, companyId: actor.companyId,
+          resource: reportDatasetResource(ds.name), refusalCode: d.code,
+          fieldNames: d.fields.map((f) => f.field), fieldClasses: d.fields.map((f) => f.class),
+        });
+      }
+      throw refusalError(d);
+    }
+    requireWindow(ds, filter);
+    const { total } = await READERS[ds.name]!(filter, sort, { limit: 1, offset: 0 });
+    if (total > DATASET_EXPORT_MAX_ROWS) {
+      throw new BusinessRuleError(422, {
+        code: "export_too_large",
+        error: `This CSV would hold ${total} rows; the limit is ${DATASET_EXPORT_MAX_ROWS}. Narrow the dates — an export is never cut short.`,
+        errorAr: `سيحتوي هذا الملف على ${total} سطراً، والحد ${DATASET_EXPORT_MAX_ROWS}. ضيّق التواريخ — لا يُقتطع التصدير أبداً.`,
+      });
+    }
+    const { rows } = await READERS[ds.name]!(filter, sort, null);
+    const inFile = d.columns.filter((c) => c.level === "read" || c.rowCondition != null);
+    const absent = d.columns.filter((c) => !inFile.includes(c));
+    const columns: ExportColumn[] = inFile.map((c) => ({
+      label: { en: c.column.label, ar: c.column.labelAr },
+      kind: c.column.kind,
+      class: c.cls === "standard" ? "standard" : { cls: c.cls, resource: c.resource! },
+    }));
+    const cellOf = (v: unknown): string | number | null => (v == null ? null : typeof v === "boolean" ? (v ? "yes" : "no") : (v as string | number));
+    const fileRows: ExportRow[] = rows.map((row) => {
+      const subjectTo: Record<number, boolean> = {};
+      inFile.forEach((c, i) => { if (c.rowCondition) subjectTo[i] = rowConditionApplies(c.rowCondition, row); });
+      return { kind: "row", cells: inFile.map((c) => cellOf(row[c.column.key])), subjectTo };
+    });
+    const window = `${filter.dateFrom ?? "…"} – ${filter.dateTo ?? "…"}`;
+    const doc: DatasetDocument = {
+      title: { en: ds.title, ar: ds.titleAr },
+      scope: { en: window, ar: window },
+      tables: [{ columns, rows: fileRows }],
+      notes: absent.length
+        ? [{
+            en: `Withheld for your role, and absent from this file: ${absent.map((c) => `${c.column.label} (${c.cls})`).join(", ")}.`,
+            ar: `محجوب لدورك وغير موجود في هذا الملف: ${absent.map((c) => `${c.column.labelAr} (${c.cls})`).join("، ")}.`,
+          }]
+        : [],
+      filenameStem: `${ds.name.replace(/_/g, "-")}_${filter.dateFrom ?? "start"}_${filter.dateTo ?? "end"}`,
+    };
+    const params = Object.fromEntries(Object.entries(q).filter(([k]) => k !== "lang"));
+    return exportDatasetCsv(doc, lang, readDecider, { dataset: ds.name, params });
+  },
+
   /** Every dataset this role may run, with the acts it may take and each column's level. */
   list(has: Has) {
     const items = Object.values(DATASETS).flatMap((ds) => {

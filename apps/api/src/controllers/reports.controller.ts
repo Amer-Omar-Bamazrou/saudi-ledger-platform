@@ -4,7 +4,7 @@ import { exportReport } from "../services/reporting/reportExport.service";
 import { BadRequestError } from "../lib/errors";
 import { peekPermissions } from "../lib/rbac";
 import { deciderFor } from "../lib/fieldClasses/seam";
-import { JOURNAL_LINES } from "../lib/reports/datasets";
+import { DATASETS, JOURNAL_LINES } from "../lib/reports/datasets";
 import type { Has } from "../lib/reports/decide";
 import { reportDatasetsService } from "../services/reporting/reportDatasets.service";
 
@@ -48,6 +48,23 @@ export const reportsController = {
     const t = req.tenant!;
     const out = await reportDatasetsService.journalLinesExport(JOURNAL_LINES, hasFor(req), { userId: t.userId, organizationId: t.organizationId, companyId: t.companyId }, q(req), lang, deciderFor(t.role, peekPermissions()));
     // never cached: an export is report data, and the browser's cache is no place to keep it
+    res.setHeader("Cache-Control", "no-store");
+    res
+      .status(200)
+      .type(out.contentType)
+      .setHeader("Content-Disposition", `attachment; filename="${out.filename.replace(/[^A-Za-z0-9._-]/g, "_")}"`)
+      .send(out.body);
+  }),
+  /** 19B S5: a remaining dataset's rows, by name — decide() decides the role, the act and each column. */
+  datasetRows: (name: string) => withReportError(async (req, res) => {
+    res.json(await reportDatasetsService.rows(DATASETS[name]!, hasFor(req), q(req)));
+  }),
+  /** 19B S5: a remaining dataset's CSV, by name — recorded before it is sent, never cached. */
+  datasetExport: (name: string) => withReportError(async (req, res) => {
+    const lang = String(req.query.lang ?? "en");
+    if (lang !== "en" && lang !== "ar") throw new BadRequestError("lang must be 'en' or 'ar'.");
+    const t = req.tenant!;
+    const out = await reportDatasetsService.export(DATASETS[name]!, hasFor(req), { userId: t.userId, organizationId: t.organizationId, companyId: t.companyId }, q(req), lang, deciderFor(t.role, peekPermissions()));
     res.setHeader("Cache-Control", "no-store");
     res
       .status(200)

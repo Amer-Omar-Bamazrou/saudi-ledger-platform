@@ -74,6 +74,7 @@ import type {
   CaptureUpload,
   CapturedDocument,
   CashFlowReport,
+  CashMovementsDatasetRows,
   CashPosition,
   CashReconciliation,
   CategorizationRequest,
@@ -147,8 +148,12 @@ import type {
   EndUserSessionsInput,
   ErrorResponse,
   ExpensesPage,
+  ExportCashMovementsDatasetParams,
   ExportJournalLinesDatasetParams,
+  ExportPurchaseDocumentsDatasetParams,
   ExportReportParams,
+  ExportSalesDocumentsDatasetParams,
+  ExportVatLinesDatasetParams,
   FieldAccess,
   FileWhtReturnInput,
   FinancialSummary,
@@ -344,6 +349,7 @@ import type {
   PeriodReopenResult,
   PnlTrend,
   PreviewWhtParams,
+  PurchaseDocumentsDatasetRows,
   PurchaseOrder,
   PurchaseOrderConversion,
   PurchaseOrderConversionResult,
@@ -375,8 +381,13 @@ import type {
   ReverseSupplierAllocationInput,
   ReverseWithReasonInput,
   RunAssetDepreciationInput,
+  RunCashMovementsDatasetParams,
   RunJournalLinesDatasetParams,
+  RunPurchaseDocumentsDatasetParams,
   RunRecognitionInput,
+  RunSalesDocumentsDatasetParams,
+  RunVatLinesDatasetParams,
+  SalesDocumentsDatasetRows,
   SecurityEventPage,
   SendBackInput,
   SessionList,
@@ -438,6 +449,7 @@ import type {
   VatEntriesAfterFiling,
   VatEvidencePreviewInput,
   VatEvidenceVerdict,
+  VatLinesDatasetRows,
   VatReturn,
   VatReturnFiling,
   VatReturnFilingInput,
@@ -13494,6 +13506,694 @@ export function useExportJournalLinesDataset<TData = Awaited<ReturnType<typeof e
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getExportJournalLinesDatasetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunSalesDocumentsDatasetUrl = (params?: RunSalesDocumentsDatasetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/datasets/sales_documents/rows?${stringifiedParams}` : `/api/reports/datasets/sales_documents/rows`
+}
+
+/**
+ * @summary 19B S5 — run the sales_documents dataset: sales documents in the books (invoices, credit notes and debit notes; amounts stored positive, the direction in `sign`), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+export const runSalesDocumentsDataset = async (params?: RunSalesDocumentsDatasetParams, options?: RequestInit): Promise<SalesDocumentsDatasetRows> => {
+
+  return customFetch<SalesDocumentsDatasetRows>(getRunSalesDocumentsDatasetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunSalesDocumentsDatasetQueryKey = (params?: RunSalesDocumentsDatasetParams,) => {
+    return [
+    `/api/reports/datasets/sales_documents/rows`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunSalesDocumentsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(params?: RunSalesDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunSalesDocumentsDatasetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runSalesDocumentsDataset>>> = ({ signal }) => runSalesDocumentsDataset(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunSalesDocumentsDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof runSalesDocumentsDataset>>>
+export type RunSalesDocumentsDatasetQueryError = ErrorType<ReportDatasetRefusal>
+
+
+/**
+ * @summary 19B S5 — run the sales_documents dataset: sales documents in the books (invoices, credit notes and debit notes; amounts stored positive, the direction in `sign`), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+
+export function useRunSalesDocumentsDataset<TData = Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(
+ params?: RunSalesDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunSalesDocumentsDatasetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportSalesDocumentsDatasetUrl = (params?: ExportSalesDocumentsDatasetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/datasets/sales_documents/export?${stringifiedParams}` : `/api/reports/datasets/sales_documents/export`
+}
+
+/**
+ * @summary 19B S5 — export the sales_documents dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+export const exportSalesDocumentsDataset = async (params?: ExportSalesDocumentsDatasetParams, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportSalesDocumentsDatasetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportSalesDocumentsDatasetQueryKey = (params?: ExportSalesDocumentsDatasetParams,) => {
+    return [
+    `/api/reports/datasets/sales_documents/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportSalesDocumentsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof exportSalesDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(params?: ExportSalesDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportSalesDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportSalesDocumentsDatasetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportSalesDocumentsDataset>>> = ({ signal }) => exportSalesDocumentsDataset(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportSalesDocumentsDataset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportSalesDocumentsDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof exportSalesDocumentsDataset>>>
+export type ExportSalesDocumentsDatasetQueryError = ErrorType<ReportDatasetRefusal | void>
+
+
+/**
+ * @summary 19B S5 — export the sales_documents dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+
+export function useExportSalesDocumentsDataset<TData = Awaited<ReturnType<typeof exportSalesDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(
+ params?: ExportSalesDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportSalesDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportSalesDocumentsDatasetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunPurchaseDocumentsDatasetUrl = (params?: RunPurchaseDocumentsDatasetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/datasets/purchase_documents/rows?${stringifiedParams}` : `/api/reports/datasets/purchase_documents/rows`
+}
+
+/**
+ * @summary 19B S5 — run the purchase_documents dataset: purchase documents in the books (bills and supplier notes; `outstanding` is the bill position, the one definition), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+export const runPurchaseDocumentsDataset = async (params?: RunPurchaseDocumentsDatasetParams, options?: RequestInit): Promise<PurchaseDocumentsDatasetRows> => {
+
+  return customFetch<PurchaseDocumentsDatasetRows>(getRunPurchaseDocumentsDatasetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunPurchaseDocumentsDatasetQueryKey = (params?: RunPurchaseDocumentsDatasetParams,) => {
+    return [
+    `/api/reports/datasets/purchase_documents/rows`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunPurchaseDocumentsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(params?: RunPurchaseDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunPurchaseDocumentsDatasetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>> = ({ signal }) => runPurchaseDocumentsDataset(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunPurchaseDocumentsDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>>
+export type RunPurchaseDocumentsDatasetQueryError = ErrorType<ReportDatasetRefusal>
+
+
+/**
+ * @summary 19B S5 — run the purchase_documents dataset: purchase documents in the books (bills and supplier notes; `outstanding` is the bill position, the one definition), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+
+export function useRunPurchaseDocumentsDataset<TData = Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(
+ params?: RunPurchaseDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunPurchaseDocumentsDatasetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportPurchaseDocumentsDatasetUrl = (params?: ExportPurchaseDocumentsDatasetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/datasets/purchase_documents/export?${stringifiedParams}` : `/api/reports/datasets/purchase_documents/export`
+}
+
+/**
+ * @summary 19B S5 — export the purchase_documents dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+export const exportPurchaseDocumentsDataset = async (params?: ExportPurchaseDocumentsDatasetParams, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportPurchaseDocumentsDatasetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportPurchaseDocumentsDatasetQueryKey = (params?: ExportPurchaseDocumentsDatasetParams,) => {
+    return [
+    `/api/reports/datasets/purchase_documents/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportPurchaseDocumentsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof exportPurchaseDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(params?: ExportPurchaseDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportPurchaseDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportPurchaseDocumentsDatasetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportPurchaseDocumentsDataset>>> = ({ signal }) => exportPurchaseDocumentsDataset(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportPurchaseDocumentsDataset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportPurchaseDocumentsDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof exportPurchaseDocumentsDataset>>>
+export type ExportPurchaseDocumentsDatasetQueryError = ErrorType<ReportDatasetRefusal | void>
+
+
+/**
+ * @summary 19B S5 — export the purchase_documents dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+
+export function useExportPurchaseDocumentsDataset<TData = Awaited<ReturnType<typeof exportPurchaseDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(
+ params?: ExportPurchaseDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportPurchaseDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportPurchaseDocumentsDatasetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunCashMovementsDatasetUrl = (params?: RunCashMovementsDatasetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/datasets/cash_movements/rows?${stringifiedParams}` : `/api/reports/datasets/cash_movements/rows`
+}
+
+/**
+ * @summary 19B S5 — run the cash_movements dataset: cash movements (the bank's lines in this company; `countsInAggregates` is false for a transfer or a settlement, which is in no income, expense or VAT figure), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+export const runCashMovementsDataset = async (params?: RunCashMovementsDatasetParams, options?: RequestInit): Promise<CashMovementsDatasetRows> => {
+
+  return customFetch<CashMovementsDatasetRows>(getRunCashMovementsDatasetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunCashMovementsDatasetQueryKey = (params?: RunCashMovementsDatasetParams,) => {
+    return [
+    `/api/reports/datasets/cash_movements/rows`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunCashMovementsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runCashMovementsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(params?: RunCashMovementsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runCashMovementsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunCashMovementsDatasetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runCashMovementsDataset>>> = ({ signal }) => runCashMovementsDataset(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runCashMovementsDataset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunCashMovementsDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof runCashMovementsDataset>>>
+export type RunCashMovementsDatasetQueryError = ErrorType<ReportDatasetRefusal>
+
+
+/**
+ * @summary 19B S5 — run the cash_movements dataset: cash movements (the bank's lines in this company; `countsInAggregates` is false for a transfer or a settlement, which is in no income, expense or VAT figure), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+
+export function useRunCashMovementsDataset<TData = Awaited<ReturnType<typeof runCashMovementsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(
+ params?: RunCashMovementsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runCashMovementsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunCashMovementsDatasetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportCashMovementsDatasetUrl = (params?: ExportCashMovementsDatasetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/datasets/cash_movements/export?${stringifiedParams}` : `/api/reports/datasets/cash_movements/export`
+}
+
+/**
+ * @summary 19B S5 — export the cash_movements dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+export const exportCashMovementsDataset = async (params?: ExportCashMovementsDatasetParams, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportCashMovementsDatasetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportCashMovementsDatasetQueryKey = (params?: ExportCashMovementsDatasetParams,) => {
+    return [
+    `/api/reports/datasets/cash_movements/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportCashMovementsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof exportCashMovementsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(params?: ExportCashMovementsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportCashMovementsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportCashMovementsDatasetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportCashMovementsDataset>>> = ({ signal }) => exportCashMovementsDataset(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportCashMovementsDataset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportCashMovementsDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof exportCashMovementsDataset>>>
+export type ExportCashMovementsDatasetQueryError = ErrorType<ReportDatasetRefusal | void>
+
+
+/**
+ * @summary 19B S5 — export the cash_movements dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+
+export function useExportCashMovementsDataset<TData = Awaited<ReturnType<typeof exportCashMovementsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(
+ params?: ExportCashMovementsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportCashMovementsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportCashMovementsDatasetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunVatLinesDatasetUrl = (params?: RunVatLinesDatasetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/datasets/vat_lines/rows?${stringifiedParams}` : `/api/reports/datasets/vat_lines/rows`
+}
+
+/**
+ * @summary 19B S5 — run the vat_lines dataset: VAT lines (each addend of the VAT return for the window, with the box it joins; date_from and date_to are required), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+export const runVatLinesDataset = async (params?: RunVatLinesDatasetParams, options?: RequestInit): Promise<VatLinesDatasetRows> => {
+
+  return customFetch<VatLinesDatasetRows>(getRunVatLinesDatasetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunVatLinesDatasetQueryKey = (params?: RunVatLinesDatasetParams,) => {
+    return [
+    `/api/reports/datasets/vat_lines/rows`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getRunVatLinesDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runVatLinesDataset>>, TError = ErrorType<ReportDatasetRefusal>>(params?: RunVatLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runVatLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getRunVatLinesDatasetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof runVatLinesDataset>>> = ({ signal }) => runVatLinesDataset(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof runVatLinesDataset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type RunVatLinesDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof runVatLinesDataset>>>
+export type RunVatLinesDatasetQueryError = ErrorType<ReportDatasetRefusal>
+
+
+/**
+ * @summary 19B S5 — run the vat_lines dataset: VAT lines (each addend of the VAT return for the window, with the box it joins; date_from and date_to are required), in the request's company. A shown column the role may not read is withheld (absent from every row, its level 'none'); the total is the true count.
+
+ */
+
+export function useRunVatLinesDataset<TData = Awaited<ReturnType<typeof runVatLinesDataset>>, TError = ErrorType<ReportDatasetRefusal>>(
+ params?: RunVatLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runVatLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getRunVatLinesDatasetQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportVatLinesDatasetUrl = (params?: ExportVatLinesDatasetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/datasets/vat_lines/export?${stringifiedParams}` : `/api/reports/datasets/vat_lines/export`
+}
+
+/**
+ * @summary 19B S5 — export the vat_lines dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+export const exportVatLinesDataset = async (params?: ExportVatLinesDatasetParams, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportVatLinesDatasetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportVatLinesDatasetQueryKey = (params?: ExportVatLinesDatasetParams,) => {
+    return [
+    `/api/reports/datasets/vat_lines/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportVatLinesDatasetQueryOptions = <TData = Awaited<ReturnType<typeof exportVatLinesDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(params?: ExportVatLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportVatLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportVatLinesDatasetQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportVatLinesDataset>>> = ({ signal }) => exportVatLinesDataset(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportVatLinesDataset>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportVatLinesDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof exportVatLinesDataset>>>
+export type ExportVatLinesDatasetQueryError = ErrorType<ReportDatasetRefusal | void>
+
+
+/**
+ * @summary 19B S5 — export the vat_lines dataset as CSV: the same rows the run returns, withheld columns absent from the file. Recorded in the audit trail before the file is sent; refused with the count when too large, never cut short. A refused export is recorded as a refusal event (D6), never with a value.
+
+ */
+
+export function useExportVatLinesDataset<TData = Awaited<ReturnType<typeof exportVatLinesDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(
+ params?: ExportVatLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportVatLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportVatLinesDatasetQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -76,7 +76,7 @@ const BILL_NOT_IN_BOOKS = ["draft", "submitted"];
 // N1: approved bills OF THE SCOPED COMPANY — company scoping inherited by
 // every bill-reading report through this one helper.
 // Policy C: a reversed opening bill is out of every money report (openingReversal.ts).
-const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BOOKS), billNotReversed(), companyScoped(billsTable.companyId))!;
+export const approvedBillsOnly = () => and(notInArray(billsTable.status, BILL_NOT_IN_BOOKS), billNotReversed(), companyScoped(billsTable.companyId))!;
 /**
  * Phase 13A — a bill whose input VAT is CLAIMED, in the period of its claim
  * date (see `billsClaimedInRange`). NULL state = posted outside the approval:
@@ -95,7 +95,7 @@ export const INVOICE_NOT_IN_BOOKS = ["draft", "submitted"];
 // N1: approved invoices OF THE SCOPED COMPANY — same inheritance as bills.
 // Policy C: a reversed opening invoice is out of every money report (openingReversal.ts).
 // Phase 18 (the PR C correction route): a rejected invoice whose correction is issued is out too — the correction carries the sale.
-const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS), invoiceNotReversed(), invoiceNotSuperseded(), companyScoped(invoicesTable.companyId))!;
+export const approvedInvoicesOnly = () => and(notInArray(invoicesTable.status, INVOICE_NOT_IN_BOOKS), invoiceNotReversed(), invoiceNotSuperseded(), companyScoped(invoicesTable.companyId))!;
 
 /**
  * The sign a document contributes to receivables, sales and output VAT (M12.1b).
