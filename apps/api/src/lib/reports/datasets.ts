@@ -138,7 +138,7 @@ export const PURCHASE_DOCUMENTS: DatasetDef = {
     money("signedVat", "Signed VAT", "الضريبة بالإشارة"),
     money("signedTotal", "Signed total", "الإجمالي بالإشارة"),
     money("outstanding", "Outstanding", "المستحق"),
-    text("inputVatState", "Input VAT", "ضريبة المدخلات"),
+    text("inputVat", "Input VAT", "ضريبة المدخلات"),
     text("isOpening", "Opening item", "بند افتتاحي"),
   ],
   filters: DOC_FILTERS,

@@ -47,7 +47,7 @@ export interface PurchaseDocumentsDatasetRow {
   /** @nullable */
   outstanding?: number | null;
   /** @nullable */
-  inputVatState?: string | null;
+  inputVat?: string | null;
   /** @nullable */
   isOpening?: boolean | null;
 }

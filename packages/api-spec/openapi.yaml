@@ -9160,7 +9160,7 @@ components:
         signedVat: { type: ["number", "null"] }
         signedTotal: { type: ["number", "null"] }
         outstanding: { type: ["number", "null"] }
-        inputVatState: { type: ["string", "null"] }
+        inputVat: { type: ["string", "null"] }
         isOpening: { type: ["boolean", "null"] }
     PurchaseDocumentsDatasetRows:
       type: object

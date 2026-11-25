@@ -133,7 +133,7 @@ export const documentDatasetsRepository = {
         currency: billsTable.currency, subtotal: billsTable.subtotal, vatAmount: billsTable.vatAmount, total: billsTable.total,
         // a supplier credit note owes nothing (it is the supplier's credit, shown by the aging beside the payables)
         outstanding: sql<string>`CASE WHEN ${billIsPayableSql("bills")} THEN greatest(round(${billOutstandingSql("bills")}, 2), 0) ELSE 0 END`,
-        inputVatState: billsTable.inputVatState, isOpening: billsTable.isOpening,
+        inputVat: billsTable.inputVatState, isOpening: billsTable.isOpening,
       })
       .from(billsTable)
       .leftJoin(vendorsTable, eq(vendorsTable.id, billsTable.vendorId))

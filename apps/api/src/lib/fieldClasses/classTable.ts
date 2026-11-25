@@ -389,7 +389,7 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   // 19B S5 — the remaining datasets' rows. A party's NAME is standard (the pickers serve it to every role); the bank's text is bank_narrative on every row.
   SalesDocumentsDatasetRow: { standard: "documentId documentNumber documentType date dueDate status customerId customerName currency subtotal vatAmount total sign signedSubtotal signedVat signedTotal paidAmount isOpening" },
   SalesDocumentsDatasetRows: { standard: "dataset total limit offset" },
-  PurchaseDocumentsDatasetRow: { standard: "documentId documentNumber supplierReference documentType date dueDate status vendorId vendorName currency subtotal vatAmount total sign signedSubtotal signedVat signedTotal outstanding inputVatState isOpening" },
+  PurchaseDocumentsDatasetRow: { standard: "documentId documentNumber supplierReference documentType date dueDate status vendorId vendorName currency subtotal vatAmount total sign signedSubtotal signedVat signedTotal outstanding inputVat isOpening" },
   PurchaseDocumentsDatasetRows: { standard: "dataset total limit offset" },
   CashMovementsDatasetRow: { resource: "transactions", standard: "transactionId date type kind amount signedAmount vatAmount reviewStatus bankAccountId categoryId categoryName countsInAggregates", bank_narrative: "description" },
   CashMovementsDatasetRows: { standard: "dataset total limit offset" },

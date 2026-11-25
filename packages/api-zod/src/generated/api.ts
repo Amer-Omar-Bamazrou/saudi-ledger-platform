@@ -6494,7 +6494,7 @@ export const RunPurchaseDocumentsDatasetResponse = zod.object({
   "signedVat": zod.number().nullish(),
   "signedTotal": zod.number().nullish(),
   "outstanding": zod.number().nullish(),
-  "inputVatState": zod.string().nullish(),
+  "inputVat": zod.string().nullish(),
   "isOpening": zod.boolean().nullish()
 }).describe('19B S5 — one row of the purchase_documents dataset. Only the shown columns are present; a withheld column\'s key is absent (D4).\n')),
   "total": zod.number(),
