@@ -234,8 +234,11 @@ export const SEED_CATEGORIES: SeedCategory[] = [
     name: "Insurance",
     nameAr: "التأمين",
     type: "expense",
-    vatApplicable: false,
-    description: "Business insurance premiums (exempt from VAT)",
+    // 🔴 L1 (owner, 2026-11-25): ONE definition, the chart of accounts' (treatment 'S', migrations 0031/0033/0048). VAT IR
+    // Art. 29(7) exempts only life insurance and life reinsurance; other insurance is standard-rated. This said "exempt
+    // from VAT" and cited nothing. tests/l1-insurance-one-definition.test.ts reads the chart's row beside this one.
+    vatApplicable: true,
+    description: "Business insurance premiums (standard-rated VAT)",
   },
   {
     id: 18,
@@ -890,8 +893,9 @@ const CATEGORIZATION_RULES: CategorizationRule[] = [
     systemCode: "INSURANCE",
     confidence: 0.93,
     ruleName: "Insurance / Takaful",
-    vatApplicable: false,
-    suggestedVatRate: 0,
+    // L1: the chart's definition — standard-rated (Art. 29(7) exempts life insurance only; that is a per-row override).
+    vatApplicable: true,
+    suggestedVatRate: 15,
   },
 
   // ── REAL ESTATE / RENT ────────────────────────────────────────────────
