@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import { arabicNameStatus } from "@/lib/arabicUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmtNum } from "@/lib/api";
-import { refusalOf } from "@/lib/openingVatRefusals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,8 +71,7 @@ export default function Vendors() {
     mutationFn: (body: CreateVendorInput) => apiFetch("/vendors", { method: "POST", body: JSON.stringify(body) }),
     // 19B S3: an IBAN given with the supplier is HELD for an accountant or admin who did not enter it (or applied at once, the fallback)
     onSuccess: (res: unknown, body: CreateVendorInput) => { qc.invalidateQueries({ queryKey: ["vendors"] }); setOpen(false); setForm(emptyForm); toast(ibanSaveNotice(res, !!body.iban, t) ?? { title: t("Vendor created", "تم إنشاء المورد") }); },
-    // item 3: the server's refusal in the reader's language (a VAT or CR number names its type and reason)
-    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: refusalOf(e).words, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("Error", "خطأ"), description: e.message, variant: "destructive" }),
   });
 
   /**
