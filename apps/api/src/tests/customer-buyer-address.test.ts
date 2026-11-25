@@ -9,14 +9,18 @@
  *  - Movement: complete the address through the customer's own PATCH, and the same invoice approves.
  *  - A buyer outside Saudi Arabia needs street, city and country only; a simplified invoice (no VAT number) needs none;
  *    a credit note is never refused by this rule (it corrects an invoice already issued).
+ *  - 🔴 (owner, 2026-11-25, item 7) NO ICV IS USED BEFORE THE CHECK PASSES: a refused approval never reaches the
+ *    company's sequence lock or the ICV allocator — pinned by spying on both, with the passing approval as the planted
+ *    positive (a rollback alone would hide a misordering: the allocator reads max(icv) inside the transaction).
  * DB-backed; skips on the placeholder.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { pool, PERMISSION_MATRIX } from "@workspace/db";
 import { emptyInvoiceLine, invoiceLinesBody } from "@workspace/shared";
 import { primePermissionCache } from "../lib/rbac";
 import { assertBuyerAddressForStandardInvoice, missingBuyerAddressFields } from "../services/einvoice/buyerAddress";
 import { g04Harness } from "./helpers/g04Harness";
+import { invoicesRepository } from "../repositories/invoices.repository";
 
 const url = process.env.DATABASE_URL;
 const describeDb = !!url && !url.includes("placeholder") ? describe : describe.skip;
@@ -86,6 +90,31 @@ describeDb("a standard invoice's approval and its buyer's address (real rows)", 
     const again = await h.api("admin", "POST", `/invoices/${id}/approve`);
     expect(again.status, JSON.stringify(again.body)).toBe(200);
     expect((await state(id)).icv).not.toBeNull();
+  });
+
+  it("🔴 no ICV is used before the check passes: the refused approval never reaches the sequence lock or the ICV; the passing one does", async () => {
+    await customer("saNoAddress2", { taxNumber: "300000000000003", city: "Riyadh" });
+    const refused = await submitted("saNoAddress2");
+    const passing = await submitted("saFull");
+    const companyMax = async () => (await pool.query(`SELECT max(icv)::int m FROM invoices WHERE company_id = (SELECT company_id FROM invoices WHERE id = $1)`, [refused])).rows[0].m;
+    const before = await companyMax();
+    const lock = vi.spyOn(invoicesRepository, "lockCompanySequence");
+    const next = vi.spyOn(invoicesRepository, "nextIcv");
+    try {
+      const r = await h.api("admin", "POST", `/invoices/${refused}/approve`);
+      expect([r.status, r.body.code]).toEqual([422, "buyer_address_incomplete"]);
+      expect([lock.mock.calls.length, next.mock.calls.length]).toEqual([0, 0]);
+      expect(await companyMax()).toBe(before);
+      // the planted positive: the spies see an approval that passes the check
+      const ok = await h.api("admin", "POST", `/invoices/${passing}/approve`);
+      expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+      expect(lock.mock.calls.length).toBeGreaterThan(0);
+      expect(next.mock.calls.length).toBeGreaterThan(0);
+      expect((await state(passing)).icv).toBe((before ?? 0) + 1); // the very next number: the refusal left no gap
+    } finally {
+      lock.mockRestore();
+      next.mockRestore();
+    }
   });
 
   it("a Saudi buyer with the full address, a buyer abroad with street and city, and a simplified invoice all approve", async () => {
