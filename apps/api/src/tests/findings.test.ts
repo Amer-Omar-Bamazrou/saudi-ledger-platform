@@ -117,6 +117,14 @@ describeMaybe("AI-3a — findings", () => {
       );
     }
     // overdue_payable rides on the same bills (due 2026-08-15, unpaid).
+    // input_vat_nonpayment (L3, 2026-11-25): a bill supplied in 2024 whose VAT was claimed, still unpaid. A fixture of a
+    // row posted before Phase 13 (no VAT events), written in replica mode as such rows exist; the product's own posting
+    // path is exercised by l3-input-vat-nonpayment.test.ts.
+    await replica(pool).query(
+      `INSERT INTO bills (organization_id, company_id, bill_number, vendor_id, date, status, subtotal, vat_amount, total)
+       VALUES ($1,$2,'FN-NONPAY-1',$3,'2024-09-10','approved',1000,150,1150)`,
+      [orgId, companyId, vendorId],
+    );
     // duplicate_transaction + undeclared_transfer + unposted_transaction:
     await pool.query(
       `INSERT INTO transactions (organization_id, company_id, date, description, amount, type, kind, review_status)

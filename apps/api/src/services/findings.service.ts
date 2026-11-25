@@ -31,6 +31,8 @@ export const ALL_FINDING_KINDS = [
   "stale_draft",
   "undeclared_transfer",
   "unposted_transaction",
+  // L3 (owner, 2026-11-25): Art. 40(10) — detection only
+  "input_vat_nonpayment",
 ] as const;
 
 export interface FindingsRunSummary {
@@ -88,6 +90,7 @@ export const findingsService = {
         findingsRepository.overduePayables(),
         findingsRepository.staleDrafts(),
         findingsRepository.invoicesMissingArabicLines(),
+        findingsRepository.inputVatNonpayment(),
         findingsRepository.undeclaredTransfers(),
         findingsRepository.unpostedTransactions(),
       ])
