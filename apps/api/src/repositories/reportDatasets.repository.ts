@@ -9,6 +9,8 @@ import { and, asc, desc, eq, gte, inArray, lte, sql, type AnyColumn } from "driz
 import { companyScoped } from "./companyScope";
 import { JE_IN_BOOKS, approvedBillsOnly, approvedInvoicesOnly, documentSign } from "./reports.repository";
 import { billIsPayableSql, billOutstandingSql } from "./billPosition";
+// Policy C: a reversed opening item is out of every money figure — stated here as well as inside the reports' predicate.
+import { billNotReversed, invoiceNotReversed } from "./openingReversal";
 import { acceptedOnly, operatingOnly } from "./summary.repository";
 import { textOriginSql } from "./entryTextOrigin";
 
@@ -97,7 +99,7 @@ const n2 = (v: unknown) => Number(v ?? 0);
 export const documentDatasetsRepository = {
   /** Invoices, credit notes and debit notes in the books (the reports' predicate: issued, live, this company). */
   async salesDocuments(f: WindowFilter, sort: Sort, page: Page) {
-    const where = and(approvedInvoicesOnly(), ...(f.dateFrom ? [gte(invoicesTable.date, f.dateFrom)] : []), ...(f.dateTo ? [lte(invoicesTable.date, f.dateTo)] : []))!;
+    const where = and(approvedInvoicesOnly(), invoiceNotReversed(), ...(f.dateFrom ? [gte(invoicesTable.date, f.dateFrom)] : []), ...(f.dateTo ? [lte(invoicesTable.date, f.dateTo)] : []))!;
     const base = db
       .select({
         documentId: invoicesTable.id, documentNumber: invoicesTable.invoiceNumber, documentType: invoicesTable.documentType, date: invoicesTable.date,
@@ -123,7 +125,7 @@ export const documentDatasetsRepository = {
 
   /** Bills and supplier notes in the books; what each still owes is billPosition's definition. */
   async purchaseDocuments(f: WindowFilter, sort: Sort, page: Page) {
-    const where = and(approvedBillsOnly(), ...(f.dateFrom ? [gte(billsTable.date, f.dateFrom)] : []), ...(f.dateTo ? [lte(billsTable.date, f.dateTo)] : []))!;
+    const where = and(approvedBillsOnly(), billNotReversed(), ...(f.dateFrom ? [gte(billsTable.date, f.dateFrom)] : []), ...(f.dateTo ? [lte(billsTable.date, f.dateTo)] : []))!;
     const base = db
       .select({
         documentId: billsTable.id, documentNumber: billsTable.billNumber, supplierReference: billsTable.vendorReference, documentType: billsTable.documentType,
