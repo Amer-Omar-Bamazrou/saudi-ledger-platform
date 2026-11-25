@@ -102,6 +102,8 @@ export function buildInvoiceOut(inv: Invoice, customer?: Customer | null, items?
           legalRef: inv.badDebtReliefLegalRef ?? null,
           source: (inv.badDebtReliefSource ?? "recorded") as "recorded" | "migrated",
           journalEntryId: inv.badDebtReliefJournalEntryId ?? null,
+          // L5: the Art. 40(7)(b) declaration's time (null on a relief recorded before the rule, or migrated)
+          notRelatedPartyDeclaredAt: inv.badDebtReliefUnrelatedDeclaredAt ? new Date(inv.badDebtReliefUnrelatedDeclaredAt).toISOString() : null,
         }
       : null,
     recoversInvoiceId: inv.recoversInvoiceId ?? null,

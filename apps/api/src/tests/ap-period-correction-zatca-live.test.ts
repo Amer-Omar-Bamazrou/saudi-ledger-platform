@@ -21,6 +21,7 @@ process.env.PORT ??= "3000";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { fileInvoiceMonthForFixture } from "./helpers/filedPeriod";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { generateZatcaKeyPair } from "../services/einvoice/crypto/keys";
@@ -165,7 +166,9 @@ describeDb("AP correction — the product's OWN rows at the LIVE sandbox", () =>
     // a 2025 invoice, half paid, written off with relief in Jan 2026, 2,300 recovered on 10 Mar 2026
     const inv = await inTenant(() => createApproved<{ id: number }>(invoicesService, { invoiceNumber: "APCL-INV-1", date: "2025-01-10", dueDate: "2025-02-10", customerId, items: [{ description: "Consulting", quantity: 1, unitPrice: 10_000, vatRate: 15, taxCategoryCode: "S", unitCode: "PCE" }] }, userId));
     await inTenant(() => paymentsService.receive({ customerId, amount: 5_750, paidAt: "2025-02-01", bankAccountId: bank, allocations: [{ invoiceId: inv.id, amount: 5_750 }] }, userId));
-    await inTenant(() => badDebtService.writeOffWithRelief(inv.id, { claimedOn: "2026-01-20", certificateRef: "CA-2026-12" }, userId));
+    // L5 (2026-11-25): Art. 40(7)(a) — the invoice's month in a filed return; (b) — the stated declaration
+    await fileInvoiceMonthForFixture(inv.id);
+    await inTenant(() => badDebtService.writeOffWithRelief(inv.id, { claimedOn: "2026-01-20", certificateRef: "CA-2026-12", notRelatedPartyDeclared: true }, userId));
     const rcpt = await inTenant(() => paymentsService.receive({ customerId, amount: 2_300, paidAt: "2026-03-10", bankAccountId: bank, classification: "unknown" }, userId));
     const recDraft = await inTenant(() => badDebtService.createRecovery(inv.id, { paymentId: rcpt.id, amount: 2_300 }, userId));
     recId = (await inTenant(() => invoicesService.approve(recDraft.id, userId))).id;

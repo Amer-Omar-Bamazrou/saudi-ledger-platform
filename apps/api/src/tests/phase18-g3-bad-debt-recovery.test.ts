@@ -22,6 +22,7 @@ process.env.SESSION_SECRET ??= "phase18-g3-bad-debt-recovery-0001";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { fileInvoiceMonthForFixture } from "./helpers/filedPeriod";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
 
@@ -50,7 +51,9 @@ describeMaybe("Phase 18 G3 — bad-debt recovery (decisions 3, 7, A1)", () => {
   /** A receivable written off with relief, a later receipt on account, and the issued Art. 40(9) recovery. */
   const recoveryChain = async (net: number, recovered: number) => {
     const inv = await issueInvoice(net, SUPPLY_DATE);
-    ok(await h.api("admin", "POST", `/invoices/${inv.id}/bad-debt-relief`, { claimedOn: CLAIMED_ON, certificateRef: `CA-P18G3-${seq}` }), 200);
+    // L5 (2026-11-25): Art. 40(7)(a) — the invoice's month in a filed return; (b) — the stated declaration
+    await fileInvoiceMonthForFixture(inv.id);
+    ok(await h.api("admin", "POST", `/invoices/${inv.id}/bad-debt-relief`, { claimedOn: CLAIMED_ON, certificateRef: `CA-P18G3-${seq}`, notRelatedPartyDeclared: true }), 200);
     const rcpt = await h.api("admin", "POST", "/payments", { customerId, amount: recovered, paidAt: RECEIPT_DATE, bankAccountId: bankId, classification: "unknown" });
     ok(rcpt, 201);
     const draft = await h.api("admin", "POST", `/invoices/${inv.id}/bad-debt-recoveries`, { paymentId: rcpt.body.id, amount: recovered });

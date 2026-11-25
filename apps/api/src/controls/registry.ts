@@ -879,6 +879,19 @@ export const CONTROLS: readonly Control[] = [
     provingTests: ["l4-out-of-scope-vat.test.ts"],
   },
   {
+    id: "L5",
+    title: "Bad-debt relief only on the checks VAT IR Art. 40(7) states: (a) the invoice's output VAT declared in a return recorded filed; (b) a stated declaration that the customer is not a related party, kept with who and when (owner, 2026-11-25; (c)–(e) as before)",
+    answers: [],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: ["bad_debt_output_vat_not_filed", "bad_debt_related_party_declaration_required"],
+    points: [
+      check("invoices", "invoices_bad_debt_unrelated_declaration_chk"),
+      code(`${API}/services/badDebt.service.ts`, "writeOffWithRelief"),
+    ],
+    provingTests: ["l5-bad-debt-40-7.test.ts"],
+  },
+  {
     id: "G2a",
     title: "An error in a filed VAT return is recorded, append-only, and routed",
     answers: ["G21"],

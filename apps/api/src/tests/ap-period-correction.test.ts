@@ -14,6 +14,7 @@
  * Every figure: presence, absence AND movement, on rows the product wrote.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { fileInvoiceMonthForFixture } from "./helpers/filedPeriod";
 import { beginTenantConnection, pool } from "@workspace/db";
 import { auditContext } from "../lib/auditContext";
 import { invoicesService } from "../services/invoices.service";
@@ -322,7 +323,9 @@ describeMaybe("Advance payments — tax point, the four liabilities, bad-debt re
     await expectRefusal(inTenant(() => badDebtService.writeOffWithRelief(draft.id, { claimedOn: "2026-01-20", certificateRef: "CA-1" }, userId)), 409, "bad_debt_not_issued");
 
     // THE WRITE-OFF WITH RELIEF: 5,750 unpaid = 5,000 net + 750 VAT, claimed 20 Jan 2026
-    const written = await inTenant(() => badDebtService.writeOffWithRelief(inv.id, { claimedOn: "2026-01-20", certificateRef: "CA-2026-12", note: "customer insolvent" }, userId));
+    // L5 (2026-11-25): Art. 40(7)(a) — the invoice's month in a filed return; (b) — the stated declaration
+    await fileInvoiceMonthForFixture(inv.id);
+    const written = await inTenant(() => badDebtService.writeOffWithRelief(inv.id, { claimedOn: "2026-01-20", certificateRef: "CA-2026-12", note: "customer insolvent", notRelatedPartyDeclared: true }, userId));
     expect(written.writtenOffAmount).toBe(5_750);
     expect(written.badDebtRelief).toMatchObject({ claimedOn: "2026-01-20", vatAmount: 750, returnPeriod: "2026-01", certificateRef: "CA-2026-12", legalRef: null, source: "recorded" });
     expect(written.status, "the tax invoice stays issued").toBe("sent");

@@ -39,4 +39,9 @@ export interface WriteOffBadDebtInput {
      * @nullable
      */
   idempotencyKey?: string | null;
+  /**
+     * L5 (owner, 2026-11-25): the stated declaration that the customer is not a related party (VAT IR Art. 40(7)(b)) — required true until the platform records related parties; refused 422 `bad_debt_related_party_declaration_required` otherwise. The relief is also refused 422 `bad_debt_output_vat_not_filed` while the invoice's month is in no VAT return recorded filed (Art. 40(7)(a)).
+     * @nullable
+     */
+  notRelatedPartyDeclared?: boolean | null;
 }
