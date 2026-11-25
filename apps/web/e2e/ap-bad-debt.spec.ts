@@ -52,7 +52,34 @@ async function seedOldInvoice(net: number): Promise<Invoice> {
   const draft = (await c.json()) as Invoice;
   const ap = await api.post(`/api/invoices/${draft.id}/approve`);
   if (!ap.ok()) throw new Error(`seed approve: ${await ap.text()}`);
+  await fileMonthForFixture(draft.id);
   return ap.json();
+}
+
+/**
+ * 🔴 L5 (2026-11-25): Art. 40(7)(a) — the relief applies to output VAT declared in a FILED return. A fixture of the
+ * filed state for the seeded tenant: the original filing row for the invoice's month, written directly — WITHOUT the
+ * clearing entry the product's path posts, so no other spec's figures in this shared tenant move. The product's own
+ * filing path is proven by apps/api/src/tests/l5-bad-debt-40-7.test.ts.
+ */
+async function fileMonthForFixture(invoiceId: number) {
+  const { Client } = await import("pg");
+  const db = new Client({ connectionString: process.env.DATABASE_URL });
+  await db.connect();
+  try {
+    const inv = (await db.query(`SELECT organization_id, company_id, date FROM invoices WHERE id = $1`, [invoiceId])).rows[0];
+    const month = String(inv.date).slice(0, 7);
+    const [y, m] = month.split("-").map(Number) as [number, number];
+    const filedOn = new Date(Date.UTC(y, m, 15)).toISOString().slice(0, 10);
+    await db.query(
+      `INSERT INTO vat_return_filings (organization_id, company_id, period_from, period_to, kind, filed_on, zatca_reference)
+       SELECT $1, $2, $3, $3, 'original', $4::date, $5
+        WHERE NOT EXISTS (SELECT 1 FROM vat_return_filings f WHERE f.company_id = $2 AND f.kind = 'original' AND f.period_from <= $3 AND $3 <= f.period_to)`,
+      [inv.organization_id, inv.company_id, month, filedOn, `E2E-FIXTURE-${month}`],
+    );
+  } finally {
+    await db.end();
+  }
 }
 /** Dated on the business day of the relief (Asia/Riyadh — never the browser's UTC date: the night window), so the money arrives AFTER the relief. */
 async function seedReceiptOnAccount(amount: number, paidAt: string): Promise<Payment> {
@@ -72,9 +99,11 @@ async function writeOffFromList(page: Page, inv: Invoice, lang: "en" | "ar"): Pr
   const dialog = page.getByTestId("bad-debt-write-off-dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByTestId("bad-debt-unpaid")).toContainText((inv.total - inv.paidAmount).toLocaleString("en-US", { minimumFractionDigits: 2 }));
-  // the rule: no certificate, no submit
+  // the rule: no certificate, no submit — and (L5, Art. 40(7)(b)) no declaration that the customer is not related, no submit
   await expect(dialog.getByTestId("bad-debt-submit")).toBeDisabled();
   await dialog.getByTestId("bad-debt-certificate").fill("CA-E2E-1");
+  await expect(dialog.getByTestId("bad-debt-submit")).toBeDisabled();
+  await dialog.getByTestId("bad-debt-not-related-check").click();
   await expect(dialog.getByTestId("bad-debt-submit")).toBeEnabled();
   await dialog.getByTestId("bad-debt-submit").click();
   await expect(toast(page, lang === "ar" ? "شُطب الدين — وطُلب إعفاء الضريبة" : "Written off — VAT relief claimed")).toBeVisible();
@@ -140,6 +169,7 @@ test.describe("Bad debts — English / phone", () => {
     const dialog = page.getByTestId("bad-debt-write-off-dialog");
     await expectFits(dialog, PHONE.width, "the write-off dialog fits the phone");
     await dialog.getByTestId("bad-debt-certificate").fill("CA-E2E-P");
+    await dialog.getByTestId("bad-debt-not-related-check").click();
     await dialog.getByTestId("bad-debt-submit").click();
     await expect(toast(page, "Written off — VAT relief claimed")).toBeVisible();
     await noSidewaysScroll(page, PHONE.width, "the invoices list after the write-off");
@@ -195,6 +225,7 @@ test.describe("Bad debts — Arabic / RTL phone", () => {
     const dialog = page.getByTestId("bad-debt-write-off-dialog");
     await expectFits(dialog, PHONE.width, "the Arabic write-off dialog fits the phone");
     await dialog.getByTestId("bad-debt-certificate").fill("CA-E2E-AR");
+    await dialog.getByTestId("bad-debt-not-related-check").click();
     await dialog.getByTestId("bad-debt-submit").click();
     await expect(toast(page, "شُطب الدين — وطُلب إعفاء الضريبة")).toBeVisible();
     await noSidewaysScroll(page, PHONE.width, "the Arabic invoices list after the write-off");

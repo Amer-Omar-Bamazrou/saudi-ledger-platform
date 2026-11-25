@@ -981,7 +981,8 @@ export const ConvertQuotationResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -10109,7 +10110,8 @@ export const ListInvoicesResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -10278,7 +10280,8 @@ export const CreateInvoiceResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -10387,7 +10390,8 @@ export const GetInvoiceResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -10543,7 +10547,8 @@ export const UpdateInvoiceResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -11397,7 +11402,8 @@ export const CreateAdvanceInvoiceResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -14356,7 +14362,8 @@ export const WriteOffBadDebtBody = zod.object({
   "legalRef": zod.string().max(writeOffBadDebtBodyLegalRefMax).nullish().describe('Required above SAR 100,000 unpaid (Art. 40(7)(e)).'),
   "returnPeriod": zod.string().nullish().describe('YYYY-MM; default claimedOn\'s month.'),
   "note": zod.string().max(writeOffBadDebtBodyNoteMax).nullish(),
-  "idempotencyKey": zod.string().max(writeOffBadDebtBodyIdempotencyKeyMax).nullish()
+  "idempotencyKey": zod.string().max(writeOffBadDebtBodyIdempotencyKeyMax).nullish(),
+  "notRelatedPartyDeclared": zod.boolean().nullish().describe('L5 (owner, 2026-11-25): the stated declaration that the customer is not a related party (VAT IR Art. 40(7)(b)) — required true until the platform records related parties; refused 422 `bad_debt_related_party_declaration_required` otherwise. The relief is also refused 422 `bad_debt_output_vat_not_filed` while the invoice\'s month is in no VAT return recorded filed (Art. 40(7)(a)).\n')
 })
 
 export const WriteOffBadDebtResponse = zod.object({
@@ -14413,7 +14420,8 @@ export const WriteOffBadDebtResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -14540,7 +14548,8 @@ export const CreateBadDebtRecoveryResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -14675,7 +14684,8 @@ export const CreateInvoiceCorrectionResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -14801,7 +14811,8 @@ export const CreateAdvanceCreditNoteResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -14923,7 +14934,8 @@ export const PayInvoiceResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -16308,7 +16320,8 @@ export const SubmitInvoiceResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -16422,7 +16435,8 @@ export const SendBackInvoiceResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),
@@ -16532,7 +16546,8 @@ export const ApproveInvoiceResponse = zod.object({
   "certificateRef": zod.string().nullable().describe('The certified accountant\'s write-off certificate (Art. 40(7)(d)).'),
   "legalRef": zod.string().nullable().describe('Evidence of legal procedures when the unpaid amount exceeds SAR 100,000 (Art. 40(7)(e)).'),
   "source": zod.enum(['recorded', 'migrated']),
-  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).')
+  "journalEntryId": zod.number().nullable().describe('The write-off entry (recorded only).'),
+  "notRelatedPartyDeclaredAt": zod.string().nullish().describe('L5 (2026-11-25): when the person claiming the relief stated the customer is not a related party (Art. 40(7)(b)); null on a relief recorded before the rule, or migrated.')
 }),zod.null()]).describe('2026-09-22: the Art. 40(7) relief on this invoice as a STRUCTURED fact — null when none. source recorded = written off here (its own entry, in this platform\'s return, box 7); migrated = claimed in the previous system (Batch 1C), the item open at its outstanding amount here.'),
   "recoversInvoiceId": zod.number().nullable().describe('On a recovery_invoice: the receivable it recovers (Art. 40(9)); null otherwise.'),
   "recoveryPaymentId": zod.number().nullable().describe('On a recovery_invoice: the receipt whose money it declares; its date is the document\'s date (the tax point) and supply date.'),

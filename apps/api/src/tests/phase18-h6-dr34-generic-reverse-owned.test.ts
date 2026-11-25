@@ -18,6 +18,7 @@ process.env.SESSION_SECRET ??= "phase18-h6-dr34-owned-0001";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:5173";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { fileInvoiceMonthForFixture } from "./helpers/filedPeriod";
 import { pool } from "@workspace/db";
 import { g04Harness } from "./helpers/g04Harness";
 
@@ -77,7 +78,9 @@ describeMaybe("Phase 18 H-6 — DR-34: the generic reverse refuses invoice, note
 
   it("🔴 a BAD-DEBT WRITE-OFF entry is refused — the relief rests on the debt being written off in the books", async () => {
     const inv = await issue(1_000, "2025-06-01");
-    ok(await h.api("admin", "POST", `/invoices/${inv}/bad-debt-relief`, { claimedOn: "2026-07-01", certificateRef: "CA-H6-1" }), 200);
+    // L5 (2026-11-25): Art. 40(7)(a) — the invoice's month in a filed return; (b) — the stated declaration
+    await fileInvoiceMonthForFixture(inv);
+    ok(await h.api("admin", "POST", `/invoices/${inv}/bad-debt-relief`, { claimedOn: "2026-07-01", certificateRef: "CA-H6-1", notRelatedPartyDeclared: true }), 200);
     await refusedGenerically(await entryOf("invoice_write_off", inv));
   });
 
