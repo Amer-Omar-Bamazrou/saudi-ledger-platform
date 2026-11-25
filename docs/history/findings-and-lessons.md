@@ -8193,3 +8193,42 @@ route.
 shared store, and `tests/rate-limit-login.test.ts` asserts a ROW in Postgres
 for the invitation and onboarding limiters — what MemoryStore cannot produce.
 Record: [`design-rate-limiting.md`](../product/design-rate-limiting.md) §1.
+
+## THE VAT RETURN'S BOX 10 TAKES EVERY ZERO-VAT PURCHASE (found 2026-11-25, recorded 2026-11-26; OPEN)
+
+Status (2026-11-26): open, not fixed. Current state authority: CLAUDE.md §5 (traps). It goes first in the VAT batch
+after 19B, with P13-N1.
+
+**The finding.** A sales line carries a tax category (`invoice_items.tax_category_code`: S, Z, E, O) and the return
+files it by that code. A purchase line carries none: `bill_items` has no tax category. On the purchase side the return
+(`reportsService.vatReturnWithLines`, `purchasesOf`) therefore decides by the VAT amount alone:
+
+- VAT above 0 → box 9 (standard-rated purchases), and box 13 when the input VAT is claimed;
+- VAT of 0 → box 10 (zero-rated purchases), whatever the purchase is;
+- box 11 (exempt purchases) is the literal 0.
+
+**What reaches box 10 today, by kind** (each is a purchase recorded with no VAT):
+
+| Purchase | Where it belongs | Where it files |
+| --- | --- | --- |
+| A zero-rated supply | box 10 | box 10 |
+| An exempt supply (life insurance, an exempt financial service, residential rent) | box 11 | box 10 |
+| Out of scope: a government fee, a GOSI contribution, a salary, a fine | no box | box 10 |
+| A purchase from a supplier not registered for VAT | for the accountant | box 10 |
+| A supplier credit note with no VAT | reduces its original's box | reduces box 10 |
+| A final bill's zero-VAT advance adjustment | reduces its original's box | reduces box 10 |
+
+Since L4 (#381, 2026-11-25) a bill on an out-of-scope expense account carries 0 VAT by default, so such bills now land in
+box 10 as a rule rather than by accident.
+
+**Measured (2026-11-26, read only; `vat-box10/01-zero-vat-purchases.sql` in the evidence folder).** In the three local
+environments the only zero-VAT purchases in the books are four bill lines on the default Purchases account in the
+browser-test database (1,150.00 in box 10). No bill on an out-of-scope or exempt account exists in any of them, so
+nothing misfiled is in a local return today. The probe was checked against the bills it does see (14, 0 and 6 in the books).
+
+**How it was found.** L1's question (2026-11-25): is a separate life-insurance category needed? Not to stop a claim — an
+exempt policy's document carries no VAT — but the answer exposed that the exempt purchase would file as zero-rated.
+
+**Not decided here.** Whether the fix is a tax category on bill lines (as sales lines have), a rule from the expense
+account's treatment, or both; and what an existing zero-VAT bill becomes. No box is changed until the layout question
+(P13-N1) is answered with it.
