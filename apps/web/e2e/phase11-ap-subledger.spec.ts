@@ -19,6 +19,34 @@ import { test, expect, request as pwRequest, type APIRequestContext, type Page }
 import { readFileSync } from "node:fs";
 import { E2E, SEEDED_IDS_PATH, type SeededIds } from "./global-setup";
 
+/**
+ * 🔴 2026-11-25 (#386's red browser job): the note's Undo was CLICKED 85 ms after its dialog reopened, the click
+ * resolved, and NO request was ever sent (the run's trace: no POST after the apply; no console error; the dialog still
+ * open with the reason typed). The dialog was still animating in (zoom + slide, 200 ms) while the page's refetches from
+ * the previous act were landing: a click made while its target moves can land where the button no longer is, and then
+ * nothing happens at all. The test now depends on neither:
+ *  - `settledApplyDialog` acts on the dialog only once every animation under it has FINISHED and the page's requests
+ *    have landed;
+ *  - `clickAndAnswer` ties a click to the request it must send, so a click that sends nothing fails AT THE CLICK, by
+ *    name, instead of ten seconds later as "the dialog is still open".
+ */
+async function settledApplyDialog(page: Page) {
+  const dialog = page.getByTestId("apply-note-dialog");
+  await expect(dialog).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await dialog.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined))));
+  return dialog;
+}
+async function clickAndAnswer(page: Page, testId: string, url: RegExp) {
+  const [response] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && url.test(new URL(r.url()).pathname)),
+    page.getByTestId(testId).click(),
+  ]);
+  expect(response.status(), `${testId} → ${response.url()}`).toBe(200);
+}
+const NOTE_APPLY = /^\/api\/supplier-credit-notes\/\d+\/apply$/;
+const ALLOCATION_REVERSE = /^\/api\/supplier-payments\/allocations\/\d+\/reverse$/;
+
 test.use({ storageState: E2E.storageState });
 
 const PHONE = { width: 390, height: 844 };
@@ -246,9 +274,9 @@ test.describe.serial("the AP subledger, end to end", () => {
     // apply it, and count the journal entries either side
     const entriesBefore = ((await (await api.get("/api/journal-entries?limit=1")).json()).page?.total) as number;
     await page.getByTestId(`apply-note-${noteId}`).click();
-    await expect(page.getByTestId("apply-note-dialog")).toBeVisible();
+    await settledApplyDialog(page);
     await page.getByTestId(`apply-to-${BILL_NO}`).fill("500");
-    await page.getByTestId("apply-submit").click();
+    await clickAndAnswer(page, "apply-submit", NOTE_APPLY);
     await expect(page.getByTestId("apply-note-dialog")).toHaveCount(0);
 
     // 🔴 NOT ONE new entry: the note's debit was already in AP when it posted
@@ -263,8 +291,9 @@ test.describe.serial("the AP subledger, end to end", () => {
     const note = await (await api.get(`/api/supplier-credit-notes/${noteId}`)).json();
     const app = (note.applications as Array<{ id: number; reversed: boolean }>).find((a) => !a.reversed)!;
     await page.getByTestId(`apply-note-${noteId}`).click();
+    await settledApplyDialog(page);
     await page.getByTestId("undo-application-reason").fill("Applied before the supplier confirmed");
-    await page.getByTestId(`undo-application-${app.id}`).click();
+    await clickAndAnswer(page, `undo-application-${app.id}`, ALLOCATION_REVERSE);
     await expect(page.getByTestId("apply-note-dialog")).toHaveCount(0);
     await expect(page.getByTestId(`note-available-${noteId}`)).toContainText("500.00");
     const entriesAfterUndo = ((await (await api.get("/api/journal-entries?limit=1")).json()).page?.total) as number;
@@ -272,8 +301,9 @@ test.describe.serial("the AP subledger, end to end", () => {
 
     // …and apply it again, so the rest of the walk sees the note in force
     await page.getByTestId(`apply-note-${noteId}`).click();
+    await settledApplyDialog(page);
     await page.getByTestId(`apply-to-${BILL_NO}`).fill("500");
-    await page.getByTestId("apply-submit").click();
+    await clickAndAnswer(page, "apply-submit", NOTE_APPLY);
     await expect(page.getByTestId("apply-note-dialog")).toHaveCount(0);
     await expect(page.getByTestId(`note-available-${noteId}`)).toContainText("0.00");
   });
