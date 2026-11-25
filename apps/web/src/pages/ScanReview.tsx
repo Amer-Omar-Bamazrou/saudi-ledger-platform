@@ -28,6 +28,7 @@ import type { ParsedReceipt } from "@/lib/receiptParser";
 import { loadAndClearScanData } from "@/lib/scanReviewStore";
 import { useExpenseAccounts } from "@/lib/accounts";
 import { VatEvidencePanel } from "@/components/VatEvidencePanel";
+import { CommercialSupplyField } from "@/components/CommercialSupplyField";
 import { previewBillVatEvidence, type VatEvidencePreviewInput } from "@workspace/api-client-react";
 import { DuplicateWarning } from "@/components/DuplicateWarning";
 import { SUPPLIER_DOCUMENT_KINDS, kindLabel, type SupplierDocumentKind } from "@/lib/vatEvidence";
@@ -121,6 +122,8 @@ export default function ScanReview() {
   // platform does not assume which document the user holds.
   const [docKind, setDocKind] = useState<SupplierDocumentKind | "">("");
   const [asExpense, setAsExpense] = useState(false);
+  // 🔴 L4: the commercial supply stated for VAT on an out-of-scope account (asked only when the server's verdict does).
+  const [supplyReason, setSupplyReason] = useState("");
   const [expenseBank, setExpenseBank] = useState<string>("");
   const [expensePaidAt, setExpensePaidAt] = useState<string>("");
   const { data: bankAccounts = [] } = useQuery<Array<{ id: number; name: string; bankName: string; isDefault: boolean; isActive: boolean }>>({
@@ -201,6 +204,7 @@ export default function ScanReview() {
     total: n(fields.total),
     expenseAccountId: effectiveDebitAccountId ?? null,
     captureId,
+    commercialSupplyReason: supplyReason.trim() || null,
   };
   const { data: verdict } = useQuery({
     queryKey: ["evidence-preview", previewBody],
@@ -281,6 +285,7 @@ export default function ScanReview() {
           notes:           fields.notes || undefined,
           expenseAccountId: effectiveDebitAccountId ?? undefined,
           supplierDocumentKind: docKind || undefined,
+          commercialSupplyReason: supplyReason.trim() || undefined,
           ...(captureId ? { captureId } : {}),
           ...(asExpense ? { recordedAsExpense: true, expensePaidFromBankAccountId: bank, expensePaidAt: expensePaidAt || fields.date } : {}),
           items:           [],
@@ -506,6 +511,7 @@ export default function ScanReview() {
                "لا تُخصم ضريبة المدخلات إلا بفاتورة ضريبية. ولا تصح الفاتورة المبسطة لمنشأة إلا لأقل من 1,000 ريال ويجب أن تحمل رمز الاستجابة الخاص بالهيئة.")}
           </p>
           <VatEvidencePanel verdict={verdict} context="preview" />
+          <CommercialSupplyField verdict={verdict} value={supplyReason} onChange={setSupplyReason} />
         </CardContent>
       </Card>
 

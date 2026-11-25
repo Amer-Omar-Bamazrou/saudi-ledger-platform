@@ -32,6 +32,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useExpenseAccounts } from "@/lib/accounts";
 import { DualDate } from "@/components/DualDate";
 import { VatEvidencePanel } from "@/components/VatEvidencePanel";
+import { CommercialSupplyField } from "@/components/CommercialSupplyField";
 import { DuplicateWarning } from "@/components/DuplicateWarning";
 import { statusLabel as billStatusLabel } from "@/lib/statusLabel";
 import { SUPPLIER_DOCUMENT_KINDS, inputVatLabel, kindLabel, statusLabel as evidenceStatusLabel, type SupplierDocumentKind } from "@/lib/vatEvidence";
@@ -44,6 +45,8 @@ const empty = () => ({
   vendorId: "", vendorReference: "", date: businessToday(), subtotal: "", vatAmount: "", total: "",
   supplierDocumentKind: "" as SupplierDocumentKind | "", debitAccountId: null as number | null,
   bankId: "", paidAt: "", notes: "",
+  // 🔴 L4: the commercial supply stated for VAT on an out-of-scope account.
+  commercialSupplyReason: "",
 });
 
 export default function Expenses() {
@@ -85,6 +88,7 @@ export default function Expenses() {
     vatAmount: Number(form.vatAmount) || 0,
     total: Number(form.total) || 0,
     expenseAccountId: form.debitAccountId ?? defaultExpenseId ?? null,
+    commercialSupplyReason: form.commercialSupplyReason.trim() || null,
   };
   const { data: verdict } = useQuery({
     queryKey: ["evidence-preview", "expense", preview],
@@ -116,6 +120,7 @@ export default function Expenses() {
         total: Number(form.total) || 0,
         expenseAccountId: form.debitAccountId ?? defaultExpenseId ?? undefined,
         notes: form.notes || undefined,
+        commercialSupplyReason: form.commercialSupplyReason.trim() || undefined,
         recordedAsExpense: true,
         expensePaidFromBankAccountId: bank,
         expensePaidAt: form.paidAt || form.date,
@@ -346,6 +351,7 @@ export default function Expenses() {
               </div>
             </div>
             <VatEvidencePanel verdict={verdict} context="preview" />
+            <CommercialSupplyField verdict={verdict} value={form.commercialSupplyReason} onChange={(v) => setForm((p) => ({ ...p, commercialSupplyReason: v }))} />
             <DuplicateWarning vendorId={form.vendorId ? Number(form.vendorId) : null} vendorReference={form.vendorReference} date={form.date} total={Number(form.total) || null} />
           </div>
           <Button className="w-full mt-4" disabled={!canSave} onClick={() => record.mutate()} data-testid="expense-save">

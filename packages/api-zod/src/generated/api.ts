@@ -1719,6 +1719,7 @@ export const ConvertPurchaseOrderResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -8231,6 +8232,7 @@ export const CreateSupplierAdvanceInvoiceResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -8359,6 +8361,7 @@ export const CreateSupplierAdvanceCreditNoteResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -8505,6 +8508,7 @@ export const SubmitBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -8630,6 +8634,7 @@ export const SendBackBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -8758,6 +8763,7 @@ export const ApproveBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -9731,6 +9737,7 @@ export const ListBillsResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -9826,6 +9833,8 @@ export const createBillBodyOneVatAmountMin = 0;
 
 export const createBillBodyOneTotalMin = 0;
 
+export const createBillBodyOneCommercialSupplyReasonMax = 1000;
+
 
 export const createBillBodyTwoItemsItemQuantityMin = 0;
 
@@ -9861,7 +9870,8 @@ export const CreateBillBody = zod.object({
   "captureId": zod.string().nullish().describe('A staged capture (POST \/capture) to link as this draft\'s evidence document.'),
   "recordedAsExpense": zod.boolean().nullish().describe('Phase 13C: an EXPENSE — already paid when recorded. Requires the bank it was paid from and the date; its approval posts the bill and pays it through the bill-payment path in the same transaction.\n'),
   "expensePaidFromBankAccountId": zod.number().nullish(),
-  "expensePaidAt": zod.string().nullish()
+  "expensePaidAt": zod.string().nullish(),
+  "commercialSupplyReason": zod.string().max(createBillBodyOneCommercialSupplyReasonMax).nullish().describe('L4 (owner, 2026-11-25): on an OUT-OF-SCOPE expense account (the account\'s own VAT treatment \'O\' — a statutory fee, GOSI, salaries…) VAT defaults to 0, and VAT above 0 is accepted only with the commercial supply stated here and why: without it the create, the edit and the approval are refused 422 `out_of_scope_vat_unstated`. The claim still needs a valid tax invoice (the evidence verdict). Blank is no statement; who stated it and when are kept.\n')
 }).and(zod.object({
   "items": zod.array(zod.object({
   "description": zod.string().min(1),
@@ -9911,6 +9921,7 @@ export const CreateBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -15065,6 +15076,7 @@ export const GetBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -15153,6 +15165,8 @@ export const updateBillBodyVatAmountMin = 0;
 
 export const updateBillBodyTotalMin = 0;
 
+export const updateBillBodyCommercialSupplyReasonMax = 1000;
+
 
 
 export const UpdateBillBody = zod.object({
@@ -15180,7 +15194,8 @@ export const UpdateBillBody = zod.object({
   "captureId": zod.string().nullish().describe('A staged capture (POST \/capture) to link as this draft\'s evidence document.'),
   "recordedAsExpense": zod.boolean().nullish().describe('Phase 13C: an EXPENSE — already paid when recorded. Requires the bank it was paid from and the date; its approval posts the bill and pays it through the bill-payment path in the same transaction.\n'),
   "expensePaidFromBankAccountId": zod.number().nullish(),
-  "expensePaidAt": zod.string().nullish()
+  "expensePaidAt": zod.string().nullish(),
+  "commercialSupplyReason": zod.string().max(updateBillBodyCommercialSupplyReasonMax).nullish().describe('L4 (owner, 2026-11-25): on an OUT-OF-SCOPE expense account (the account\'s own VAT treatment \'O\' — a statutory fee, GOSI, salaries…) VAT defaults to 0, and VAT above 0 is accepted only with the commercial supply stated here and why: without it the create, the edit and the approval are refused 422 `out_of_scope_vat_unstated`. The claim still needs a valid tax invoice (the evidence verdict). Blank is no statement; who stated it and when are kept.\n')
 })
 
 export const UpdateBillResponse = zod.object({
@@ -15221,6 +15236,7 @@ export const UpdateBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -15358,6 +15374,7 @@ export const PostBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -15448,7 +15465,8 @@ export const PreviewBillVatEvidenceBody = zod.object({
   "total": zod.number().nullish(),
   "expenseAccountId": zod.number().nullish(),
   "capitalisesAssetId": zod.number().nullish(),
-  "captureId": zod.string().nullish()
+  "captureId": zod.string().nullish(),
+  "commercialSupplyReason": zod.string().nullish().describe('L4: the commercial supply stated for VAT on an out-of-scope account (BillHeaderInput).')
 })
 
 export const PreviewBillVatEvidenceResponse = zod.object({
@@ -15549,6 +15567,7 @@ export const ListBillsHeldForVatEvidenceResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -15694,6 +15713,7 @@ export const AttachBillEvidenceResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -15824,6 +15844,7 @@ export const ConfirmBillVatFiguresResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -15957,6 +15978,7 @@ export const ListExpensesResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),
@@ -16122,6 +16144,7 @@ export const PayBillResponse = zod.object({
   "paidAt": zod.string().nullish(),
   "reviewNote": zod.string().nullish(),
   "expenseAccountId": zod.number().nullish().describe('The expense account chosen at entry; the account the bill posts to on approval when the approve\/post body names none.'),
+  "commercialSupplyReason": zod.string().nullish().describe('L4 — the commercial supply stated for VAT on an out-of-scope expense account (BillHeaderInput); null when none was stated.'),
   "capitalisesAssetId": zod.number().nullish().describe('FA-B (2026-09-22): the DRAFT fixed asset this bill buys. When set, approval debits the asset CATEGORY\'s cost account instead of an expense account and capitalises the asset on that entry (non-deductible input VAT — VAT IR Art. 50 — is capitalised into the cost instead of deducted). Refused by name when the asset is not a draft, has no available-for-use date, or states a cost the bill does not.\n'),
   "notes": zod.string().nullish(),
   "supplierDocumentKind": zod.union([zod.literal('tax_invoice'),zod.literal('simplified_tax_invoice'),zod.literal('no_tax_invoice'),zod.literal(null)]).nullish().describe('Phase 13A: the supplier document the user states they hold. Null = not stated.'),

@@ -113,7 +113,7 @@ import { taxRepository } from "../repositories/tax.repository";
 import { businessToday } from "@workspace/shared";
 import { supplierAdvanceInvoicesService, type PrepaymentInput } from "./accounting/supplierAdvanceInvoices.service";
 import { capturedDocumentsRepository } from "../repositories/capturedDocuments.repository";
-import { vatEvidenceService, assertSupplierDocumentKind, supplierVatOf } from "./purchaseEvidence/vatEvidence.service";
+import { vatEvidenceService, assertSupplierDocumentKind, supplierVatOf, assertOutOfScopeVatStated, normaliseCommercialSupplyReason, outOfScopeAccount } from "./purchaseEvidence/vatEvidence.service";
 import { duplicatesService } from "./purchaseEvidence/duplicates.service";
 
 /**
@@ -213,7 +213,11 @@ export const billsService = {
       "supplierDocumentKind",
       // Phase 13C: an expense — paid when recorded, from this bank, on this date.
       "recordedAsExpense", "expensePaidFromBankAccountId", "expensePaidAt",
+      // 🔴 L4: the commercial supply stated for VAT on an out-of-scope account.
+      "commercialSupplyReason",
     ]) as Record<string, any>;
+    billData.commercialSupplyReason = normaliseCommercialSupplyReason(billData.commercialSupplyReason);
+    if (billData.commercialSupplyReason) { billData.commercialSupplyStatedBy = userId ?? null; billData.commercialSupplyStatedAt = new Date(); }
     assertSupplierDocumentKind(billData.supplierDocumentKind);
     await normaliseExpense(billData, String(billData.documentType ?? "bill"));
     // The chosen expense account must be one of the tenant's EXPENSE accounts —
@@ -248,15 +252,20 @@ export const billsService = {
     // here and feeds AP GL posting and the input-VAT side of the return.
     let subtotal = 0;
     let vatTotal = 0;
+    // 🔴 L4: on an OUT-OF-SCOPE expense account a line without a rate carries no VAT (a fee is not a supply); the
+    // standard rate stays the default everywhere else. The rate applied is stored, so the line and its VAT agree.
+    const defaultRate = billData.capitalisesAssetId == null && (await outOfScopeAccount(billData.expenseAccountId, null)) ? 0 : DEFAULT_VAT_RATE;
     const preparedItems = items.map((it: any) => {
       const base = round2(Number(it.quantity) * Number(it.unitPrice));
-      const vat = round2(base * (Number(it.vatRate ?? DEFAULT_VAT_RATE) / 100));
+      const rate = it.vatRate ?? defaultRate;
+      const vat = round2(base * (Number(rate) / 100));
       subtotal = round2(subtotal + base);
       vatTotal = round2(vatTotal + vat);
       return {
         ...it,
         quantity: String(it.quantity),
         unitPrice: String(it.unitPrice),
+        vatRate: String(rate),
         vatAmount: vat.toFixed(2),
         total: round2(base + vat).toFixed(2),
       };
@@ -279,6 +288,10 @@ export const billsService = {
       billData.documentType, billData.creditNoteAgainstBillId, finalTotal,
     );
     if (noteAgainst) billData.vendorId = noteAgainst.vendorId;
+    await assertOutOfScopeVatStated({
+      documentType: billData.documentType ?? "bill", expenseAccountId: billData.expenseAccountId, capitalisesAssetId: billData.capitalisesAssetId,
+      vatAmount: finalVatAmount, commercialSupplyReason: billData.commercialSupplyReason,
+    });
 
     await checkPeriodOpen(billData.date ?? businessToday());
     /**
@@ -347,7 +360,7 @@ export const billsService = {
     return this.approve(id, opts, userId);
   },
 
-  async update(id: number, data: Record<string, unknown>) {
+  async update(id: number, data: Record<string, unknown>, userId: number | null = null) {
     const [existing] = await billsRepository.findById(id);
     if (!existing) throw new NotFoundError("Not found");
     if (existing.status !== "draft") throw new ConflictError(ONLY_DRAFT_BILLS_EDITABLE);
@@ -366,6 +379,12 @@ export const billsService = {
     // The list is the repository's: an approval posts only while none of these columns moved (PR B).
     const values = pick<typeof import("@workspace/db").billsTable.$inferInsert>(data, [...BILL_DRAFT_EDITABLE]);
     assertSupplierDocumentKind(values.supplierDocumentKind);
+    // 🔴 L4: a statement made or withdrawn on the edit is recorded with who and when (blank withdraws it).
+    if (values.commercialSupplyReason !== undefined) {
+      values.commercialSupplyReason = normaliseCommercialSupplyReason(values.commercialSupplyReason);
+      values.commercialSupplyStatedBy = values.commercialSupplyReason ? userId : null;
+      values.commercialSupplyStatedAt = values.commercialSupplyReason ? new Date() : null;
+    }
     if (values.capitalisesAssetId != null) await assertAssetOwnedByCompany(values.capitalisesAssetId, "capitalisesAssetId"); // G04 — see create
     // An expense is judged on the draft as it will STAND (a partial PATCH keeps the stored fields).
     if (values.recordedAsExpense !== undefined || values.expensePaidFromBankAccountId !== undefined || values.expensePaidAt !== undefined) {
@@ -407,6 +426,14 @@ export const billsService = {
       values.vatAmount = money2(vat);
       values.total = money2(round2(subtotal + vat));
     }
+    // 🔴 L4: judged on the draft as it will STAND (a partial PATCH keeps the stored fields).
+    await assertOutOfScopeVatStated({
+      documentType: existing.documentType,
+      expenseAccountId: values.expenseAccountId !== undefined ? values.expenseAccountId : existing.expenseAccountId,
+      capitalisesAssetId: values.capitalisesAssetId !== undefined ? values.capitalisesAssetId : existing.capitalisesAssetId,
+      vatAmount: Number(values.vatAmount ?? existing.vatAmount),
+      commercialSupplyReason: values.commercialSupplyReason !== undefined ? values.commercialSupplyReason : existing.commercialSupplyReason,
+    });
     // 🔴 PR B (bill half): the edit applies only while the bill is still a draft, in the same
     //    statement. The check above ran on a row read without a lock, so an approval could commit
     //    between it and this write, which then rewrote the posted bill's figures. The loser now gets

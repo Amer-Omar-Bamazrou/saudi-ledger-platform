@@ -73,7 +73,7 @@ export const billsController = {
     res.json(await billsService.post(requireIdParam(req), opts, req.session?.userId ?? null));
   },
   async update(req: Request, res: Response) {
-    res.json(await billsService.update(requireIdParam(req), parseOr400(UpdateBillBody.safeParse(req.body))));
+    res.json(await billsService.update(requireIdParam(req), parseOr400(UpdateBillBody.safeParse(req.body)), req.session?.userId ?? null));
   },
   async pay(req: Request, res: Response) {
     res.json(await billsService.pay(requireIdParam(req), parseOr400(PayBillBody.safeParse(req.body)), req.session?.userId ?? null));

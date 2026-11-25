@@ -23,6 +23,8 @@ export function VatEvidencePanel({ verdict, context = "draft" }: { verdict: VatE
   const others = verdict.flags.filter((f) => f.severity !== "blocking");
   // Held = the evidence does not support the claim. Art. 50 / 0 %-recovery VAT is not held: it is cost (X5).
   const held = verdict.status === "awaiting_evidence" || blocking.length > 0;
+  // 🔴 L4: VAT on an out-of-scope account with no stated supply is REFUSED, not held — the "you can save it" line would mislead.
+  const refused = blocking.some((f) => f.code === "out_of_scope_account_vat_unstated");
   const tone = held
     ? "border-attention-surface/40 bg-attention-surface/10"
     : verdict.status === "evidenced"
@@ -36,7 +38,7 @@ export function VatEvidencePanel({ verdict, context = "draft" }: { verdict: VatE
         <span data-testid="vat-evidence-status">{statusLabel(verdict.status, t)}</span>
         {basis && <span className="text-xs font-normal text-muted-foreground">· {basis}</span>}
       </p>
-      {held && (
+      {held && !refused && (
         <p className="text-xs text-muted-foreground">
           {context === "preview"
             ? t("You can save and post it. Its VAT will not be claimed: it is held in \"Input VAT awaiting evidence\" and listed under VAT evidence. When the evidence is supplied, the VAT is claimed in the period you hold it.",
