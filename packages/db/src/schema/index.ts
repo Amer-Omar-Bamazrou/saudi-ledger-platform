@@ -67,3 +67,4 @@ export * from "./sessionRecords";
 export * from "./userMfa";
 export * from "./orgSecuritySettings";
 export * from "./permissionReconciliations";
+export * from "./reportDefinitions";

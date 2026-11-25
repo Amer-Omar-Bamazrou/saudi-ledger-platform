@@ -542,6 +542,12 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   RecognitionScheduleRow: { standard: "id period sequence amount journalEntryId postedAt" },
   // 🔴 19B S4: a dataset's description and refusals — names, labels and levels, no data.
   ReportDatasetColumn: { standard: "key label labelAr kind class level conditional filterable sortable" },
+  // 19B S6 — a saved report: its own shape and its owner's NAME (never an email); nothing here is a business value
+  ReportPeriod: { standard: "kind from to" },
+  ReportDatasetFilter: { standard: "param column" },
+  ReportDefinitionInput: { standard: "name dataset columns filters sort" },
+  ReportDefinitionShareInput: { standard: "roles" },
+  ReportDefinition: { standard: "id name dataset columns filters sort sharedRoles ownerUserId ownerName mine createdAt updatedAt" },
   ReportDatasetSummary: { standard: "name title titleAr acts" },
   ReportDatasetWithheld: { standard: "path class level rows" },
   ReportDatasetRefusal: { standard: "code error errorAr dataset act" },

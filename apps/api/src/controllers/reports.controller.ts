@@ -28,7 +28,7 @@ export const withReportError =
 const q = (req: Request) => req.query as Record<string, string>;
 
 /** 19B S4: the role's grants, as decide() asks them — from the one matrix, the cache `requirePermission` just read. */
-const hasFor = (req: Request): Has => {
+export const hasFor = (req: Request): Has => {
   const role = req.tenant?.role;
   const grants = peekPermissions();
   return (resource, action) => !!role && !!grants && grants.has(`${role}:${resource}:${action}`);

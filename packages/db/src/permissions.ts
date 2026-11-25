@@ -72,7 +72,9 @@ export interface PermissionRow {
   action: PermissionAction;
 }
 
-const READ_ALL: readonly PermissionRole[] = ["admin", "accountant", "bookkeeper", "viewer"];
+/** Every membership role — the one list (19B S6: a report is shared with roles from it). */
+export const MEMBERSHIP_ROLES: readonly PermissionRole[] = ["admin", "accountant", "bookkeeper", "viewer"];
+const READ_ALL: readonly PermissionRole[] = MEMBERSHIP_ROLES;
 // create/update — a bookkeeper enters records (as drafts, enforced in the service
 // layer); the coarse grant here only distinguishes "may write" from "read-only".
 const WRITE: readonly PermissionRole[] = ["admin", "accountant", "bookkeeper"];

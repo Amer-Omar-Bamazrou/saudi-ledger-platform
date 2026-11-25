@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ReportDatasetColumn } from './reportDatasetColumn';
+import type { ReportDatasetFilter } from './reportDatasetFilter';
 import type { ReportDatasetSummaryActsItem } from './reportDatasetSummaryActsItem';
 
 export interface ReportDatasetSummary {
@@ -15,4 +16,6 @@ export interface ReportDatasetSummary {
   /** The acts this role may take on the dataset */
   acts: ReportDatasetSummaryActsItem[];
   columns: ReportDatasetColumn[];
+  /** 19B S6 — the filters the dataset declares; a report can name no other */
+  filters: ReportDatasetFilter[];
 }

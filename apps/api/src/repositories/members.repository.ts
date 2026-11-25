@@ -92,6 +92,21 @@ export const membersRepository = {
     return rows.map((r) => Number(r.id));
   },
 
+  /**
+   * 🔴 19B S6 — a member as a report shows one: the NAME and the ROLE, and whether they are an active member now. Never
+   * an email, not even as the fallback for an empty name (memberNamesByIds below falls back to it; a report's
+   * owner and its recipients are shown to every role).
+   */
+  async namesAndRoles(orgId: string, userIds?: number[]): Promise<Map<number, { name: string; role: string; active: boolean }>> {
+    if (userIds && userIds.length === 0) return new Map();
+    const rows = await ownerDb
+      .select({ id: usersTable.id, name: usersTable.name, isActive: usersTable.isActive, role: organizationMembershipsTable.role, status: organizationMembershipsTable.status })
+      .from(organizationMembershipsTable)
+      .innerJoin(usersTable, eq(organizationMembershipsTable.userId, usersTable.id))
+      .where(and(eq(organizationMembershipsTable.organizationId, orgId), userIds ? inArray(organizationMembershipsTable.userId, userIds) : undefined));
+    return new Map(rows.map((r) => [r.id, { name: r.name?.trim() || `#${r.id}`, role: r.role, active: r.status === "active" && r.isActive }]));
+  },
+
   async memberNamesByIds(orgId: string, userIds: number[]): Promise<Map<number, string>> {
     if (userIds.length === 0) return new Map();
     const rows = await ownerDb

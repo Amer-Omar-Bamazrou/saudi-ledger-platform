@@ -16,4 +16,6 @@ export const ReportDatasetRefusalCode = {
   report_group_not_supported: 'report_group_not_supported',
   report_unknown_column: 'report_unknown_column',
   report_bad_filter: 'report_bad_filter',
+  report_unknown_dataset: 'report_unknown_dataset',
+  report_definition_not_owner: 'report_definition_not_owner',
 } as const;
