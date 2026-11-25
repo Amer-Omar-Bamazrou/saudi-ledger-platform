@@ -15,6 +15,26 @@ import { db, findingsTable, findingRunsTable, findingSchedulesTable, type Findin
 import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { invoiceNotReversedSql, billNotReversedSql } from "./openingReversal";
 import { billIsPayableSql, billOutstandingSql } from "./billPosition";
+import { businessToday } from "@workspace/shared";
+import { taxPeriodStart, type VatTaxPeriod } from "../services/assets/vatCapitalAsset";
+
+/** YYYY-MM, `months` after a YYYY-MM month. */
+function addMonthsYm(ym: string, months: number): string {
+  const [y, m] = ym.split("-").map(Number) as [number, number];
+  const total = y * 12 + (m - 1) + months;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
+}
+
+/**
+ * 🔴 L3 — the return period an Art. 40(10) adjustment belongs to: the company's declared VAT tax period containing the
+ * trigger month (`taxPeriodStart`, the one definition — calendar months, or the calendar quarters; reasoned, stated
+ * there). NOT DECLARED is said, never assumed (the FA-F rule: the platform asks, it never infers the tax period).
+ */
+export function nonpaymentReturnPeriod(triggerMonth: string, period: string | null): { from: string; to: string; basis: VatTaxPeriod } | null {
+  if (period !== "monthly" && period !== "quarterly") return null;
+  const from = taxPeriodStart(`${triggerMonth}-01`, period).slice(0, 7);
+  return { from, to: period === "monthly" ? from : addMonthsYm(from, 2), basis: period };
+}
 
 export interface DetectedFinding {
   kind: string;
@@ -200,6 +220,53 @@ export const findingsRepository = {
       companyId: null,
       facts: { billId: r.id, billNumber: r.bill_number, dueDate: r.due_date, outstanding: Number(r.outstanding), daysOverdue: r.days_overdue },
     }));
+  },
+
+  /**
+   * 🔴 L3 (owner, 2026-11-25) — DETECTION ONLY. VAT IR Art. 40(10)–(11) as amended (Res. 01-06-24; the reading settled in
+   * advisor-questions Block L3): a purchase still not paid in full twelve months after the month following the supply's
+   * month has the input VAT on its UNPAID portion reversed in the return for the month those twelve months end (the
+   * trigger month: the supply's month + 13); a later payment restores it. Listed once that month has ENDED (the business
+   * day, Asia/Riyadh), for every posted bill or supplier debit note whose input VAT was CLAIMED (held or blocked VAT was
+   * never deducted; an opening payable's history is the migration's declaration), with what it still owes — billPosition,
+   * the one definition. The unpaid share's VAT is in the bill's own proportion (as the bad-debt relief computes its
+   * share). The financing-contract exception needs the supplier's written certificate, which the platform does not
+   * record: a listed bill under such a contract is the reader's to judge. Nothing posts; no return changes.
+   */
+  async inputVatNonpayment(): Promise<DetectedFinding[]> {
+    const today = businessToday();
+    const { rows } = await db.execute<{ id: number; company_id: string; bill_number: string; date: string; total: string; vat_amount: string; outstanding: string; vendor_name: string | null; vat_tax_period: string | null; trigger_month: string }>(sql`
+      SELECT b.id, b.company_id, b.bill_number, b.date, b.total, b.vat_amount, v.name AS vendor_name, c.vat_tax_period,
+             round(${billOutstandingSql("b")}, 2) AS outstanding,
+             to_char(date_trunc('month', b.date::date) + interval '13 months', 'YYYY-MM') AS trigger_month
+        FROM bills b
+        JOIN companies c ON c.id = b.company_id
+        LEFT JOIN vendors v ON v.id = b.vendor_id
+       WHERE b.status NOT IN ('draft','submitted')
+         AND ${billNotReversedSql("b")}
+         AND ${billIsPayableSql("b")}
+         AND NOT b.is_opening
+         AND b.vat_amount > 0
+         AND coalesce(b.input_vat_state, 'claimed') = 'claimed'
+         AND ${billOutstandingSql("b")} > 0.005
+         AND (date_trunc('month', b.date::date) + interval '14 months')::date <= ${today}::date
+    `);
+    return rows.map((r) => {
+      const unpaid = Number(r.outstanding);
+      const total = Number(r.total);
+      const unpaidVat = total > 0 ? Math.round(unpaid * (Number(r.vat_amount) / total) * 100) / 100 : 0;
+      const returnPeriod = nonpaymentReturnPeriod(r.trigger_month, r.vat_tax_period);
+      return {
+        kind: "input_vat_nonpayment",
+        refKey: `bill:${r.id}`,
+        companyId: r.company_id,
+        facts: {
+          billId: r.id, billNumber: r.bill_number, vendorName: r.vendor_name, supplyDate: String(r.date).slice(0, 10),
+          unpaid, unpaidVat, triggerMonth: r.trigger_month, returnPeriod,
+          ...(returnPeriod ? {} : { returnPeriodNote: "The VAT tax period is not declared (Company Settings): the adjustment belongs to the return for the tax period containing the trigger month." }),
+        },
+      };
+    });
   },
 
   /** Drafts/submitted documents sitting unapproved past the threshold — work someone entered and nobody decided. */
