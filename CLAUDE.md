@@ -64,7 +64,7 @@ When in doubt, favor evolving the existing system over replacing it.
 **2026-10-03 → 11-19** — 🔴 **MERGED: PHASES 14+15 (#189), 16+17 (#190), RATE LIMITING (#191); PHASE 18 #192–#306, CLOSED 11-06; CARRY-OVER #309–#318; AUDIT ROUND #319–#337; OWNER DECISIONS #339–#347**. Record: [`standing check`](docs/history/phase-18-standing-check.md).
 **2026-11-20** — 🔴 **19A BUILT** (#352–#354): sessions, MFA, security settings; production MFA needs C3 (§5).
 **2026-09-29** — 🔴 **13B-3 BUILT (+13B-4 backfill/gate)**: VAT EVENTS are the source, bill columns a checked cache ([`arch`](docs/product/phase-13b-vat-claim-ledger-architecture.md) §26).
-**2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4. The bank lock is a product control (§9).
+**2026-09-23** — 🔴 **PHASE 12 BANKING 12A–12E BUILT** ([`pack`](docs/product/phase-12-banking-reconciliation-decision-pack.md) §7 names what stays open); invariant §4.
 
 **Where things stand, in one table.** Status only; the record is the link.
 
@@ -601,10 +601,10 @@ readers labelled English (#346): each needs real Arabic.
 - 🔴 **Pre-D-3 cash history stays on the `CASH` header until the per-company cut-over (`scripts/cashCutover.ts`, dry-run first) runs clean.** Every local company is blocked by rows naming no bank; NO override mechanism exists (an open accountant decision). Record: known-issues file, "THE CASH CUT-OVER IS BLOCKED".
 - 🔴 **The business day is ONE ZONE, `Asia/Riyadh`** (`@workspace/shared` `businessDate.ts`; a named IANA zone, never `+03:00`; no per-company column). A tenant zone becomes a parameter of THAT seam, never a second definition; `tests/business-date-seam.test.ts` refuses any other "today".
 
-- 🔴 **Our VAT-return boxes are NOT ZATCA's** (P13-N1).
+- 🔴 **Our VAT-return boxes are NOT ZATCA's** (P13-N1). Bill lines have no tax category: any zero-VAT purchase (exempt, out-of-scope) files in box 10, box 11 always 0 — first in the VAT batch.
 - Manual transaction create has no `kind`/`taxTreatment`: every manual VAT-bearing entry is a null-treatment row with user-asserted VAT.
 - The Categories UI cannot mark system accounts (no edit routes exist).
-- **Deferred:** action-level permissions (post-to-GL / pay / approve, gateable separately).
+- **Deferred:** action-level permissions (post / pay / approve).
 - 🔴 **Re-check the hosted project's default privileges when it exists** (the grants were measured on the local stack only).
 
 ### What the audits could NOT see (so it is not mistaken for a clean bill)
