@@ -15,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pool } from "@workspace/db";
 import { operatorService } from "../services/operator.service";
 import { g04Harness } from "./helpers/g04Harness";
+import { __signInEventsSettledForTests } from "../routes/auth";
 
 const url = process.env.DATABASE_URL;
 const REAL_DB = !!url && !url.includes("placeholder");
@@ -71,7 +72,8 @@ describeMaybe("Phase 18 R-1 — DR-27: a break-glass password expires after 24 h
     expect([r.status, r.body?.code]).toEqual([401, "break_glass_expired"]);
     expect(String(r.body?.error)).toMatch(/expired/i);
     expect((await row(targetId)).hash, "the hash is not changed by a refused sign-in").toBe(hash);
-    await expect.poll(async () => (await refusedRows(targetId)).map((x) => x.organization_id)).toEqual([orgId]);
+    await __signInEventsSettledForTests(); // written after the 401: wait for the write, not a clock (2026-11-25)
+    expect((await refusedRows(targetId)).map((x) => x.organization_id)).toEqual([orgId]);
     // a wrong password on the same expired account is still a wrong password, not an oracle for the window
     const wrong = await h.api("target", "POST", "/auth/login", { email: h.email("target"), password: "not-the-temporary-one-1!" });
     // (the error-handling work package, 2026-11-17: every codeless 401 now carries the generic `unauthorized` — the
