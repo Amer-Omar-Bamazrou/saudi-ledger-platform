@@ -254,7 +254,7 @@ export const reportDatasetsService = {
       const filters = Object.entries(ds.filters).map(([param, column]) => ({ param, column }));
       // a grouping this role could not read is not offered (decide() would refuse it by name)
       const groupBy = run.columns.filter((c) => c.column.groupable && c.level === "read").map((c) => c.column.key);
-      return [{ name: ds.name, title: ds.title, titleAr: ds.titleAr, acts, columns: run.columns.map(columnOut), filters, groupBy, totals: [...ds.totals], grandTotal: ds.grandTotal }];
+      return [{ name: ds.name, title: ds.title, titleAr: ds.titleAr, acts, columns: run.columns.map(columnOut), filters, groupBy, totals: [...ds.totals], grandTotal: ds.grandTotal, caveat: ds.caveat?.label ?? null, caveatAr: ds.caveat?.labelAr ?? null }];
     });
     return { items };
   },
@@ -297,6 +297,8 @@ export function buildDatasetDocument(ds: DatasetDef, d: Allowed, groupKey: strin
       }]
     : [];
 
+  // a known limitation of what the dataset shows goes with every file of it
+  if (ds.caveat) notes.push({ en: ds.caveat.label, ar: ds.caveat.labelAr });
   // an empty report says so: a header over nothing reads as a file that failed
   if (rows.length === 0) notes.unshift({ en: "Nothing in this period.", ar: "لا توجد بيانات في هذه الفترة." });
 

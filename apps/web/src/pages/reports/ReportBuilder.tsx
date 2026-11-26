@@ -207,6 +207,7 @@ export default function ReportBuilder() {
               onChange={(e) => { setDraft({ ...blank(e.target.value), name: draft.name, period: draft.period }); setApplied(null); }}>
               {items.map((i) => <option key={i.name} value={i.name}>{lang === "ar" ? i.titleAr : i.title}</option>)}
             </select>
+            {ds.caveat && <p className="text-[11px] text-attention mt-1" data-testid="builder-caveat">{lang === "ar" ? ds.caveatAr ?? ds.caveat : ds.caveat}</p>}
           </div>
           <div>
             <Label className="text-xs text-muted-foreground" htmlFor="builder-period">{t("Period", "الفترة")}</Label>

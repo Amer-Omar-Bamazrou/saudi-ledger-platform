@@ -9471,7 +9471,7 @@ components:
         sortable: { type: boolean }
     ReportDatasetSummary:
       type: object
-      required: [name, title, titleAr, acts, columns, filters, groupBy, totals, grandTotal]
+      required: [name, title, titleAr, acts, columns, filters, groupBy, totals, grandTotal, caveat, caveatAr]
       properties:
         name: { type: string }
         title: { type: string }
@@ -9482,6 +9482,8 @@ components:
         groupBy: { type: array, items: { type: string }, description: "19.12 — the columns this role may group by" }
         totals: { type: array, items: { type: string }, description: "The money columns a grouped report totals" }
         grandTotal: { type: boolean, description: "Whether a grouped report of this dataset has a grand total" }
+        caveat: { type: string, nullable: true, description: "A known limitation of what this dataset shows, to be shown to its reader; null when there is none" }
+        caveatAr: { type: string, nullable: true }
     ReportDatasetFilter:
       type: object
       required: [param, column]
