@@ -151,7 +151,8 @@ test.describe.serial("19B S6 — the report builder and saved reports", () => {
     const { page, close } = await pageAs(browser, "viewer", "/reports/saved", "ar", PHONE);
     const item = page.getByTestId("saved-list").locator("li").filter({ hasText: REPORT });
     await expect(item).toContainText("مشترك من E2E S6 accountant");
-    await expect(item.getByRole("button")).toHaveCount(0); // someone else's: no Remove
+    await expect(item.locator('[data-testid^="saved-remove-"]')).toHaveCount(0); // someone else's: no Remove
+    await expect(item.locator('[data-testid^="saved-schedule-"]')).toHaveCount(1); // a viewer may schedule it to themselves (S6 part 2)
     await fitsAtPhoneWidth(page, "the saved reports list");
     await item.getByRole("link", { name: REPORT }).click();
     await expect(page.getByTestId("builder-table")).toBeVisible();

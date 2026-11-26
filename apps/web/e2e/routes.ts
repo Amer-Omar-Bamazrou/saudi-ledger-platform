@@ -112,6 +112,7 @@ export const EXPECTATIONS: Record<string, Kind> = {
   "/reports/vat-lines": "app",
   "/reports/builder": "app", // 19B S6: the report builder and saved reports
   "/reports/saved": "app",
+  "/reports/deliveries": "app",
   "/reports/owner-equity": "app",
   "/reports/tax-journal-entries": "app",
   "/review": "app",

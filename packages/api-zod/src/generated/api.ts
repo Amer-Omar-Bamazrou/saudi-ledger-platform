@@ -6441,6 +6441,241 @@ export const ShareReportDefinitionResponse = zod.object({
 
 
 /**
+ * @summary 19B S6 — this member's report schedules in the request's company, each with its recipients (name and role only) and its last run.
+ */
+export const ListReportSchedulesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "definitionId": zod.number(),
+  "reportName": zod.string(),
+  "dataset": zod.string(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']),
+  "recipients": zod.array(zod.object({
+  "userId": zod.number(),
+  "name": zod.string(),
+  "role": zod.string()
+}).describe('19B S6 — a member a report is delivered to. Name and role only.')),
+  "createdAt": zod.coerce.date(),
+  "lastRun": zod.object({
+  "periodKey": zod.string(),
+  "status": zod.enum(['claimed', 'delivered', 'refused', 'failed']),
+  "outcomeCode": zod.string().nullable(),
+  "deliveredCount": zod.number(),
+  "skippedCount": zod.number(),
+  "finishedAt": zod.coerce.date().nullable()
+}).nullable()
+}))
+})
+
+
+/**
+ * @summary 19B S6 — schedule a saved report on a cadence (by the business day) for recipients who are active members of this organization; with none named, for the member alone. Needs the dataset's schedule act, and deliver when anyone else is named. A refused schedule is recorded. Delivering never widens access: each recipient is checked against their own grants when the run is delivered and whenever they open their copy.
+
+ */
+export const CreateReportScheduleBody = zod.object({
+  "definitionId": zod.number(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']),
+  "recipientUserIds": zod.array(zod.number()).optional().describe('Active members of this organization; omitted = the member alone')
+})
+
+export const CreateReportScheduleResponse = zod.object({
+  "id": zod.number(),
+  "definitionId": zod.number(),
+  "reportName": zod.string(),
+  "dataset": zod.string(),
+  "cadence": zod.enum(['daily', 'weekly', 'monthly']),
+  "recipients": zod.array(zod.object({
+  "userId": zod.number(),
+  "name": zod.string(),
+  "role": zod.string()
+}).describe('19B S6 — a member a report is delivered to. Name and role only.')),
+  "createdAt": zod.coerce.date(),
+  "lastRun": zod.object({
+  "periodKey": zod.string(),
+  "status": zod.enum(['claimed', 'delivered', 'refused', 'failed']),
+  "outcomeCode": zod.string().nullable(),
+  "deliveredCount": zod.number(),
+  "skippedCount": zod.number(),
+  "finishedAt": zod.coerce.date().nullable()
+}).nullable()
+})
+
+
+/**
+ * @summary 19B S6 — the members a report can be delivered to — active members of this organization, by name and role only (for every role; never an email).
+ */
+export const ListReportRecipientsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "userId": zod.number(),
+  "name": zod.string(),
+  "role": zod.string()
+}).describe('19B S6 — a member a report is delivered to. Name and role only.'))
+})
+
+
+/**
+ * @summary 19B S6 — end a schedule (its owner only; anyone else gets 404). It runs no more; its runs and delivered copies stay.
+ */
+export const EndReportScheduleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const EndReportScheduleResponse = zod.void()
+
+
+/**
+ * @summary 19B S6 (D7) — the report copies delivered to this member in the request's company. Facts only — never a copy's content.
+ */
+export const ListReportDeliveriesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "reportName": zod.string(),
+  "dataset": zod.string(),
+  "status": zod.enum(['available', 'expired']),
+  "window": zod.object({
+  "from": zod.coerce.date().nullable(),
+  "to": zod.coerce.date().nullable()
+}),
+  "rowCount": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}).describe('19B S6 (D7) — a stored copy\'s facts (what its tombstone keeps). Never its content.'))
+})
+
+
+/**
+ * @summary 19B S6 (D7) — open a stored copy. Its recipient only (anyone else gets 404). Decided again at every open: an expired copy is a message with no data; a lost run on the dataset opens nothing and is recorded; the content's SHA-256 is checked (a mismatch is refused, recorded and alarmed); a class lost since delivery is withheld.
+
+ */
+export const OpenReportDeliveryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const OpenReportDeliveryResponse = zod.object({
+  "id": zod.number(),
+  "reportName": zod.string(),
+  "dataset": zod.string(),
+  "status": zod.enum(['available', 'expired']),
+  "window": zod.object({
+  "from": zod.coerce.date().nullable(),
+  "to": zod.coerce.date().nullable()
+}),
+  "rowCount": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date(),
+  "columns": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "labelAr": zod.string(),
+  "kind": zod.enum(['text', 'money', 'date', 'int']),
+  "class": zod.string().describe('The column\'s field class, from the class table (standard, bank_narrative, …)'),
+  "level": zod.enum(['read', 'last4', 'none']),
+  "conditional": zod.string().nullish().describe('When the class applies only to some rows: which (e.g. a line built from a bank line)'),
+  "filterable": zod.boolean(),
+  "sortable": zod.boolean()
+}).describe('19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).')),
+  "rows": zod.object({
+  "journal_lines": zod.array(zod.object({
+  "textOrigin": zod.enum(['bank_line', 'unknown', 'document']).optional().describe('19B (review follow-up, 2026-11-24): where an entry\'s text came from — a bank line (the bank\'s own text), unknown (written before the source tag, or a mirror of such an entry), or a document\'s own text. A mirror takes its original\'s origin. The bank\'s text is withheld from a role without bank_narrative on journal entries.\n'),
+  "lineId": zod.number().optional(),
+  "date": zod.coerce.date().optional(),
+  "entryNumber": zod.string().optional(),
+  "status": zod.string().optional(),
+  "sourceType": zod.string().nullish(),
+  "reference": zod.string().nullish(),
+  "accountId": zod.number().nullish(),
+  "accountCode": zod.string().nullish(),
+  "accountName": zod.string().optional(),
+  "accountNameAr": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "debit": zod.number().optional(),
+  "credit": zod.number().optional()
+}).describe('19B S4 — one journal line in the books. Only the shown columns are present; a withheld column\'s key is absent (D4). The line text is the bank\'s own text where the entry came from a bank line (bank_narrative).\n')).optional(),
+  "sales_documents": zod.array(zod.object({
+  "documentId": zod.number().nullish(),
+  "documentNumber": zod.string().nullish(),
+  "documentType": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "customerId": zod.number().nullish(),
+  "customerName": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "subtotal": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "total": zod.number().nullish(),
+  "sign": zod.number().nullish(),
+  "signedSubtotal": zod.number().nullish(),
+  "signedVat": zod.number().nullish(),
+  "signedTotal": zod.number().nullish(),
+  "paidAmount": zod.number().nullish(),
+  "isOpening": zod.boolean().nullish()
+}).describe('19B S5 — one row of the sales_documents dataset. Only the shown columns are present; a withheld column\'s key is absent (D4).\n')).optional(),
+  "purchase_documents": zod.array(zod.object({
+  "documentId": zod.number().nullish(),
+  "documentNumber": zod.string().nullish(),
+  "supplierReference": zod.string().nullish(),
+  "documentType": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "status": zod.string().nullish(),
+  "vendorId": zod.number().nullish(),
+  "vendorName": zod.string().nullish(),
+  "currency": zod.string().nullish(),
+  "subtotal": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "total": zod.number().nullish(),
+  "sign": zod.number().nullish(),
+  "signedSubtotal": zod.number().nullish(),
+  "signedVat": zod.number().nullish(),
+  "signedTotal": zod.number().nullish(),
+  "outstanding": zod.number().nullish(),
+  "inputVat": zod.string().nullish(),
+  "isOpening": zod.boolean().nullish()
+}).describe('19B S5 — one row of the purchase_documents dataset. Only the shown columns are present; a withheld column\'s key is absent (D4).\n')).optional(),
+  "cash_movements": zod.array(zod.object({
+  "transactionId": zod.number().nullish(),
+  "date": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "type": zod.string().nullish(),
+  "kind": zod.string().nullish(),
+  "amount": zod.number().nullish(),
+  "signedAmount": zod.number().nullish(),
+  "vatAmount": zod.number().nullish(),
+  "reviewStatus": zod.string().nullish(),
+  "bankAccountId": zod.number().nullish(),
+  "categoryId": zod.number().nullish(),
+  "categoryName": zod.string().nullish(),
+  "countsInAggregates": zod.boolean().nullish()
+}).describe('19B S5 — one row of the cash_movements dataset. Only the shown columns are present; a withheld column\'s key is absent (D4).\n')).optional(),
+  "vat_lines": zod.array(zod.object({
+  "lineNo": zod.number().nullish(),
+  "side": zod.string().nullish(),
+  "source": zod.string().nullish(),
+  "documentId": zod.number().nullish(),
+  "documentNumber": zod.string().nullish(),
+  "documentType": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "taxCategory": zod.string().nullish(),
+  "taxable": zod.number().nullish(),
+  "vat": zod.number().nullish(),
+  "taxableBox": zod.number().nullish(),
+  "vatBox": zod.number().nullish()
+}).describe('19B S5 — one row of the vat_lines dataset. Only the shown columns are present; a withheld column\'s key is absent (D4).\n')).optional()
+}).describe('The copy\'s rows, under its dataset\'s name — each classified as that dataset\'s rows are. Empty when the copy expired.'),
+  "total": zod.number(),
+  "withheld": zod.array(zod.object({
+  "path": zod.string(),
+  "class": zod.string(),
+  "level": zod.enum(['none', 'last4']),
+  "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
+})),
+  "message": zod.string().nullable().describe('Set when the copy expired'),
+  "messageAr": zod.string().nullable()
+})
+
+
+/**
  * @summary 19B S4 — the report datasets, and for each what this role may do (its acts) and every column with the level this role reads it at (read, last4, none). Computed by decide(); the screen only displays it.
 
  */

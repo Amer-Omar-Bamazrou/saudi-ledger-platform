@@ -3590,6 +3590,120 @@ paths:
         "404":
           description: Not found
 
+  /report-schedules:
+    get:
+      operationId: listReportSchedules
+      tags: [reports]
+      summary: 19B S6 — this member's report schedules in the request's company, each with its recipients (name and role only) and its last run.
+      responses:
+        "200":
+          description: The schedules
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportScheduleList" }
+    post:
+      operationId: createReportSchedule
+      tags: [reports]
+      summary: >
+        19B S6 — schedule a saved report on a cadence (by the business day) for recipients who are active members of
+        this organization; with none named, for the member alone. Needs the dataset's schedule act, and deliver when
+        anyone else is named. A refused schedule is recorded. Delivering never widens access: each recipient is checked
+        against their own grants when the run is delivered and whenever they open their copy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportScheduleInput" }
+      responses:
+        "201":
+          description: The schedule
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportSchedule" }
+        "400":
+          description: A malformed schedule (an unknown cadence, a malformed recipient list)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, or report_field_withheld
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "404":
+          description: The saved report was not found
+        "422":
+          description: report_recipient_not_member
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+
+  /report-schedules/recipients:
+    get:
+      operationId: listReportRecipients
+      tags: [reports]
+      summary: 19B S6 — the members a report can be delivered to — active members of this organization, by name and role only (for every role; never an email).
+      responses:
+        "200":
+          description: The members
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportRecipientList" }
+
+  /report-schedules/{id}:
+    delete:
+      operationId: endReportSchedule
+      tags: [reports]
+      summary: 19B S6 — end a schedule (its owner only; anyone else gets 404). It runs no more; its runs and delivered copies stay.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204":
+          description: Ended
+        "404":
+          description: Not found
+
+  /report-deliveries:
+    get:
+      operationId: listReportDeliveries
+      tags: [reports]
+      summary: 19B S6 (D7) — the report copies delivered to this member in the request's company. Facts only — never a copy's content.
+      responses:
+        "200":
+          description: The deliveries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDeliveryList" }
+
+  /report-deliveries/{id}:
+    get:
+      operationId: openReportDelivery
+      tags: [reports]
+      summary: >
+        19B S6 (D7) — open a stored copy. Its recipient only (anyone else gets 404). Decided again at every open: an
+        expired copy is a message with no data; a lost run on the dataset opens nothing and is recorded; the content's
+        SHA-256 is checked (a mismatch is refused, recorded and alarmed); a class lost since delivery is withheld.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The copy, or the message that it expired
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDeliveryOpened" }
+        "403":
+          description: report_dataset_not_granted — the recipient may no longer run this report data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "404":
+          description: Not found
+        "409":
+          description: report_delivery_integrity — the stored copy failed its integrity check
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+
   /reports/datasets:
     get:
       operationId: listReportDatasets
@@ -9199,6 +9313,104 @@ components:
       required: [items]
       properties:
         items: { type: array, items: { $ref: "#/components/schemas/ReportDefinition" } }
+    ReportRecipient:
+      type: object
+      description: 19B S6 — a member a report is delivered to. Name and role only.
+      required: [userId, name, role]
+      properties:
+        userId: { type: integer }
+        name: { type: string }
+        role: { type: string }
+    ReportRecipientList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ReportRecipient" } }
+    ReportScheduleInput:
+      type: object
+      required: [definitionId, cadence]
+      properties:
+        definitionId: { type: integer }
+        cadence: { type: string, enum: [daily, weekly, monthly] }
+        recipientUserIds: { type: array, items: { type: integer }, description: "Active members of this organization; omitted = the member alone" }
+    ReportScheduleRun:
+      type: object
+      required: [periodKey, status, outcomeCode, deliveredCount, skippedCount, finishedAt]
+      properties:
+        periodKey: { type: string }
+        status: { type: string, enum: [claimed, delivered, refused, failed] }
+        outcomeCode: { type: string, nullable: true }
+        deliveredCount: { type: integer }
+        skippedCount: { type: integer }
+        finishedAt: { type: string, format: date-time, nullable: true }
+    ReportSchedule:
+      type: object
+      required: [id, definitionId, reportName, dataset, cadence, recipients, createdAt, lastRun]
+      properties:
+        id: { type: integer }
+        definitionId: { type: integer }
+        reportName: { type: string }
+        dataset: { type: string }
+        cadence: { type: string, enum: [daily, weekly, monthly] }
+        recipients: { type: array, items: { $ref: "#/components/schemas/ReportRecipient" } }
+        createdAt: { type: string, format: date-time }
+        lastRun: { allOf: [{ $ref: "#/components/schemas/ReportScheduleRun" }], nullable: true }
+    ReportScheduleList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ReportSchedule" } }
+    ReportDeliveryWindow:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: string, format: date, nullable: true }
+        to: { type: string, format: date, nullable: true }
+    ReportDeliverySummary:
+      type: object
+      description: 19B S6 (D7) — a stored copy's facts (what its tombstone keeps). Never its content.
+      required: [id, reportName, dataset, status, window, rowCount, createdAt, expiresAt]
+      properties:
+        id: { type: integer }
+        reportName: { type: string }
+        dataset: { type: string }
+        status: { type: string, enum: [available, expired] }
+        window: { $ref: "#/components/schemas/ReportDeliveryWindow" }
+        rowCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    ReportDeliveryList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ReportDeliverySummary" } }
+    ReportDeliveryRows:
+      type: object
+      description: The copy's rows, under its dataset's name — each classified as that dataset's rows are. Empty when the copy expired.
+      properties:
+        journal_lines: { type: array, items: { $ref: "#/components/schemas/JournalLinesDatasetRow" } }
+        sales_documents: { type: array, items: { $ref: "#/components/schemas/SalesDocumentsDatasetRow" } }
+        purchase_documents: { type: array, items: { $ref: "#/components/schemas/PurchaseDocumentsDatasetRow" } }
+        cash_movements: { type: array, items: { $ref: "#/components/schemas/CashMovementsDatasetRow" } }
+        vat_lines: { type: array, items: { $ref: "#/components/schemas/VatLinesDatasetRow" } }
+    ReportDeliveryOpened:
+      type: object
+      required: [id, reportName, dataset, status, window, rowCount, createdAt, expiresAt, columns, rows, total, withheld, message, messageAr]
+      properties:
+        id: { type: integer }
+        reportName: { type: string }
+        dataset: { type: string }
+        status: { type: string, enum: [available, expired] }
+        window: { $ref: "#/components/schemas/ReportDeliveryWindow" }
+        rowCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        columns: { type: array, items: { $ref: "#/components/schemas/ReportDatasetColumn" } }
+        rows: { $ref: "#/components/schemas/ReportDeliveryRows" }
+        total: { type: integer }
+        withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+        message: { type: string, nullable: true, description: "Set when the copy expired" }
+        messageAr: { type: string, nullable: true }
     ReportDatasetColumn:
       type: object
       description: 19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).
@@ -9246,7 +9458,7 @@ components:
       type: object
       required: [code, error, errorAr]
       properties:
-        code: { type: string, enum: [report_dataset_not_granted, report_act_not_granted, report_field_withheld, report_group_not_supported, report_unknown_column, report_bad_filter, report_unknown_dataset, report_definition_not_owner] }
+        code: { type: string, enum: [report_dataset_not_granted, report_act_not_granted, report_field_withheld, report_group_not_supported, report_unknown_column, report_bad_filter, report_unknown_dataset, report_definition_not_owner, report_recipient_not_member, report_delivery_integrity] }
         error: { type: string }
         errorAr: { type: string }
         dataset: { type: string }

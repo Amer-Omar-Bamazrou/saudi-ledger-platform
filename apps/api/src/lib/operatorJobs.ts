@@ -114,6 +114,18 @@ export const OPERATOR_JOB_RULES: Readonly<Record<string, OperatorJobRule>> = {
       "triggering a tenant's quarterly review would forge the cadence the run claims to " +
       "represent (AI-5's (org, period) row is the CLAIM that a period was reviewed).",
   },
+  "scheduled-reports": {
+    operatorRunnable: false,
+    reason:
+      "Runs tenants' report schedules as their owners and stores a copy for each recipient. An operator " +
+      "triggering it would claim a period's run for every tenant at a moment no schedule chose.",
+  },
+  "report-copy-expiry": {
+    operatorRunnable: false,
+    reason:
+      "Clears the content of stored report copies whose retention has passed. Housekeeping on a timer; " +
+      "nothing an operator decides, and no surface offers it.",
+  },
   "rate-limit-sweep": {
     operatorRunnable: false,
     reason:

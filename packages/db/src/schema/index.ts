@@ -68,3 +68,4 @@ export * from "./userMfa";
 export * from "./orgSecuritySettings";
 export * from "./permissionReconciliations";
 export * from "./reportDefinitions";
+export * from "./reportSchedules";

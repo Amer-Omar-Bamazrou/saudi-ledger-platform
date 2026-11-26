@@ -75,10 +75,15 @@ function parseBody(body: unknown): { ds: DatasetDef; values: ReportDefinitionVal
   };
 }
 
-/** The dataset's own parser on the query the definition makes, then `decide()` for the act — refused by name. */
-function check(has: Has, ds: DatasetDef, act: ReportAct, values: Pick<ReportDefinitionValues, "columns" | "filters" | "sort">) {
+/** `decide()` for an act on a definition: the dataset's own parser on the query the definition makes, then the decision. */
+export function decideDefinition(has: Has, ds: DatasetDef, act: ReportAct, values: Pick<ReportDefinitionValues, "columns" | "filters" | "sort">) {
   const { use } = parseRequest(ds, definitionQuery(values, { from: "2000-01-01", to: "2000-01-31" }), false);
-  const d = decide(has, ds, act, use);
+  return decide(has, ds, act, use);
+}
+
+/** The same, refused by name. */
+function check(has: Has, ds: DatasetDef, act: ReportAct, values: Pick<ReportDefinitionValues, "columns" | "filters" | "sort">) {
+  const d = decideDefinition(has, ds, act, values);
   if (!d.allowed) throw refusalError(d);
 }
 
@@ -134,6 +139,11 @@ export const reportDefinitionsService = {
 
   async get(id: number, actor: DefinitionActor, has: Has) {
     return one(await visible(id, actor, has), actor);
+  },
+
+  /** The definition's own row, for a member who may see it (a schedule is made on one) — else not found. */
+  visibleRow(id: number, actor: DefinitionActor, has: Has): Promise<ReportDefinitionRow> {
+    return visible(id, actor, has);
   },
 
   async create(body: unknown, actor: DefinitionActor, has: Has) {

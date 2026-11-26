@@ -18,4 +18,6 @@ export const ReportDatasetRefusalCode = {
   report_bad_filter: 'report_bad_filter',
   report_unknown_dataset: 'report_unknown_dataset',
   report_definition_not_owner: 'report_definition_not_owner',
+  report_recipient_not_member: 'report_recipient_not_member',
+  report_delivery_integrity: 'report_delivery_integrity',
 } as const;

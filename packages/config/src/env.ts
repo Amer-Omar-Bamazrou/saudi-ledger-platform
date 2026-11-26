@@ -341,6 +341,12 @@ const EnvSchema = z.object({
   /** Poll interval for the outbox worker. */
   ZATCA_WORKER_INTERVAL_MS: z.coerce.number().int().min(1000).default(15_000),
   /**
+   * 19B S6 — how often the scheduled-reports job looks for a schedule whose period has no run yet. A tick that finds
+   * none does nothing (the (schedule, period) row is the claim), so this sets only how soon after a period starts —
+   * or after a schedule is made — its report is delivered. The browser suite shortens it.
+   */
+  REPORT_SCHEDULE_INTERVAL_MS: z.coerce.number().int().min(1000).default(15 * 60_000),
+  /**
    * How long a document may sit unsubmitted before it is overdue.
    *
    * Simplified invoices must be REPORTED within 24 hours, so the alarm has to

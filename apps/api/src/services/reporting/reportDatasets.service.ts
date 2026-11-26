@@ -107,8 +107,24 @@ const READERS: Record<string, Reader> = {
   },
 };
 
+/**
+ * 19B S6 — one dataset's rows, whichever dataset: the read a schedule's run uses, so a stored copy is built from the
+ * same query the screen and the export are.
+ */
+export function readDataset(ds: DatasetDef, filter: JournalLinesFilter, sort: Sort, page: Page): Promise<{ rows: DatasetRow[]; total: number }> {
+  if (ds.name === "journal_lines") {
+    return reportDatasetsRepository.journalLines(filter, sort as { key: JournalLinesSortKey; desc: boolean } | null, page) as unknown as Promise<{ rows: DatasetRow[]; total: number }>;
+  }
+  return READERS[ds.name]!(filter, sort, page);
+}
+
+/** A column as a response lists it, with the level this role reads it at. */
+export const datasetColumnOut = (c: DecidedColumn) => columnOut(c);
+/** Whether a role sees this cell on this row: read, or a conditional class that does not apply to the row. */
+export const cellVisible = (c: DecidedColumn, row: DatasetRow): boolean => visible(c, row);
+
 /** A dataset whose figure is a WINDOW's (the VAT return's) is refused without one — never run on a guessed period. */
-function requireWindow(ds: DatasetDef, filter: { dateFrom?: string; dateTo?: string }) {
+export function requireWindow(ds: DatasetDef, filter: { dateFrom?: string; dateTo?: string }) {
   if (WINDOW_REQUIRED.has(ds.name) && !(filter.dateFrom && filter.dateTo)) {
     throw badRequest(`The ${ds.title} report needs a period: date_from and date_to.`, `يحتاج تقرير «${ds.titleAr}» إلى فترة: date_from و date_to.`);
   }

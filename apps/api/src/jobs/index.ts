@@ -18,6 +18,7 @@ import { alarmsService } from "../services/alerting/alarms.service";
 import { demoResetJob } from "../services/demo/demoResetJob.service";
 import { findingsScheduleService } from "../services/findings.schedule.service";
 import { sweepExpiredRateLimits } from "../lib/rateLimitStore";
+import { reportDeliveryExpiryJob, reportSchedulesJob } from "../services/reporting/reportSchedules.job";
 
 export const JOB_OUTBOX = "einvoice-outbox";
 export const JOB_ARCHIVE = "einvoice-archive";
@@ -29,6 +30,8 @@ export const JOB_ALARMS = "platform-alarms";
 export const JOB_DEMO_RESET = "demo-reset";
 export const JOB_SCHEDULED_FINDINGS = "scheduled-findings";
 export const JOB_RATE_LIMIT_SWEEP = "rate-limit-sweep";
+export const JOB_SCHEDULED_REPORTS = "scheduled-reports";
+export const JOB_REPORT_COPY_EXPIRY = "report-copy-expiry";
 
 let scheduler: JobScheduler | null = null;
 
@@ -145,6 +148,19 @@ export function buildScheduler(): JobScheduler {
       name: JOB_RATE_LIMIT_SWEEP,
       intervalMs: 10 * 60_000,
       runOnce: () => sweepExpiredRateLimits(),
+    },
+    {
+      // 19B S6: runs every schedule whose period (a business day, week or month) has no run yet. The (schedule,
+      // period) row is the claim, so a tick that finds nothing due does nothing, and two processes never deliver twice.
+      name: JOB_SCHEDULED_REPORTS,
+      intervalMs: env.REPORT_SCHEDULE_INTERVAL_MS,
+      runOnce: () => reportSchedulesJob.runOnce(),
+    },
+    {
+      // 19B S6 (D7): clears the content of stored report copies whose time has come; the tombstones stay.
+      name: JOB_REPORT_COPY_EXPIRY,
+      intervalMs: 60 * 60_000,
+      runOnce: () => reportDeliveryExpiryJob.runOnce(),
     },
   ];
 

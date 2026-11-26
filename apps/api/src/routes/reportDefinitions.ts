@@ -10,11 +10,12 @@ import { reportDefinitionsService, type DefinitionActor } from "../services/repo
  */
 const router = Router();
 
-const actor = (req: Request): DefinitionActor => {
+export const reportActor = (req: Request): DefinitionActor => {
   const t = req.tenant!;
   if (t.userId == null) throw new BusinessRuleError(403, { code: "report_member_required", error: "Sign in as a member to use saved reports.", errorAr: "سجّل الدخول كعضو لاستخدام التقارير المحفوظة." });
   return { userId: t.userId, organizationId: t.organizationId, companyId: t.companyId, role: t.role };
 };
+const actor = reportActor;
 const id = (req: Request) => Number(req.params.id);
 
 router.get("/", withReportError(async (req, res) => { res.json(await reportDefinitionsService.list(actor(req), hasFor(req))); }));

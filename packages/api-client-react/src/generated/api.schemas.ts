@@ -97,128 +97,107 @@ export interface ReportDefinitionList {
   items: ReportDefinition[];
 }
 
-export type ReportDatasetColumnKind = typeof ReportDatasetColumnKind[keyof typeof ReportDatasetColumnKind];
+/**
+ * 19B S6 — a member a report is delivered to. Name and role only.
+ */
+export interface ReportRecipient {
+  userId: number;
+  name: string;
+  role: string;
+}
+
+export interface ReportRecipientList {
+  items: ReportRecipient[];
+}
+
+export type ReportScheduleInputCadence = typeof ReportScheduleInputCadence[keyof typeof ReportScheduleInputCadence];
 
 
-export const ReportDatasetColumnKind = {
-  text: 'text',
-  money: 'money',
-  date: 'date',
-  int: 'int',
+export const ReportScheduleInputCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
 } as const;
 
-export type ReportDatasetColumnLevel = typeof ReportDatasetColumnLevel[keyof typeof ReportDatasetColumnLevel];
+export interface ReportScheduleInput {
+  definitionId: number;
+  cadence: ReportScheduleInputCadence;
+  /** Active members of this organization; omitted = the member alone */
+  recipientUserIds?: number[];
+}
+
+export type ReportScheduleRunStatus = typeof ReportScheduleRunStatus[keyof typeof ReportScheduleRunStatus];
 
 
-export const ReportDatasetColumnLevel = {
-  read: 'read',
-  last4: 'last4',
-  none: 'none',
+export const ReportScheduleRunStatus = {
+  claimed: 'claimed',
+  delivered: 'delivered',
+  refused: 'refused',
+  failed: 'failed',
+} as const;
+
+export interface ReportScheduleRun {
+  periodKey: string;
+  status: ReportScheduleRunStatus;
+  outcomeCode: string | null;
+  deliveredCount: number;
+  skippedCount: number;
+  finishedAt: string | null;
+}
+
+export type ReportScheduleCadence = typeof ReportScheduleCadence[keyof typeof ReportScheduleCadence];
+
+
+export const ReportScheduleCadence = {
+  daily: 'daily',
+  weekly: 'weekly',
+  monthly: 'monthly',
+} as const;
+
+export interface ReportSchedule {
+  id: number;
+  definitionId: number;
+  reportName: string;
+  dataset: string;
+  cadence: ReportScheduleCadence;
+  recipients: ReportRecipient[];
+  createdAt: string;
+  lastRun: ReportScheduleRun | null;
+}
+
+export interface ReportScheduleList {
+  items: ReportSchedule[];
+}
+
+export interface ReportDeliveryWindow {
+  from: string | null;
+  to: string | null;
+}
+
+export type ReportDeliverySummaryStatus = typeof ReportDeliverySummaryStatus[keyof typeof ReportDeliverySummaryStatus];
+
+
+export const ReportDeliverySummaryStatus = {
+  available: 'available',
+  expired: 'expired',
 } as const;
 
 /**
- * 19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).
+ * 19B S6 (D7) — a stored copy's facts (what its tombstone keeps). Never its content.
  */
-export interface ReportDatasetColumn {
-  key: string;
-  label: string;
-  labelAr: string;
-  kind: ReportDatasetColumnKind;
-  /** The column's field class, from the class table (standard, bank_narrative, …) */
-  class: string;
-  level: ReportDatasetColumnLevel;
-  /** When the class applies only to some rows: which (e.g. a line built from a bank line) */
-  conditional?: string | null;
-  filterable: boolean;
-  sortable: boolean;
+export interface ReportDeliverySummary {
+  id: number;
+  reportName: string;
+  dataset: string;
+  status: ReportDeliverySummaryStatus;
+  window: ReportDeliveryWindow;
+  rowCount: number;
+  createdAt: string;
+  expiresAt: string;
 }
 
-export type ReportDatasetSummaryActsItem = typeof ReportDatasetSummaryActsItem[keyof typeof ReportDatasetSummaryActsItem];
-
-
-export const ReportDatasetSummaryActsItem = {
-  run: 'run',
-  export: 'export',
-  schedule: 'schedule',
-  deliver: 'deliver',
-  save: 'save',
-  share: 'share',
-} as const;
-
-export interface ReportDatasetFilter {
-  /** The query parameter */
-  param: string;
-  /** The column it filters on */
-  column: string;
-}
-
-export interface ReportDatasetSummary {
-  name: string;
-  title: string;
-  titleAr: string;
-  /** The acts this role may take on the dataset */
-  acts: ReportDatasetSummaryActsItem[];
-  columns: ReportDatasetColumn[];
-  /** 19B S6 — the filters the dataset declares; a report can name no other */
-  filters: ReportDatasetFilter[];
-}
-
-export interface ReportDatasetList {
-  items: ReportDatasetSummary[];
-}
-
-export type ReportDatasetWithheldLevel = typeof ReportDatasetWithheldLevel[keyof typeof ReportDatasetWithheldLevel];
-
-
-export const ReportDatasetWithheldLevel = {
-  none: 'none',
-  last4: 'last4',
-} as const;
-
-export interface ReportDatasetWithheld {
-  path: string;
-  class: string;
-  level: ReportDatasetWithheldLevel;
-  /** For a conditional class: on how many of the returned rows it was withheld */
-  rows?: number | null;
-}
-
-export type ReportDatasetRefusalCode = typeof ReportDatasetRefusalCode[keyof typeof ReportDatasetRefusalCode];
-
-
-export const ReportDatasetRefusalCode = {
-  report_dataset_not_granted: 'report_dataset_not_granted',
-  report_act_not_granted: 'report_act_not_granted',
-  report_field_withheld: 'report_field_withheld',
-  report_group_not_supported: 'report_group_not_supported',
-  report_unknown_column: 'report_unknown_column',
-  report_bad_filter: 'report_bad_filter',
-  report_unknown_dataset: 'report_unknown_dataset',
-  report_definition_not_owner: 'report_definition_not_owner',
-} as const;
-
-export type ReportDatasetRefusalFieldsItemUse = typeof ReportDatasetRefusalFieldsItemUse[keyof typeof ReportDatasetRefusalFieldsItemUse];
-
-
-export const ReportDatasetRefusalFieldsItemUse = {
-  filter: 'filter',
-  group: 'group',
-  sort: 'sort',
-} as const;
-
-export type ReportDatasetRefusalFieldsItem = {
-  field: string;
-  class: string;
-  use: ReportDatasetRefusalFieldsItemUse;
-};
-
-export interface ReportDatasetRefusal {
-  code: ReportDatasetRefusalCode;
-  error: string;
-  errorAr: string;
-  dataset?: string;
-  act?: string;
-  fields?: ReportDatasetRefusalFieldsItem[];
+export interface ReportDeliveryList {
+  items: ReportDeliverySummary[];
 }
 
 /**
@@ -239,16 +218,6 @@ export interface JournalLinesDatasetRow {
   description?: string | null;
   debit?: number;
   credit?: number;
-}
-
-export interface JournalLinesDatasetRows {
-  dataset: string;
-  columns: ReportDatasetColumn[];
-  rows: JournalLinesDatasetRow[];
-  total: number;
-  limit: number;
-  offset: number;
-  withheld: ReportDatasetWithheld[];
 }
 
 /**
@@ -291,16 +260,6 @@ export interface SalesDocumentsDatasetRow {
   paidAmount?: number | null;
   /** @nullable */
   isOpening?: boolean | null;
-}
-
-export interface SalesDocumentsDatasetRows {
-  dataset: string;
-  columns: ReportDatasetColumn[];
-  rows: SalesDocumentsDatasetRow[];
-  total: number;
-  limit: number;
-  offset: number;
-  withheld: ReportDatasetWithheld[];
 }
 
 /**
@@ -349,16 +308,6 @@ export interface PurchaseDocumentsDatasetRow {
   isOpening?: boolean | null;
 }
 
-export interface PurchaseDocumentsDatasetRows {
-  dataset: string;
-  columns: ReportDatasetColumn[];
-  rows: PurchaseDocumentsDatasetRow[];
-  total: number;
-  limit: number;
-  offset: number;
-  withheld: ReportDatasetWithheld[];
-}
-
 /**
  * 19B S5 — one row of the cash_movements dataset. Only the shown columns are present; a withheld column's key is absent (D4).
  */
@@ -391,16 +340,6 @@ export interface CashMovementsDatasetRow {
   countsInAggregates?: boolean | null;
 }
 
-export interface CashMovementsDatasetRows {
-  dataset: string;
-  columns: ReportDatasetColumn[];
-  rows: CashMovementsDatasetRow[];
-  total: number;
-  limit: number;
-  offset: number;
-  withheld: ReportDatasetWithheld[];
-}
-
 /**
  * 19B S5 — one row of the vat_lines dataset. Only the shown columns are present; a withheld column's key is absent (D4).
  */
@@ -429,6 +368,209 @@ export interface VatLinesDatasetRow {
   taxableBox?: number | null;
   /** @nullable */
   vatBox?: number | null;
+}
+
+/**
+ * The copy's rows, under its dataset's name — each classified as that dataset's rows are. Empty when the copy expired.
+ */
+export interface ReportDeliveryRows {
+  journal_lines?: JournalLinesDatasetRow[];
+  sales_documents?: SalesDocumentsDatasetRow[];
+  purchase_documents?: PurchaseDocumentsDatasetRow[];
+  cash_movements?: CashMovementsDatasetRow[];
+  vat_lines?: VatLinesDatasetRow[];
+}
+
+export type ReportDeliveryOpenedStatus = typeof ReportDeliveryOpenedStatus[keyof typeof ReportDeliveryOpenedStatus];
+
+
+export const ReportDeliveryOpenedStatus = {
+  available: 'available',
+  expired: 'expired',
+} as const;
+
+export type ReportDatasetColumnKind = typeof ReportDatasetColumnKind[keyof typeof ReportDatasetColumnKind];
+
+
+export const ReportDatasetColumnKind = {
+  text: 'text',
+  money: 'money',
+  date: 'date',
+  int: 'int',
+} as const;
+
+export type ReportDatasetColumnLevel = typeof ReportDatasetColumnLevel[keyof typeof ReportDatasetColumnLevel];
+
+
+export const ReportDatasetColumnLevel = {
+  read: 'read',
+  last4: 'last4',
+  none: 'none',
+} as const;
+
+/**
+ * 19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).
+ */
+export interface ReportDatasetColumn {
+  key: string;
+  label: string;
+  labelAr: string;
+  kind: ReportDatasetColumnKind;
+  /** The column's field class, from the class table (standard, bank_narrative, …) */
+  class: string;
+  level: ReportDatasetColumnLevel;
+  /** When the class applies only to some rows: which (e.g. a line built from a bank line) */
+  conditional?: string | null;
+  filterable: boolean;
+  sortable: boolean;
+}
+
+export type ReportDatasetWithheldLevel = typeof ReportDatasetWithheldLevel[keyof typeof ReportDatasetWithheldLevel];
+
+
+export const ReportDatasetWithheldLevel = {
+  none: 'none',
+  last4: 'last4',
+} as const;
+
+export interface ReportDatasetWithheld {
+  path: string;
+  class: string;
+  level: ReportDatasetWithheldLevel;
+  /** For a conditional class: on how many of the returned rows it was withheld */
+  rows?: number | null;
+}
+
+export interface ReportDeliveryOpened {
+  id: number;
+  reportName: string;
+  dataset: string;
+  status: ReportDeliveryOpenedStatus;
+  window: ReportDeliveryWindow;
+  rowCount: number;
+  createdAt: string;
+  expiresAt: string;
+  columns: ReportDatasetColumn[];
+  rows: ReportDeliveryRows;
+  total: number;
+  withheld: ReportDatasetWithheld[];
+  /** Set when the copy expired */
+  message: string | null;
+  messageAr: string | null;
+}
+
+export type ReportDatasetSummaryActsItem = typeof ReportDatasetSummaryActsItem[keyof typeof ReportDatasetSummaryActsItem];
+
+
+export const ReportDatasetSummaryActsItem = {
+  run: 'run',
+  export: 'export',
+  schedule: 'schedule',
+  deliver: 'deliver',
+  save: 'save',
+  share: 'share',
+} as const;
+
+export interface ReportDatasetFilter {
+  /** The query parameter */
+  param: string;
+  /** The column it filters on */
+  column: string;
+}
+
+export interface ReportDatasetSummary {
+  name: string;
+  title: string;
+  titleAr: string;
+  /** The acts this role may take on the dataset */
+  acts: ReportDatasetSummaryActsItem[];
+  columns: ReportDatasetColumn[];
+  /** 19B S6 — the filters the dataset declares; a report can name no other */
+  filters: ReportDatasetFilter[];
+}
+
+export interface ReportDatasetList {
+  items: ReportDatasetSummary[];
+}
+
+export type ReportDatasetRefusalCode = typeof ReportDatasetRefusalCode[keyof typeof ReportDatasetRefusalCode];
+
+
+export const ReportDatasetRefusalCode = {
+  report_dataset_not_granted: 'report_dataset_not_granted',
+  report_act_not_granted: 'report_act_not_granted',
+  report_field_withheld: 'report_field_withheld',
+  report_group_not_supported: 'report_group_not_supported',
+  report_unknown_column: 'report_unknown_column',
+  report_bad_filter: 'report_bad_filter',
+  report_unknown_dataset: 'report_unknown_dataset',
+  report_definition_not_owner: 'report_definition_not_owner',
+  report_recipient_not_member: 'report_recipient_not_member',
+  report_delivery_integrity: 'report_delivery_integrity',
+} as const;
+
+export type ReportDatasetRefusalFieldsItemUse = typeof ReportDatasetRefusalFieldsItemUse[keyof typeof ReportDatasetRefusalFieldsItemUse];
+
+
+export const ReportDatasetRefusalFieldsItemUse = {
+  filter: 'filter',
+  group: 'group',
+  sort: 'sort',
+} as const;
+
+export type ReportDatasetRefusalFieldsItem = {
+  field: string;
+  class: string;
+  use: ReportDatasetRefusalFieldsItemUse;
+};
+
+export interface ReportDatasetRefusal {
+  code: ReportDatasetRefusalCode;
+  error: string;
+  errorAr: string;
+  dataset?: string;
+  act?: string;
+  fields?: ReportDatasetRefusalFieldsItem[];
+}
+
+export interface JournalLinesDatasetRows {
+  dataset: string;
+  columns: ReportDatasetColumn[];
+  rows: JournalLinesDatasetRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  withheld: ReportDatasetWithheld[];
+}
+
+export interface SalesDocumentsDatasetRows {
+  dataset: string;
+  columns: ReportDatasetColumn[];
+  rows: SalesDocumentsDatasetRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  withheld: ReportDatasetWithheld[];
+}
+
+export interface PurchaseDocumentsDatasetRows {
+  dataset: string;
+  columns: ReportDatasetColumn[];
+  rows: PurchaseDocumentsDatasetRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  withheld: ReportDatasetWithheld[];
+}
+
+export interface CashMovementsDatasetRows {
+  dataset: string;
+  columns: ReportDatasetColumn[];
+  rows: CashMovementsDatasetRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  withheld: ReportDatasetWithheld[];
 }
 
 export interface VatLinesDatasetRows {
