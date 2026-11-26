@@ -3772,11 +3772,14 @@ paths:
         - { name: sort, in: query, schema: { type: string }, description: "A column key; a leading '-' sorts descending (default: date, then entry number)." }
         - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
+        - { name: format, in: query, schema: { type: string, enum: [csv, pdf] }, description: "19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals." }
       responses:
         "200":
-          description: The CSV file
+          description: The file — CSV, or a PDF (right-to-left in Arabic)
           content:
             text/csv:
+              schema: { type: string, format: binary }
+            application/pdf:
               schema: { type: string, format: binary }
         "400":
           description: An unknown column, a malformed filter, or a grouping this dataset does not support
@@ -3789,7 +3792,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
         "422":
-          description: export_too_large — the export would exceed the row limit
+          description: export_too_large — the export would exceed the row limit for its format (refused with the count, never cut short)
+        "503":
+          description: pdf_renderer_unavailable — no Chromium executable on the server (PDF only)
 
   /reports/datasets/sales_documents/rows:
     get:
@@ -3840,11 +3845,14 @@ paths:
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
         - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
+        - { name: format, in: query, schema: { type: string, enum: [csv, pdf] }, description: "19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals." }
       responses:
         "200":
-          description: The CSV file
+          description: The file — CSV, or a PDF (right-to-left in Arabic)
           content:
             text/csv:
+              schema: { type: string, format: binary }
+            application/pdf:
               schema: { type: string, format: binary }
         "400":
           description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
@@ -3857,7 +3865,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
         "422":
-          description: export_too_large — the export would exceed the row limit
+          description: export_too_large — the export would exceed the row limit for its format (refused with the count, never cut short)
+        "503":
+          description: pdf_renderer_unavailable — no Chromium executable on the server (PDF only)
 
   /reports/datasets/purchase_documents/rows:
     get:
@@ -3908,11 +3918,14 @@ paths:
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
         - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
+        - { name: format, in: query, schema: { type: string, enum: [csv, pdf] }, description: "19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals." }
       responses:
         "200":
-          description: The CSV file
+          description: The file — CSV, or a PDF (right-to-left in Arabic)
           content:
             text/csv:
+              schema: { type: string, format: binary }
+            application/pdf:
               schema: { type: string, format: binary }
         "400":
           description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
@@ -3925,7 +3938,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
         "422":
-          description: export_too_large — the export would exceed the row limit
+          description: export_too_large — the export would exceed the row limit for its format (refused with the count, never cut short)
+        "503":
+          description: pdf_renderer_unavailable — no Chromium executable on the server (PDF only)
 
   /reports/datasets/cash_movements/rows:
     get:
@@ -3976,11 +3991,14 @@ paths:
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
         - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
+        - { name: format, in: query, schema: { type: string, enum: [csv, pdf] }, description: "19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals." }
       responses:
         "200":
-          description: The CSV file
+          description: The file — CSV, or a PDF (right-to-left in Arabic)
           content:
             text/csv:
+              schema: { type: string, format: binary }
+            application/pdf:
               schema: { type: string, format: binary }
         "400":
           description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
@@ -3993,7 +4011,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
         "422":
-          description: export_too_large — the export would exceed the row limit
+          description: export_too_large — the export would exceed the row limit for its format (refused with the count, never cut short)
+        "503":
+          description: pdf_renderer_unavailable — no Chromium executable on the server (PDF only)
 
   /reports/datasets/vat_lines/rows:
     get:
@@ -4044,11 +4064,14 @@ paths:
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
         - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
+        - { name: format, in: query, schema: { type: string, enum: [csv, pdf] }, description: "19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals." }
       responses:
         "200":
-          description: The CSV file
+          description: The file — CSV, or a PDF (right-to-left in Arabic)
           content:
             text/csv:
+              schema: { type: string, format: binary }
+            application/pdf:
               schema: { type: string, format: binary }
         "400":
           description: An unknown column, a malformed filter, a missing required period, or a grouping this dataset does not support
@@ -4061,7 +4084,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
         "422":
-          description: export_too_large — the export would exceed the row limit
+          description: export_too_large — the export would exceed the row limit for its format (refused with the count, never cut short)
+        "503":
+          description: pdf_renderer_unavailable — no Chromium executable on the server (PDF only)
 
   /reports/tax-journal-entries:
     get:

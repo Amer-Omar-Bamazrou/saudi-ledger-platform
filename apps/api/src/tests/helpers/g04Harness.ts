@@ -60,6 +60,14 @@ export function g04Harness(prefix: string) {
     return { status: res.status, body: json, text, headers };
   }
 
+  /** A GET whose answer is a FILE: the bytes as sent (19B 19.15 — a PDF is read back, never assumed). */
+  async function bytes(who: string, path: string): Promise<{ status: number; buf: Buffer; headers: Record<string, string> }> {
+    const res = await fetch(`${state.base}${path}`, { method: "GET", headers: { ...appOriginHeader(), ...(jar[who] ? { cookie: jar[who] } : {}) } });
+    const headers: Record<string, string> = {};
+    res.headers.forEach((v, k) => { headers[k] = v; });
+    return { status: res.status, buf: Buffer.from(await res.arrayBuffer()), headers };
+  }
+
   async function login(who: string, mail: string, password: string): Promise<number> {
     delete jar[who];
     return (await api(who, "POST", "/auth/login", { email: mail, password })).status;
@@ -119,5 +127,5 @@ export function g04Harness(prefix: string) {
     }
   }
 
-  return { state, api, login, cleanup, start, stop, email, mkOrg, mkCompany, mkUser, inTenant, ORGS, USERS };
+  return { state, api, bytes, login, cleanup, start, stop, email, mkOrg, mkCompany, mkUser, inTenant, ORGS, USERS };
 }

@@ -1111,6 +1111,19 @@ export const CONTROLS: readonly Control[] = [
     provingTests: ["s6-report-schedules-deliveries.test.ts"],
   },
   {
+    id: "19B-S7B",
+    title: "A builder report's PDF is the same export as its CSV: one decision (the export act), one document, one withholding — a column the role may not read is not in the file and is named, a conditional cell is marked withheld — the same subtotals, and the same audit record written before the file is sent. An unknown format is refused by name; a PDF above its row limit is refused with the count, never cut short; the table stays inside the page whatever the number of columns; an Arabic file is right-to-left with Arabic labels and Latin digits; an empty report says so",
+    answers: [],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: ["export_too_large", "report_bad_filter"],
+    points: [
+      code(`${API}/services/reporting/reportExport.service.ts`, "exportDataset"),
+      code(`${API}/services/reporting/reportDatasets.service.ts`, "buildDatasetDocument"),
+    ],
+    provingTests: ["s7-report-pdf.test.ts"],
+  },
+  {
     id: "19B-S7A",
     title: "A grouped report totals only what its reader may read: one grouping column the dataset offers (refused by name otherwise, and refused when the role may not read it), totals only of the dataset's declared money columns, computed in integer halalas over every row of the period (refused with the count above the row limit, never on part of the rows). A total of a column the role does not read on every row is listed as withheld and its cells are never read; journal lines and VAT lines have no grand total; a set mixing currencies has no money total. The CSV and a stored copy carry the same subtotals",
     answers: [],

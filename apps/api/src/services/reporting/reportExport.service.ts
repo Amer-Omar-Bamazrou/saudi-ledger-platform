@@ -613,17 +613,26 @@ export type ExportRow = Row;
 export type ExportColumn = Column;
 
 /**
- * 🔴 19B S4: a report DATASET'S export — the same withholding, the same CSV rendering and the same audit record (before
- * the file is sent) as a fixed report's export; no second export path. The caller has already refused a count above
+ * 🔴 19B S4: a report DATASET'S export — the same withholding, the same rendering (CSV, and since 19.15 the PDF through
+ * the one Chromium) and the same audit record (before the file is sent) as a fixed report's export; no second export
+ * path. The audit record counts the report's own rows, not its subtotal lines. The caller has already refused a count above
  * DATASET_EXPORT_MAX_ROWS (refused with the count, never cut short) and dropped every column the role may not read at
  * all; a conditional column's cells are withheld here, row by row (`subjectTo`).
  */
-export async function exportDatasetCsv(doc: DatasetDocument, lang: ExportLang, decide: ReadDecider, audit: { dataset: string; params: Record<string, unknown> }): Promise<{ contentType: string; filename: string; body: Buffer }> {
+export async function exportDataset(doc: DatasetDocument, format: ExportFormat, lang: ExportLang, decide: ReadDecider, audit: { dataset: string; params: Record<string, unknown> }): Promise<{ contentType: string; filename: string; body: Buffer }> {
   const full = doc as ReportDocument; // `report` names a fixed report; rendering never reads it
   const withheldCells = applyWithholding(full, decide, lang);
-  const rowCount = full.tables.reduce((n, t) => n + t.rows.length, 0);
+  const rowCount = full.tables.reduce((n, t) => n + t.rows.filter((r) => r.kind === "row").length, 0);
   const company = await companiesRepository.findCurrent();
   const companyName = company ? (lang === "ar" && company.nameAr ? company.nameAr : company.name) : "";
+  if (format === "pdf") {
+    // a wide report prints across the page; the renderer answers 503 by name where no Chromium is installed — before
+    // anything is recorded, so a file that was not sent is not in the trail
+    const body = await htmlToPdf(toHtml(full, lang, companyName, businessToday(), true), { landscape: full.tables.some((t) => t.columns.length > 7), margin: { top: "14mm", bottom: "14mm", left: "12mm", right: "12mm" } });
+    const pdf = { contentType: "application/pdf", filename: `${full.filenameStem}.pdf`, body };
+    await auditService.record({ action: "export", entityType: "report_dataset_export", entityId: audit.dataset, after: { format: "pdf", lang, filename: pdf.filename, rows: rowCount, params: audit.params, withheldCells } });
+    return pdf;
+  }
   const out = { contentType: "text/csv; charset=utf-8", filename: `${full.filenameStem}.csv`, body: Buffer.from("\ufeff" + toCsv(full, lang, companyName, businessToday()), "utf8") };
   // 🔴 recorded BEFORE the file is sent, as every export is (DR-26)
   await auditService.record({ action: "export", entityType: "report_dataset_export", entityId: audit.dataset, after: { format: "csv", lang, filename: out.filename, rows: rowCount, params: audit.params, withheldCells } });
@@ -689,8 +698,17 @@ function htmlCell(v: Cell, kind: ColumnKind): string {
   if (kind === "int" || kind === "date") return `<span dir="ltr">${esc(String(v))}</span>`;
   return esc(String(v));
 }
-function toHtml(doc: ReportDocument, lang: ExportLang, companyName: string, stamp: string): string {
+function toHtml(doc: ReportDocument, lang: ExportLang, companyName: string, stamp: string, fit = false): string {
   const dir = lang === "ar" ? "rtl" : "ltr";
+  // 19.15 — a builder report may show any number of columns: the table must stay inside the page, so headers wrap,
+  // long values break, and the type steps down as the columns go up. (The fixed reports' layouts are unchanged.)
+  const widest = Math.max(0, ...doc.tables.map((t) => t.columns.length));
+  const fitCss = !fit ? "" : `
+  table { table-layout: auto; }
+  th, th.money, th.int { white-space: normal; }
+  th, td { overflow-wrap: anywhere; }
+  body { font-size: ${widest > 16 ? 6 : widest > 12 ? 7 : widest > 8 ? 8 : 10}pt; }
+  th, td { padding: ${widest > 12 ? "2px 3px" : "3px 6px"}; }`;
   const tables = doc.tables.map((t) => `
     ${t.title ? `<h3>${esc(pick(t.title, lang))}</h3>` : ""}
     <table>
@@ -709,10 +727,11 @@ function toHtml(doc: ReportDocument, lang: ExportLang, companyName: string, stam
   th, td { padding: 3px 6px; border-bottom: 1px solid #e3e3e3; text-align: start; vertical-align: top; }
   th { background: #f2f2f2; font-weight: 600; }
   td.money, th.money, td.int, th.int { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tr { break-inside: avoid; }
   tr.section td { font-weight: 700; background: #fafafa; padding-top: 8px; }
   tr.subtotal td { font-weight: 600; border-top: 1px solid #bbb; }
   tr.total td { font-weight: 700; border-top: 2px solid #333; border-bottom: 2px solid #333; }
-  ul.notes { font-size: 8.5pt; color: #444; margin-top: 12px; padding-inline-start: 16px; }
+  ul.notes { font-size: 8.5pt; color: #444; margin-top: 12px; padding-inline-start: 16px; }${fitCss}
 </style></head><body>
 <header>
   <h1>${esc(pick(doc.title, lang))}</h1>

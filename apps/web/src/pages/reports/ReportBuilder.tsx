@@ -81,7 +81,7 @@ export default function ReportBuilder() {
   const [applied, setApplied] = useState<{ dataset: string; params: Omit<RunParams, "limit" | "offset"> } | null>(null);
   const [offset, setOffset] = useState(0);
   const [sharedRoles, setSharedRoles] = useState<string[]>([]);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
 
   const items = datasets.data?.items ?? [];
   // a new report starts on the first dataset the role may run; a saved one loads as it was saved
@@ -151,15 +151,16 @@ export default function ReportBuilder() {
       toast({ title: t("Sharing was not changed", "لم تتغير المشاركة"), description: (e as Error).message, variant: "destructive" });
     }
   };
-  const exportCsv = async () => {
+  // 19.15 — the same report as a file, CSV or PDF: the same rows, the same withholding, the same subtotals
+  const exportAs = async (format: "csv" | "pdf") => {
     if (!applied) return;
-    const qs = new URLSearchParams({ ...Object.fromEntries(Object.entries(applied.params).map(([k, v]) => [k, String(v)])), lang });
-    setExporting(true);
+    const qs = new URLSearchParams({ ...Object.fromEntries(Object.entries(applied.params).map(([k, v]) => [k, String(v)])), lang, format });
+    setExporting(format);
     try {
-      await apiDownload(`${RUNNERS[applied.dataset]!.exportPath}?${qs.toString()}`, `${applied.dataset.replace(/_/g, "-")}.csv`);
+      await apiDownload(`${RUNNERS[applied.dataset]!.exportPath}?${qs.toString()}`, `${applied.dataset.replace(/_/g, "-")}.${format}`);
     } catch (e) {
       toast({ title: t("The export was not produced", "لم يتم إنشاء الملف"), description: (e as Error).message, variant: "destructive" });
-    } finally { setExporting(false); }
+    } finally { setExporting(null); }
   };
 
   if (definitionId != null && saved.error) {
@@ -298,7 +299,8 @@ export default function ReportBuilder() {
       <Card className="border-border bg-card">
         <CardContent className="pt-4 flex flex-wrap items-end gap-3">
           <Button size="sm" className="h-8" disabled={!window} onClick={run} data-testid="builder-run"><Play className="w-3.5 h-3.5 me-1" />{t("Run", "تشغيل")}</Button>
-          <Button size="sm" variant="outline" className="h-8" disabled={!applied || exporting} onClick={() => void exportCsv()} data-testid="builder-export"><Download className="w-3.5 h-3.5 me-1" />{exporting ? t("Preparing…", "جارٍ التحضير…") : t("Export CSV", "تصدير CSV")}</Button>
+          <Button size="sm" variant="outline" className="h-8" disabled={!applied || exporting != null} onClick={() => void exportAs("csv")} data-testid="builder-export"><Download className="w-3.5 h-3.5 me-1" />{exporting === "csv" ? t("Preparing…", "جارٍ التحضير…") : t("Export CSV", "تصدير CSV")}</Button>
+          <Button size="sm" variant="outline" className="h-8" disabled={!applied || exporting != null} onClick={() => void exportAs("pdf")} data-testid="builder-export-pdf"><Download className="w-3.5 h-3.5 me-1" />{exporting === "pdf" ? t("Preparing…", "جارٍ التحضير…") : t("Export PDF", "تصدير PDF")}</Button>
           {!can("export") && <span className="text-[11px] text-muted-foreground">{t("Your role cannot export this report.", "دورك لا يسمح بتصدير هذا التقرير.")}</span>}
           <div className="flex-1 min-w-[12rem]">
             <Label className="text-xs text-muted-foreground" htmlFor="builder-name">{t("Name, to save it", "الاسم، لحفظه")}</Label>

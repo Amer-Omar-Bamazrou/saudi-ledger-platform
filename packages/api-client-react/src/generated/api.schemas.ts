@@ -15296,6 +15296,10 @@ sort?: string;
  */
 group?: string;
 lang?: ExportJournalLinesDatasetLang;
+/**
+ * 19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.
+ */
+format?: ExportJournalLinesDatasetFormat;
 };
 
 export type ExportJournalLinesDatasetLang = typeof ExportJournalLinesDatasetLang[keyof typeof ExportJournalLinesDatasetLang];
@@ -15304,6 +15308,14 @@ export type ExportJournalLinesDatasetLang = typeof ExportJournalLinesDatasetLang
 export const ExportJournalLinesDatasetLang = {
   en: 'en',
   ar: 'ar',
+} as const;
+
+export type ExportJournalLinesDatasetFormat = typeof ExportJournalLinesDatasetFormat[keyof typeof ExportJournalLinesDatasetFormat];
+
+
+export const ExportJournalLinesDatasetFormat = {
+  csv: 'csv',
+  pdf: 'pdf',
 } as const;
 
 export type RunSalesDocumentsDatasetParams = {
@@ -15348,6 +15360,10 @@ sort?: string;
  */
 group?: string;
 lang?: ExportSalesDocumentsDatasetLang;
+/**
+ * 19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.
+ */
+format?: ExportSalesDocumentsDatasetFormat;
 };
 
 export type ExportSalesDocumentsDatasetLang = typeof ExportSalesDocumentsDatasetLang[keyof typeof ExportSalesDocumentsDatasetLang];
@@ -15356,6 +15372,14 @@ export type ExportSalesDocumentsDatasetLang = typeof ExportSalesDocumentsDataset
 export const ExportSalesDocumentsDatasetLang = {
   en: 'en',
   ar: 'ar',
+} as const;
+
+export type ExportSalesDocumentsDatasetFormat = typeof ExportSalesDocumentsDatasetFormat[keyof typeof ExportSalesDocumentsDatasetFormat];
+
+
+export const ExportSalesDocumentsDatasetFormat = {
+  csv: 'csv',
+  pdf: 'pdf',
 } as const;
 
 export type RunPurchaseDocumentsDatasetParams = {
@@ -15400,6 +15424,10 @@ sort?: string;
  */
 group?: string;
 lang?: ExportPurchaseDocumentsDatasetLang;
+/**
+ * 19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.
+ */
+format?: ExportPurchaseDocumentsDatasetFormat;
 };
 
 export type ExportPurchaseDocumentsDatasetLang = typeof ExportPurchaseDocumentsDatasetLang[keyof typeof ExportPurchaseDocumentsDatasetLang];
@@ -15408,6 +15436,14 @@ export type ExportPurchaseDocumentsDatasetLang = typeof ExportPurchaseDocumentsD
 export const ExportPurchaseDocumentsDatasetLang = {
   en: 'en',
   ar: 'ar',
+} as const;
+
+export type ExportPurchaseDocumentsDatasetFormat = typeof ExportPurchaseDocumentsDatasetFormat[keyof typeof ExportPurchaseDocumentsDatasetFormat];
+
+
+export const ExportPurchaseDocumentsDatasetFormat = {
+  csv: 'csv',
+  pdf: 'pdf',
 } as const;
 
 export type RunCashMovementsDatasetParams = {
@@ -15452,6 +15488,10 @@ sort?: string;
  */
 group?: string;
 lang?: ExportCashMovementsDatasetLang;
+/**
+ * 19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.
+ */
+format?: ExportCashMovementsDatasetFormat;
 };
 
 export type ExportCashMovementsDatasetLang = typeof ExportCashMovementsDatasetLang[keyof typeof ExportCashMovementsDatasetLang];
@@ -15460,6 +15500,14 @@ export type ExportCashMovementsDatasetLang = typeof ExportCashMovementsDatasetLa
 export const ExportCashMovementsDatasetLang = {
   en: 'en',
   ar: 'ar',
+} as const;
+
+export type ExportCashMovementsDatasetFormat = typeof ExportCashMovementsDatasetFormat[keyof typeof ExportCashMovementsDatasetFormat];
+
+
+export const ExportCashMovementsDatasetFormat = {
+  csv: 'csv',
+  pdf: 'pdf',
 } as const;
 
 export type RunVatLinesDatasetParams = {
@@ -15504,6 +15552,10 @@ sort?: string;
  */
 group?: string;
 lang?: ExportVatLinesDatasetLang;
+/**
+ * 19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.
+ */
+format?: ExportVatLinesDatasetFormat;
 };
 
 export type ExportVatLinesDatasetLang = typeof ExportVatLinesDatasetLang[keyof typeof ExportVatLinesDatasetLang];
@@ -15512,6 +15564,14 @@ export type ExportVatLinesDatasetLang = typeof ExportVatLinesDatasetLang[keyof t
 export const ExportVatLinesDatasetLang = {
   en: 'en',
   ar: 'ar',
+} as const;
+
+export type ExportVatLinesDatasetFormat = typeof ExportVatLinesDatasetFormat[keyof typeof ExportVatLinesDatasetFormat];
+
+
+export const ExportVatLinesDatasetFormat = {
+  csv: 'csv',
+  pdf: 'pdf',
 } as const;
 
 export type GetTaxJournalEntriesParams = {
