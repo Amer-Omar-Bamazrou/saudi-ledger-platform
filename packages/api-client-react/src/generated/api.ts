@@ -374,6 +374,10 @@ import type {
   ReplaceBudgetLinesInput,
   ReportDatasetList,
   ReportDatasetRefusal,
+  ReportDefinition,
+  ReportDefinitionInput,
+  ReportDefinitionList,
+  ReportDefinitionShareInput,
   ReverseBankTransferInput,
   ReverseJournalEntryInput,
   ReverseMigrationBatchInput,
@@ -13266,6 +13270,452 @@ export function useExportReport<TData = Awaited<ReturnType<typeof exportReport>>
 
 
 
+
+export const getListReportDefinitionsUrl = () => {
+
+
+
+
+  return `/api/report-definitions`
+}
+
+/**
+ * @summary 19B S6 — the saved reports this member may open in the request's company: their own, and those shared with their role on a dataset their role may run. Sharing shows a definition; it grants nothing — every run re-checks.
+
+ */
+export const listReportDefinitions = async ( options?: RequestInit): Promise<ReportDefinitionList> => {
+
+  return customFetch<ReportDefinitionList>(getListReportDefinitionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReportDefinitionsQueryKey = () => {
+    return [
+    `/api/report-definitions`
+    ] as const;
+    }
+
+
+export const getListReportDefinitionsQueryOptions = <TData = Awaited<ReturnType<typeof listReportDefinitions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReportDefinitions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReportDefinitionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReportDefinitions>>> = ({ signal }) => listReportDefinitions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReportDefinitions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReportDefinitionsQueryResult = NonNullable<Awaited<ReturnType<typeof listReportDefinitions>>>
+export type ListReportDefinitionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 19B S6 — the saved reports this member may open in the request's company: their own, and those shared with their role on a dataset their role may run. Sharing shows a definition; it grants nothing — every run re-checks.
+
+ */
+
+export function useListReportDefinitions<TData = Awaited<ReturnType<typeof listReportDefinitions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReportDefinitions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReportDefinitionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateReportDefinitionUrl = () => {
+
+
+
+
+  return `/api/report-definitions`
+}
+
+/**
+ * @summary 19B S6 — save a report: a dataset, its columns in order, a period, the dataset's declared filters and a sort. Checked as a run is (decide(), the save act): nothing the dataset does not offer can be named, and a filter or a sort on a column the role may not read is refused by name.
+
+ */
+export const createReportDefinition = async (reportDefinitionInput: ReportDefinitionInput, options?: RequestInit): Promise<ReportDefinition> => {
+
+  return customFetch<ReportDefinition>(getCreateReportDefinitionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reportDefinitionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateReportDefinitionMutationOptions = <TError = ErrorType<ReportDatasetRefusal>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReportDefinition>>, TError,{data: BodyType<ReportDefinitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createReportDefinition>>, TError,{data: BodyType<ReportDefinitionInput>}, TContext> => {
+
+const mutationKey = ['createReportDefinition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createReportDefinition>>, {data: BodyType<ReportDefinitionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createReportDefinition(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateReportDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof createReportDefinition>>>
+    export type CreateReportDefinitionMutationBody = BodyType<ReportDefinitionInput>
+    export type CreateReportDefinitionMutationError = ErrorType<ReportDatasetRefusal>
+
+    /**
+ * @summary 19B S6 — save a report: a dataset, its columns in order, a period, the dataset's declared filters and a sort. Checked as a run is (decide(), the save act): nothing the dataset does not offer can be named, and a filter or a sort on a column the role may not read is refused by name.
+
+ */
+export const useCreateReportDefinition = <TError = ErrorType<ReportDatasetRefusal>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReportDefinition>>, TError,{data: BodyType<ReportDefinitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createReportDefinition>>,
+        TError,
+        {data: BodyType<ReportDefinitionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateReportDefinitionMutationOptions(options));
+    }
+
+export const getGetReportDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/report-definitions/${id}`
+}
+
+/**
+ * @summary 19B S6 — one saved report. Not found when it is another member's and not shared with this role, or another company's.
+ */
+export const getReportDefinition = async (id: number, options?: RequestInit): Promise<ReportDefinition> => {
+
+  return customFetch<ReportDefinition>(getGetReportDefinitionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReportDefinitionQueryKey = (id: number,) => {
+    return [
+    `/api/report-definitions/${id}`
+    ] as const;
+    }
+
+
+export const getGetReportDefinitionQueryOptions = <TData = Awaited<ReturnType<typeof getReportDefinition>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReportDefinition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReportDefinitionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReportDefinition>>> = ({ signal }) => getReportDefinition(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReportDefinition>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReportDefinitionQueryResult = NonNullable<Awaited<ReturnType<typeof getReportDefinition>>>
+export type GetReportDefinitionQueryError = ErrorType<void>
+
+
+/**
+ * @summary 19B S6 — one saved report. Not found when it is another member's and not shared with this role, or another company's.
+ */
+
+export function useGetReportDefinition<TData = Awaited<ReturnType<typeof getReportDefinition>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReportDefinition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReportDefinitionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateReportDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/report-definitions/${id}`
+}
+
+/**
+ * @summary 19B S6 — change a saved report. Its owner only; checked as a save is.
+ */
+export const updateReportDefinition = async (id: number,
+    reportDefinitionInput: ReportDefinitionInput, options?: RequestInit): Promise<ReportDefinition> => {
+
+  return customFetch<ReportDefinition>(getUpdateReportDefinitionUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reportDefinitionInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateReportDefinitionMutationOptions = <TError = ErrorType<ReportDatasetRefusal | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReportDefinition>>, TError,{id: number;data: BodyType<ReportDefinitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateReportDefinition>>, TError,{id: number;data: BodyType<ReportDefinitionInput>}, TContext> => {
+
+const mutationKey = ['updateReportDefinition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateReportDefinition>>, {id: number;data: BodyType<ReportDefinitionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateReportDefinition(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReportDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof updateReportDefinition>>>
+    export type UpdateReportDefinitionMutationBody = BodyType<ReportDefinitionInput>
+    export type UpdateReportDefinitionMutationError = ErrorType<ReportDatasetRefusal | void>
+
+    /**
+ * @summary 19B S6 — change a saved report. Its owner only; checked as a save is.
+ */
+export const useUpdateReportDefinition = <TError = ErrorType<ReportDatasetRefusal | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReportDefinition>>, TError,{id: number;data: BodyType<ReportDefinitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateReportDefinition>>,
+        TError,
+        {id: number;data: BodyType<ReportDefinitionInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateReportDefinitionMutationOptions(options));
+    }
+
+export const getArchiveReportDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/report-definitions/${id}`
+}
+
+/**
+ * @summary 19B S6 — remove a saved report from the lists. Its owner only. The row is archived, never deleted.
+ */
+export const archiveReportDefinition = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getArchiveReportDefinitionUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getArchiveReportDefinitionMutationOptions = <TError = ErrorType<ReportDatasetRefusal | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveReportDefinition>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof archiveReportDefinition>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['archiveReportDefinition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof archiveReportDefinition>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  archiveReportDefinition(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ArchiveReportDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof archiveReportDefinition>>>
+
+    export type ArchiveReportDefinitionMutationError = ErrorType<ReportDatasetRefusal | void>
+
+    /**
+ * @summary 19B S6 — remove a saved report from the lists. Its owner only. The row is archived, never deleted.
+ */
+export const useArchiveReportDefinition = <TError = ErrorType<ReportDatasetRefusal | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof archiveReportDefinition>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof archiveReportDefinition>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getArchiveReportDefinitionMutationOptions(options));
+    }
+
+export const getShareReportDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/report-definitions/${id}/share`
+}
+
+/**
+ * @summary 19B S6 — share a saved report with roles of this organization (the share act; its owner only). An empty list stops sharing. Sharing never widens what a role may run.
+
+ */
+export const shareReportDefinition = async (id: number,
+    reportDefinitionShareInput: ReportDefinitionShareInput, options?: RequestInit): Promise<ReportDefinition> => {
+
+  return customFetch<ReportDefinition>(getShareReportDefinitionUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reportDefinitionShareInput)
+  }
+);}
+
+
+
+
+
+export const getShareReportDefinitionMutationOptions = <TError = ErrorType<ReportDatasetRefusal | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shareReportDefinition>>, TError,{id: number;data: BodyType<ReportDefinitionShareInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof shareReportDefinition>>, TError,{id: number;data: BodyType<ReportDefinitionShareInput>}, TContext> => {
+
+const mutationKey = ['shareReportDefinition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof shareReportDefinition>>, {id: number;data: BodyType<ReportDefinitionShareInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  shareReportDefinition(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShareReportDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof shareReportDefinition>>>
+    export type ShareReportDefinitionMutationBody = BodyType<ReportDefinitionShareInput>
+    export type ShareReportDefinitionMutationError = ErrorType<ReportDatasetRefusal | void>
+
+    /**
+ * @summary 19B S6 — share a saved report with roles of this organization (the share act; its owner only). An empty list stops sharing. Sharing never widens what a role may run.
+
+ */
+export const useShareReportDefinition = <TError = ErrorType<ReportDatasetRefusal | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof shareReportDefinition>>, TError,{id: number;data: BodyType<ReportDefinitionShareInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof shareReportDefinition>>,
+        TError,
+        {id: number;data: BodyType<ReportDefinitionShareInput>},
+        TContext
+      > => {
+      return useMutation(getShareReportDefinitionMutationOptions(options));
+    }
 
 export const getListReportDatasetsUrl = () => {
 

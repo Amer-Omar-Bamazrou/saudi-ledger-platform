@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { refuseUntilPasswordChanged, refuseUntilSecondFactor, requireAuth } from "../lib/auth";
 import { resolveTenant } from "../lib/tenant";
-import { requireAnyPermission, requirePermission } from "../lib/rbac";
+import { requireAnyPermission, requirePermission, requireReadOf } from "../lib/rbac";
 import { requirePlatformOperator } from "../lib/operator";
 import { requestBudget } from "../lib/requestBudget";
 
@@ -50,6 +50,7 @@ import budgets from "./budgets.js";
 import tax from "./tax.js";
 import treasury from "./treasury.js";
 import reports from "./reports/index.js";
+import reportDefinitions from "./reportDefinitions.js";
 import periodLocks from "./periodLocks.js";
 import statementAuthorisations from "./statementAuthorisations.js";
 import financeHub from "./financeHub.js";
@@ -180,6 +181,8 @@ router.use("/budgets", requirePermission("budgets"), budgets);
 router.use("/tax", requirePermission("tax"), tax);
 router.use("/treasury", requirePermission("treasury"), treasury);
 router.use("/reports", requirePermission("reports"), reports);
+// 19B S6 — saved reports: behind `read` on reports; the act (save, share) is the dataset's own grant, asked of decide().
+router.use("/report-definitions", requireReadOf(() => "reports"), reportDefinitions);
 router.use("/period-locks", requirePermission("period_locks"), periodLocks);
 // 🔴 T1e (DR-10, DR-30): the year's statements authorised for issue — the same authority as closing its months.
 router.use("/statement-authorisations", requirePermission("period_locks"), statementAuthorisations);

@@ -6256,6 +6256,191 @@ export const ExportReportResponse = zod.unknown()
 
 
 /**
+ * @summary 19B S6 — the saved reports this member may open in the request's company: their own, and those shared with their role on a dataset their role may run. Sharing shows a definition; it grants nothing — every run re-checks.
+
+ */
+export const ListReportDefinitionsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "dataset": zod.string(),
+  "columns": zod.array(zod.string()),
+  "period": zod.object({
+  "kind": zod.enum(['fixed', 'this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year']),
+  "from": zod.coerce.date().nullish(),
+  "to": zod.coerce.date().nullish()
+}).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
+  "filters": zod.record(zod.string(), zod.string()),
+  "sort": zod.string().nullable(),
+  "sharedRoles": zod.array(zod.string()),
+  "ownerUserId": zod.number(),
+  "ownerName": zod.string().describe('The owner\'s name — never an email'),
+  "mine": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary 19B S6 — save a report: a dataset, its columns in order, a period, the dataset's declared filters and a sort. Checked as a run is (decide(), the save act): nothing the dataset does not offer can be named, and a filter or a sort on a column the role may not read is refused by name.
+
+ */
+export const createReportDefinitionBodyNameMax = 120;
+
+
+
+export const CreateReportDefinitionBody = zod.object({
+  "name": zod.string().min(1).max(createReportDefinitionBodyNameMax),
+  "dataset": zod.string(),
+  "columns": zod.array(zod.string()).optional().describe('Column keys in the order shown; empty = every column'),
+  "period": zod.object({
+  "kind": zod.enum(['fixed', 'this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year']),
+  "from": zod.coerce.date().nullish(),
+  "to": zod.coerce.date().nullish()
+}).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
+  "filters": zod.record(zod.string(), zod.string()).optional().describe('The dataset\'s other declared filters (not the dates: the period owns them)'),
+  "sort": zod.string().nullish().describe('A column key; a leading \'-\' sorts descending')
+})
+
+export const CreateReportDefinitionResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "dataset": zod.string(),
+  "columns": zod.array(zod.string()),
+  "period": zod.object({
+  "kind": zod.enum(['fixed', 'this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year']),
+  "from": zod.coerce.date().nullish(),
+  "to": zod.coerce.date().nullish()
+}).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
+  "filters": zod.record(zod.string(), zod.string()),
+  "sort": zod.string().nullable(),
+  "sharedRoles": zod.array(zod.string()),
+  "ownerUserId": zod.number(),
+  "ownerName": zod.string().describe('The owner\'s name — never an email'),
+  "mine": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary 19B S6 — one saved report. Not found when it is another member's and not shared with this role, or another company's.
+ */
+export const GetReportDefinitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetReportDefinitionResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "dataset": zod.string(),
+  "columns": zod.array(zod.string()),
+  "period": zod.object({
+  "kind": zod.enum(['fixed', 'this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year']),
+  "from": zod.coerce.date().nullish(),
+  "to": zod.coerce.date().nullish()
+}).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
+  "filters": zod.record(zod.string(), zod.string()),
+  "sort": zod.string().nullable(),
+  "sharedRoles": zod.array(zod.string()),
+  "ownerUserId": zod.number(),
+  "ownerName": zod.string().describe('The owner\'s name — never an email'),
+  "mine": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary 19B S6 — change a saved report. Its owner only; checked as a save is.
+ */
+export const UpdateReportDefinitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateReportDefinitionBodyNameMax = 120;
+
+
+
+export const UpdateReportDefinitionBody = zod.object({
+  "name": zod.string().min(1).max(updateReportDefinitionBodyNameMax),
+  "dataset": zod.string(),
+  "columns": zod.array(zod.string()).optional().describe('Column keys in the order shown; empty = every column'),
+  "period": zod.object({
+  "kind": zod.enum(['fixed', 'this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year']),
+  "from": zod.coerce.date().nullish(),
+  "to": zod.coerce.date().nullish()
+}).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
+  "filters": zod.record(zod.string(), zod.string()).optional().describe('The dataset\'s other declared filters (not the dates: the period owns them)'),
+  "sort": zod.string().nullish().describe('A column key; a leading \'-\' sorts descending')
+})
+
+export const UpdateReportDefinitionResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "dataset": zod.string(),
+  "columns": zod.array(zod.string()),
+  "period": zod.object({
+  "kind": zod.enum(['fixed', 'this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year']),
+  "from": zod.coerce.date().nullish(),
+  "to": zod.coerce.date().nullish()
+}).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
+  "filters": zod.record(zod.string(), zod.string()),
+  "sort": zod.string().nullable(),
+  "sharedRoles": zod.array(zod.string()),
+  "ownerUserId": zod.number(),
+  "ownerName": zod.string().describe('The owner\'s name — never an email'),
+  "mine": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary 19B S6 — remove a saved report from the lists. Its owner only. The row is archived, never deleted.
+ */
+export const ArchiveReportDefinitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ArchiveReportDefinitionResponse = zod.void()
+
+
+/**
+ * @summary 19B S6 — share a saved report with roles of this organization (the share act; its owner only). An empty list stops sharing. Sharing never widens what a role may run.
+
+ */
+export const ShareReportDefinitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ShareReportDefinitionBody = zod.object({
+  "roles": zod.array(zod.enum(['admin', 'accountant', 'bookkeeper', 'viewer']))
+})
+
+export const ShareReportDefinitionResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "dataset": zod.string(),
+  "columns": zod.array(zod.string()),
+  "period": zod.object({
+  "kind": zod.enum(['fixed', 'this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year']),
+  "from": zod.coerce.date().nullish(),
+  "to": zod.coerce.date().nullish()
+}).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
+  "filters": zod.record(zod.string(), zod.string()),
+  "sort": zod.string().nullable(),
+  "sharedRoles": zod.array(zod.string()),
+  "ownerUserId": zod.number(),
+  "ownerName": zod.string().describe('The owner\'s name — never an email'),
+  "mine": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary 19B S4 — the report datasets, and for each what this role may do (its acts) and every column with the level this role reads it at (read, last4, none). Computed by decide(); the screen only displays it.
 
  */
@@ -6275,7 +6460,11 @@ export const ListReportDatasetsResponse = zod.object({
   "conditional": zod.string().nullish().describe('When the class applies only to some rows: which (e.g. a line built from a bank line)'),
   "filterable": zod.boolean(),
   "sortable": zod.boolean()
-}).describe('19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).'))
+}).describe('19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).')),
+  "filters": zod.array(zod.object({
+  "param": zod.string().describe('The query parameter'),
+  "column": zod.string().describe('The column it filters on')
+})).describe('19B S6 — the filters the dataset declares; a report can name no other')
 }))
 })
 

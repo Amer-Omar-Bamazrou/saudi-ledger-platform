@@ -17,6 +17,86 @@ export const TextOrigin = {
   document: 'document',
 } as const;
 
+export type ReportPeriodKind = typeof ReportPeriodKind[keyof typeof ReportPeriodKind];
+
+
+export const ReportPeriodKind = {
+  fixed: 'fixed',
+  this_month: 'this_month',
+  last_month: 'last_month',
+  this_quarter: 'this_quarter',
+  last_quarter: 'last_quarter',
+  this_year: 'this_year',
+  last_year: 'last_year',
+} as const;
+
+/**
+ * 19B S6 — a saved report's period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.
+ */
+export interface ReportPeriod {
+  kind: ReportPeriodKind;
+  from?: string | null;
+  to?: string | null;
+}
+
+/**
+ * The dataset's other declared filters (not the dates: the period owns them)
+ */
+export type ReportDefinitionInputFilters = {[key: string]: string};
+
+export interface ReportDefinitionInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  dataset: string;
+  /** Column keys in the order shown; empty = every column */
+  columns?: string[];
+  period: ReportPeriod;
+  /** The dataset's other declared filters (not the dates: the period owns them) */
+  filters?: ReportDefinitionInputFilters;
+  /** A column key; a leading '-' sorts descending */
+  sort?: string | null;
+}
+
+export type ReportDefinitionShareInputRolesItem = typeof ReportDefinitionShareInputRolesItem[keyof typeof ReportDefinitionShareInputRolesItem];
+
+
+export const ReportDefinitionShareInputRolesItem = {
+  admin: 'admin',
+  accountant: 'accountant',
+  bookkeeper: 'bookkeeper',
+  viewer: 'viewer',
+} as const;
+
+export interface ReportDefinitionShareInput {
+  roles: ReportDefinitionShareInputRolesItem[];
+}
+
+export type ReportDefinitionFilters = {[key: string]: string};
+
+export interface ReportDefinition {
+  id: number;
+  name: string;
+  dataset: string;
+  columns: string[];
+  period: ReportPeriod;
+  filters: ReportDefinitionFilters;
+  sort: string | null;
+  sharedRoles: string[];
+  ownerUserId: number;
+  /** The owner's name — never an email */
+  ownerName: string;
+  mine: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReportDefinitionList {
+  items: ReportDefinition[];
+}
+
 export type ReportDatasetColumnKind = typeof ReportDatasetColumnKind[keyof typeof ReportDatasetColumnKind];
 
 
@@ -65,6 +145,13 @@ export const ReportDatasetSummaryActsItem = {
   share: 'share',
 } as const;
 
+export interface ReportDatasetFilter {
+  /** The query parameter */
+  param: string;
+  /** The column it filters on */
+  column: string;
+}
+
 export interface ReportDatasetSummary {
   name: string;
   title: string;
@@ -72,6 +159,8 @@ export interface ReportDatasetSummary {
   /** The acts this role may take on the dataset */
   acts: ReportDatasetSummaryActsItem[];
   columns: ReportDatasetColumn[];
+  /** 19B S6 — the filters the dataset declares; a report can name no other */
+  filters: ReportDatasetFilter[];
 }
 
 export interface ReportDatasetList {
@@ -104,6 +193,8 @@ export const ReportDatasetRefusalCode = {
   report_group_not_supported: 'report_group_not_supported',
   report_unknown_column: 'report_unknown_column',
   report_bad_filter: 'report_bad_filter',
+  report_unknown_dataset: 'report_unknown_dataset',
+  report_definition_not_owner: 'report_definition_not_owner',
 } as const;
 
 export type ReportDatasetRefusalFieldsItemUse = typeof ReportDatasetRefusalFieldsItemUse[keyof typeof ReportDatasetRefusalFieldsItemUse];

@@ -114,6 +114,8 @@ import FinanceHub from '@/pages/FinanceHub';
 import Analytics from '@/pages/Analytics';
 import JournalReport from '@/pages/reports/JournalReport';
 import JournalLinesDataset from '@/pages/reports/JournalLinesDataset';
+import ReportBuilder from '@/pages/reports/ReportBuilder';
+import SavedReports from '@/pages/reports/SavedReports';
 import { CashMovementsDataset, PurchaseDocumentsDataset, SalesDocumentsDataset, VatLinesDataset } from '@/pages/reports/Datasets';
 import AccountStatement from '@/pages/reports/AccountStatement';
 import AccountSummary from '@/pages/reports/AccountSummary';
@@ -357,6 +359,8 @@ function Router() {
               {/* New report pages under /reports/* */}
               <Route path="/reports/journal-report" component={JournalReport} />
               <Route path="/reports/journal-lines" component={JournalLinesDataset} />
+              <Route path="/reports/builder" component={ReportBuilder} />
+              <Route path="/reports/saved" component={SavedReports} />
               <Route path="/reports/sales-documents" component={SalesDocumentsDataset} />
               <Route path="/reports/purchase-documents" component={PurchaseDocumentsDataset} />
               <Route path="/reports/cash-movements" component={CashMovementsDataset} />

@@ -34,7 +34,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const badRequest = (error: string, errorAr: string) => new BusinessRuleError(400, { code: "report_bad_filter", error, errorAr });
 
 /** A request's columns, filters, grouping and sort — each a USE of a column — and the query those filters make. */
-function parseRequest(ds: DatasetDef, q: Query, paged: boolean) {
+export function parseRequest(ds: DatasetDef, q: Query, paged: boolean) {
   const list = (v: string | undefined) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const present = Object.keys(ds.filters).filter((p) => q[p] != null && q[p] !== "");
   const sortRaw = (q.sort ?? "").trim();
@@ -66,7 +66,7 @@ function parseRequest(ds: DatasetDef, q: Query, paged: boolean) {
   return { use, filter, sort, page };
 }
 
-function refusalError(d: Extract<ReturnType<typeof decide>, { allowed: false }>) {
+export function refusalError(d: Extract<ReturnType<typeof decide>, { allowed: false }>) {
   return new BusinessRuleError(d.status, { code: d.code, error: d.error, errorAr: d.errorAr, dataset: d.dataset, act: d.act, fields: d.fields });
 }
 
@@ -196,7 +196,8 @@ export const reportDatasetsService = {
       const acts = REPORT_ACTS.filter((a) => decide(has, ds, a, NO_USE).allowed);
       const run = decide(has, ds, "run", NO_USE);
       if (!run.allowed) return [];
-      return [{ name: ds.name, title: ds.title, titleAr: ds.titleAr, acts, columns: run.columns.map(columnOut) }];
+      const filters = Object.entries(ds.filters).map(([param, column]) => ({ param, column }));
+      return [{ name: ds.name, title: ds.title, titleAr: ds.titleAr, acts, columns: run.columns.map(columnOut), filters }];
     });
     return { items };
   },

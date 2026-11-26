@@ -3454,6 +3454,142 @@ paths:
         "503":
           description: pdf_renderer_unavailable — no Chromium executable on the server
 
+  /report-definitions:
+    get:
+      operationId: listReportDefinitions
+      tags: [reports]
+      summary: >
+        19B S6 — the saved reports this member may open in the request's company: their own, and those shared with their
+        role on a dataset their role may run. Sharing shows a definition; it grants nothing — every run re-checks.
+      responses:
+        "200":
+          description: The saved reports
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDefinitionList" }
+    post:
+      operationId: createReportDefinition
+      tags: [reports]
+      summary: >
+        19B S6 — save a report: a dataset, its columns in order, a period, the dataset's declared filters and a sort.
+        Checked as a run is (decide(), the save act): nothing the dataset does not offer can be named, and a filter or
+        a sort on a column the role may not read is refused by name.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportDefinitionInput" }
+      responses:
+        "201":
+          description: The saved report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDefinition" }
+        "400":
+          description: A malformed definition, or one naming a dataset, column, filter or sort that does not exist
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, report_field_withheld, or report_definition_not_owner
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+
+  /report-definitions/{id}:
+    get:
+      operationId: getReportDefinition
+      tags: [reports]
+      summary: 19B S6 — one saved report. Not found when it is another member's and not shared with this role, or another company's.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The saved report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDefinition" }
+        "404":
+          description: Not found
+    put:
+      operationId: updateReportDefinition
+      tags: [reports]
+      summary: 19B S6 — change a saved report. Its owner only; checked as a save is.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportDefinitionInput" }
+      responses:
+        "200":
+          description: The saved report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDefinition" }
+        "400":
+          description: A malformed definition, or one naming a dataset, column, filter or sort that does not exist
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, report_field_withheld, or report_definition_not_owner
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "404":
+          description: Not found
+    delete:
+      operationId: archiveReportDefinition
+      tags: [reports]
+      summary: 19B S6 — remove a saved report from the lists. Its owner only. The row is archived, never deleted.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204":
+          description: Archived
+        "403":
+          description: report_definition_not_owner
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "404":
+          description: Not found
+
+  /report-definitions/{id}/share:
+    put:
+      operationId: shareReportDefinition
+      tags: [reports]
+      summary: >
+        19B S6 — share a saved report with roles of this organization (the share act; its owner only). An empty list
+        stops sharing. Sharing never widens what a role may run.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportDefinitionShareInput" }
+      responses:
+        "200":
+          description: The saved report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDefinition" }
+        "400":
+          description: A malformed definition, or one naming a dataset, column, filter or sort that does not exist
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "403":
+          description: report_dataset_not_granted, report_act_not_granted, report_field_withheld, or report_definition_not_owner
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "404":
+          description: Not found
+
   /reports/datasets:
     get:
       operationId: listReportDatasets
@@ -9018,6 +9154,51 @@ components:
         19B (review follow-up, 2026-11-24): where an entry's text came from — a bank line (the bank's own text), unknown
         (written before the source tag, or a mirror of such an entry), or a document's own text. A mirror takes its
         original's origin. The bank's text is withheld from a role without bank_narrative on journal entries.
+    ReportPeriod:
+      type: object
+      description: 19B S6 — a saved report's period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [fixed, this_month, last_month, this_quarter, last_quarter, this_year, last_year] }
+        from: { type: string, format: date, nullable: true }
+        to: { type: string, format: date, nullable: true }
+    ReportDefinitionInput:
+      type: object
+      required: [name, dataset, period]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        dataset: { type: string }
+        columns: { type: array, items: { type: string }, description: "Column keys in the order shown; empty = every column" }
+        period: { $ref: "#/components/schemas/ReportPeriod" }
+        filters: { type: object, additionalProperties: { type: string }, description: "The dataset's other declared filters (not the dates: the period owns them)" }
+        sort: { type: string, nullable: true, description: "A column key; a leading '-' sorts descending" }
+    ReportDefinitionShareInput:
+      type: object
+      required: [roles]
+      properties:
+        roles: { type: array, items: { type: string, enum: [admin, accountant, bookkeeper, viewer] } }
+    ReportDefinition:
+      type: object
+      required: [id, name, dataset, columns, period, filters, sort, sharedRoles, ownerUserId, ownerName, mine, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        dataset: { type: string }
+        columns: { type: array, items: { type: string } }
+        period: { $ref: "#/components/schemas/ReportPeriod" }
+        filters: { type: object, additionalProperties: { type: string } }
+        sort: { type: string, nullable: true }
+        sharedRoles: { type: array, items: { type: string } }
+        ownerUserId: { type: integer }
+        ownerName: { type: string, description: "The owner's name — never an email" }
+        mine: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ReportDefinitionList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ReportDefinition" } }
     ReportDatasetColumn:
       type: object
       description: 19B S4 — one column of a dataset, with the level THIS role reads it at (decide()).
@@ -9034,13 +9215,20 @@ components:
         sortable: { type: boolean }
     ReportDatasetSummary:
       type: object
-      required: [name, title, titleAr, acts, columns]
+      required: [name, title, titleAr, acts, columns, filters]
       properties:
         name: { type: string }
         title: { type: string }
         titleAr: { type: string }
         acts: { type: array, items: { type: string, enum: [run, export, schedule, deliver, save, share] }, description: "The acts this role may take on the dataset" }
         columns: { type: array, items: { $ref: "#/components/schemas/ReportDatasetColumn" } }
+        filters: { type: array, items: { $ref: "#/components/schemas/ReportDatasetFilter" }, description: "19B S6 — the filters the dataset declares; a report can name no other" }
+    ReportDatasetFilter:
+      type: object
+      required: [param, column]
+      properties:
+        param: { type: string, description: "The query parameter" }
+        column: { type: string, description: "The column it filters on" }
     ReportDatasetList:
       type: object
       required: [items]
@@ -9058,7 +9246,7 @@ components:
       type: object
       required: [code, error, errorAr]
       properties:
-        code: { type: string, enum: [report_dataset_not_granted, report_act_not_granted, report_field_withheld, report_group_not_supported, report_unknown_column, report_bad_filter] }
+        code: { type: string, enum: [report_dataset_not_granted, report_act_not_granted, report_field_withheld, report_group_not_supported, report_unknown_column, report_bad_filter, report_unknown_dataset, report_definition_not_owner] }
         error: { type: string }
         errorAr: { type: string }
         dataset: { type: string }
