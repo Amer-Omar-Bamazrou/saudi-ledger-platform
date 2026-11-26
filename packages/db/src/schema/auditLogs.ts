@@ -22,6 +22,11 @@ import { usersTable } from "./users";
  * supplied; readers order by `seq`. `seq` is NULL only on rows written before 0159 — and on history a test plants
  * in replica mode, the one bypass 0132 names.
  *
+ * 🔴 19B 19.18 (migration 0177): `company_id` and `request_id`, written by the report audit entries
+ * (`reportAudit.service.ts`) and NULL on every other row. `(organization, request id, action, entity)` is UNIQUE where
+ * a request id is given: the same request cannot record the same act twice. `company_id` is a plain value, not a
+ * foreign key — an audit row is history, and nothing it names may be made to depend on it.
+ *
  * Added in Milestone 2 (additive). Population is wired up in a later milestone.
  */
 export const auditLogsTable = pgTable("audit_logs", {
@@ -42,8 +47,16 @@ export const auditLogsTable = pgTable("audit_logs", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     // Set by the database (0159); never written by the app.
     seq: bigint("seq", { mode: "number" }),
+    /** 19.18 — the company of the request that wrote the entry; NULL on entries written before, or by other writers. */
+    companyId: uuid("company_id"),
+    /** 19.18 — the id of the request that wrote the entry (`X-Request-Id`), or `scheduled-run:<id>` for the job. */
+    requestId: varchar("request_id", { length: 64 }),
   },
-  (t) => [index("audit_logs_org_idx").on(t.organizationId), uniqueIndex("audit_logs_seq_unq").on(t.seq)],
+  (t) => [
+    index("audit_logs_org_idx").on(t.organizationId),
+    uniqueIndex("audit_logs_seq_unq").on(t.seq),
+    uniqueIndex("audit_logs_request_event_unq").on(t.organizationId, t.requestId, t.action, t.entityType, t.entityId).where(sql`request_id is not null`),
+  ],
 );
 
 export const insertAuditLogSchema = createInsertSchema(auditLogsTable).omit({

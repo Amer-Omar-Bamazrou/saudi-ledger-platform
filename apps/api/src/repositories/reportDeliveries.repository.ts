@@ -52,6 +52,12 @@ export const reportDeliveriesRepository = {
     return db.select(FACTS).from(reportDeliveriesTable).where(mine(userId)).orderBy(desc(reportDeliveriesTable.createdAt), desc(reportDeliveriesTable.id)).limit(200);
   },
 
+  /** 19.18 — who a run's copies went to (ids only; the job's own read, on the owner connection, for the run's audit entry). */
+  async recipientsOfRun(runId: number): Promise<number[]> {
+    const rows = await ownerDb.select({ userId: reportDeliveriesTable.recipientUserId }).from(reportDeliveriesTable).where(eq(reportDeliveriesTable.runId, runId));
+    return rows.map((r) => r.userId).sort((a, b) => a - b);
+  },
+
   /** One copy, with its content, for its recipient only. */
   async findMine(id: number, userId: number): Promise<ReportDeliveryRow | null> {
     const [row] = await db.select().from(reportDeliveriesTable).where(and(eq(reportDeliveriesTable.id, id), mine(userId)));

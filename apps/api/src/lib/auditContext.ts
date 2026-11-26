@@ -14,6 +14,10 @@ export interface AuditContext {
   organizationId: string;
   /** Client IP address, if resolvable. */
   ipAddress: string | null;
+  /** 19.18 — the request's id (`X-Request-Id`); the report audit entries carry it. Absent outside a request. */
+  requestId?: string | null;
+  /** 19.18 — the request's company. */
+  companyId?: string | null;
 }
 
 const storage = new AsyncLocalStorage<AuditContext>();

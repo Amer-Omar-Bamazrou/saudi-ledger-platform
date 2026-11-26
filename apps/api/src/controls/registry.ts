@@ -1111,6 +1111,22 @@ export const CONTROLS: readonly Control[] = [
     provingTests: ["s6-report-schedules-deliveries.test.ts"],
   },
   {
+    id: "19B-S7C",
+    title: "Every act on a report is one entry in the audit trail — a saved report created, changed, shared or archived; a schedule made or ended; each run, on screen or scheduled; each open of a delivered copy — carrying the actor (the connection's, never the writer's), the company, the act, the database's own time and the id of the request that did it. An entry says what was asked for (the dataset, column names, which filters, the period, the counts) and never a field's value, a filter's value or a report's name. The same request cannot record the same act twice (a unique key in the database), and a scheduled run records once however often the job runs. A refused act writes no entry here. Entries are append-only for every role, as the whole trail is",
+    answers: [],
+    type: "detective",
+    activation: ALWAYS,
+    refusalCodes: [],
+    points: [
+      trigger("audit_logs", "zz_audit_logs_append_only"),
+      trigger("audit_logs", "audit_logs_actor_from_session"),
+      trigger("audit_logs", "zz_audit_logs_database_time_and_order"),
+      code(`${API}/services/reporting/reportAudit.service.ts`, "reportAuditService"),
+      code(`${API}/services/reporting/reportSchedules.job.ts`, "recordRun"),
+    ],
+    provingTests: ["s7-report-audit.test.ts"],
+  },
+  {
     id: "19B-S7B",
     title: "A builder report's PDF is the same export as its CSV: one decision (the export act), one document, one withholding — a column the role may not read is not in the file and is named, a conditional cell is marked withheld — the same subtotals, and the same audit record written before the file is sent. An unknown format is refused by name; a PDF above its row limit is refused with the count, never cut short; the table stays inside the page whatever the number of columns; an Arabic file is right-to-left with Arabic labels and Latin digits; an empty report says so",
     answers: [],
