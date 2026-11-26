@@ -3733,7 +3733,7 @@ paths:
         - { name: account_id, in: query, schema: { type: integer } }
         - { name: source_type, in: query, schema: { type: string } }
         - { name: sort, in: query, schema: { type: string }, description: "A column key; a leading '-' sorts descending (default: date, then entry number)." }
-        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
         - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
       responses:
@@ -3752,6 +3752,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "422":
+          description: report_too_large — a grouped report reads every row of its period; above the row limit it is refused with the count
 
   /reports/datasets/journal_lines/export:
     get:
@@ -3768,7 +3770,7 @@ paths:
         - { name: account_id, in: query, schema: { type: integer } }
         - { name: source_type, in: query, schema: { type: string } }
         - { name: sort, in: query, schema: { type: string }, description: "A column key; a leading '-' sorts descending (default: date, then entry number)." }
-        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
       responses:
         "200":
@@ -3801,7 +3803,7 @@ paths:
         - { name: date_from, in: query, schema: { type: string, format: date } }
         - { name: date_to, in: query, schema: { type: string, format: date } }
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
-        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
         - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
       responses:
@@ -3820,6 +3822,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "422":
+          description: report_too_large — a grouped report reads every row of its period; above the row limit it is refused with the count
 
   /reports/datasets/sales_documents/export:
     get:
@@ -3834,7 +3838,7 @@ paths:
         - { name: date_from, in: query, schema: { type: string, format: date } }
         - { name: date_to, in: query, schema: { type: string, format: date } }
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
-        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
       responses:
         "200":
@@ -3867,7 +3871,7 @@ paths:
         - { name: date_from, in: query, schema: { type: string, format: date } }
         - { name: date_to, in: query, schema: { type: string, format: date } }
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
-        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
         - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
       responses:
@@ -3886,6 +3890,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "422":
+          description: report_too_large — a grouped report reads every row of its period; above the row limit it is refused with the count
 
   /reports/datasets/purchase_documents/export:
     get:
@@ -3900,7 +3906,7 @@ paths:
         - { name: date_from, in: query, schema: { type: string, format: date } }
         - { name: date_to, in: query, schema: { type: string, format: date } }
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
-        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
       responses:
         "200":
@@ -3933,7 +3939,7 @@ paths:
         - { name: date_from, in: query, schema: { type: string, format: date } }
         - { name: date_to, in: query, schema: { type: string, format: date } }
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
-        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
         - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
       responses:
@@ -3952,6 +3958,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "422":
+          description: report_too_large — a grouped report reads every row of its period; above the row limit it is refused with the count
 
   /reports/datasets/cash_movements/export:
     get:
@@ -3966,7 +3974,7 @@ paths:
         - { name: date_from, in: query, schema: { type: string, format: date } }
         - { name: date_to, in: query, schema: { type: string, format: date } }
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
-        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
       responses:
         "200":
@@ -3999,7 +4007,7 @@ paths:
         - { name: date_from, in: query, schema: { type: string, format: date } }
         - { name: date_to, in: query, schema: { type: string, format: date } }
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
-        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
         - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
       responses:
@@ -4018,6 +4026,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReportDatasetRefusal" }
+        "422":
+          description: report_too_large — a grouped report reads every row of its period; above the row limit it is refused with the count
 
   /reports/datasets/vat_lines/export:
     get:
@@ -4032,7 +4042,7 @@ paths:
         - { name: date_from, in: query, schema: { type: string, format: date } }
         - { name: date_to, in: query, schema: { type: string, format: date } }
         - { name: sort, in: query, schema: { type: string }, description: "A sortable column key; a leading '-' sorts descending (default: date)." }
-        - { name: group, in: query, schema: { type: string }, description: "Not supported by this dataset (refused 400 report_group_not_supported)." }
+        - { name: group, in: query, schema: { type: string }, description: "19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise." }
         - { name: lang, in: query, schema: { type: string, enum: [en, ar] } }
       responses:
         "200":
@@ -9286,6 +9296,7 @@ components:
         period: { $ref: "#/components/schemas/ReportPeriod" }
         filters: { type: object, additionalProperties: { type: string }, description: "The dataset's other declared filters (not the dates: the period owns them)" }
         sort: { type: string, nullable: true, description: "A column key; a leading '-' sorts descending" }
+        groupBy: { type: string, nullable: true, description: "19.12 — one column the dataset offers as a grouping" }
     ReportDefinitionShareInput:
       type: object
       required: [roles]
@@ -9293,7 +9304,7 @@ components:
         roles: { type: array, items: { type: string, enum: [admin, accountant, bookkeeper, viewer] } }
     ReportDefinition:
       type: object
-      required: [id, name, dataset, columns, period, filters, sort, sharedRoles, ownerUserId, ownerName, mine, createdAt, updatedAt]
+      required: [id, name, dataset, columns, period, filters, sort, groupBy, sharedRoles, ownerUserId, ownerName, mine, createdAt, updatedAt]
       properties:
         id: { type: integer }
         name: { type: string }
@@ -9302,6 +9313,7 @@ components:
         period: { $ref: "#/components/schemas/ReportPeriod" }
         filters: { type: object, additionalProperties: { type: string } }
         sort: { type: string, nullable: true }
+        groupBy: { type: string, nullable: true }
         sharedRoles: { type: array, items: { type: string } }
         ownerUserId: { type: integer }
         ownerName: { type: string, description: "The owner's name — never an email" }
@@ -9409,6 +9421,13 @@ components:
         rows: { $ref: "#/components/schemas/ReportDeliveryRows" }
         total: { type: integer }
         withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+        groupedBy: { type: string, nullable: true, description: "19.12 — the grouping column; absent or null when the report is not grouped" }
+        groups: { type: array, nullable: true, items: { $ref: "#/components/schemas/ReportDatasetGroup" } }
+        grandTotal:
+          description: null where a total over all the rows would mean nothing (journal lines, VAT lines)
+          oneOf:
+            - { $ref: "#/components/schemas/ReportDatasetTotals" }
+            - { type: "null" }
         message: { type: string, nullable: true, description: "Set when the copy expired" }
         messageAr: { type: string, nullable: true }
     ReportDatasetColumn:
@@ -9427,7 +9446,7 @@ components:
         sortable: { type: boolean }
     ReportDatasetSummary:
       type: object
-      required: [name, title, titleAr, acts, columns, filters]
+      required: [name, title, titleAr, acts, columns, filters, groupBy, totals, grandTotal]
       properties:
         name: { type: string }
         title: { type: string }
@@ -9435,6 +9454,9 @@ components:
         acts: { type: array, items: { type: string, enum: [run, export, schedule, deliver, save, share] }, description: "The acts this role may take on the dataset" }
         columns: { type: array, items: { $ref: "#/components/schemas/ReportDatasetColumn" } }
         filters: { type: array, items: { $ref: "#/components/schemas/ReportDatasetFilter" }, description: "19B S6 — the filters the dataset declares; a report can name no other" }
+        groupBy: { type: array, items: { type: string }, description: "19.12 — the columns this role may group by" }
+        totals: { type: array, items: { type: string }, description: "The money columns a grouped report totals" }
+        grandTotal: { type: boolean, description: "Whether a grouped report of this dataset has a grand total" }
     ReportDatasetFilter:
       type: object
       required: [param, column]
@@ -9454,6 +9476,29 @@ components:
         class: { type: string }
         level: { type: string, enum: [none, last4] }
         rows: { type: integer, nullable: true, description: "For a conditional class: on how many of the returned rows it was withheld" }
+    ReportDatasetTotal:
+      type: object
+      description: 19.12 — one totalled column. Only a column the role reads on every row is ever totalled.
+      required: [column, total]
+      properties:
+        column: { type: string }
+        total: { type: number }
+    ReportDatasetTotals:
+      type: object
+      required: [count, totals, mixedCurrency]
+      properties:
+        count: { type: integer }
+        totals: { type: array, items: { $ref: "#/components/schemas/ReportDatasetTotal" } }
+        mixedCurrency: { type: boolean, description: "The rows mix currencies, so no money total is given" }
+    ReportDatasetGroup:
+      type: object
+      required: [key, label, count, totals, mixedCurrency]
+      properties:
+        key: { type: string, nullable: true, description: "The group's value (a date groups by its month); null for the rows that have none" }
+        label: { type: string, nullable: true, description: "A name for the key where the dataset has one (an account's name beside its id)" }
+        count: { type: integer }
+        totals: { type: array, items: { $ref: "#/components/schemas/ReportDatasetTotal" } }
+        mixedCurrency: { type: boolean }
     ReportDatasetRefusal:
       type: object
       required: [code, error, errorAr]
@@ -9503,6 +9548,13 @@ components:
         limit: { type: integer }
         offset: { type: integer }
         withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+        groupedBy: { type: string, nullable: true, description: "19.12 — the grouping column; absent or null when the report is not grouped" }
+        groups: { type: array, nullable: true, items: { $ref: "#/components/schemas/ReportDatasetGroup" } }
+        grandTotal:
+          description: null where a total over all the rows would mean nothing (journal lines, VAT lines)
+          oneOf:
+            - { $ref: "#/components/schemas/ReportDatasetTotals" }
+            - { type: "null" }
     SalesDocumentsDatasetRow:
       type: object
       description: >
@@ -9537,6 +9589,13 @@ components:
         limit: { type: integer }
         offset: { type: integer }
         withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+        groupedBy: { type: string, nullable: true, description: "19.12 — the grouping column; absent or null when the report is not grouped" }
+        groups: { type: array, nullable: true, items: { $ref: "#/components/schemas/ReportDatasetGroup" } }
+        grandTotal:
+          description: null where a total over all the rows would mean nothing (journal lines, VAT lines)
+          oneOf:
+            - { $ref: "#/components/schemas/ReportDatasetTotals" }
+            - { type: "null" }
     PurchaseDocumentsDatasetRow:
       type: object
       description: >
@@ -9573,6 +9632,13 @@ components:
         limit: { type: integer }
         offset: { type: integer }
         withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+        groupedBy: { type: string, nullable: true, description: "19.12 — the grouping column; absent or null when the report is not grouped" }
+        groups: { type: array, nullable: true, items: { $ref: "#/components/schemas/ReportDatasetGroup" } }
+        grandTotal:
+          description: null where a total over all the rows would mean nothing (journal lines, VAT lines)
+          oneOf:
+            - { $ref: "#/components/schemas/ReportDatasetTotals" }
+            - { type: "null" }
     CashMovementsDatasetRow:
       type: object
       description: >
@@ -9602,6 +9668,13 @@ components:
         limit: { type: integer }
         offset: { type: integer }
         withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+        groupedBy: { type: string, nullable: true, description: "19.12 — the grouping column; absent or null when the report is not grouped" }
+        groups: { type: array, nullable: true, items: { $ref: "#/components/schemas/ReportDatasetGroup" } }
+        grandTotal:
+          description: null where a total over all the rows would mean nothing (journal lines, VAT lines)
+          oneOf:
+            - { $ref: "#/components/schemas/ReportDatasetTotals" }
+            - { type: "null" }
     VatLinesDatasetRow:
       type: object
       description: >
@@ -9630,6 +9703,13 @@ components:
         limit: { type: integer }
         offset: { type: integer }
         withheld: { type: array, items: { $ref: "#/components/schemas/ReportDatasetWithheld" } }
+        groupedBy: { type: string, nullable: true, description: "19.12 — the grouping column; absent or null when the report is not grouped" }
+        groups: { type: array, nullable: true, items: { $ref: "#/components/schemas/ReportDatasetGroup" } }
+        grandTotal:
+          description: null where a total over all the rows would mean nothing (journal lines, VAT lines)
+          oneOf:
+            - { $ref: "#/components/schemas/ReportDatasetTotals" }
+            - { type: "null" }
     SupplierPosition:
       type: object
       required: [vendorId, payable, creditBalance, advanceBalance, depositBalance, unidentifiedBalance, netPosition]

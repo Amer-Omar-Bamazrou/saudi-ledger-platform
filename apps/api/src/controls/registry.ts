@@ -1111,6 +1111,19 @@ export const CONTROLS: readonly Control[] = [
     provingTests: ["s6-report-schedules-deliveries.test.ts"],
   },
   {
+    id: "19B-S7A",
+    title: "A grouped report totals only what its reader may read: one grouping column the dataset offers (refused by name otherwise, and refused when the role may not read it), totals only of the dataset's declared money columns, computed in integer halalas over every row of the period (refused with the count above the row limit, never on part of the rows). A total of a column the role does not read on every row is listed as withheld and its cells are never read; journal lines and VAT lines have no grand total; a set mixing currencies has no money total. The CSV and a stored copy carry the same subtotals",
+    answers: [],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: ["report_group_not_supported", "report_too_large"],
+    points: [
+      code(`${API}/lib/reports/grouping.ts`, "groupRows"),
+      code(`${API}/services/reporting/reportDatasets.service.ts`, "buildDatasetDocument"),
+    ],
+    provingTests: ["s7-report-grouping.test.ts"],
+  },
+  {
     id: "19B-S6A",
     title: "A saved report is a definition over one vetted dataset — its columns in order, a period, the filters and the sort the dataset declares — checked at every save as a run is (the dataset's own parser, then decide() with the save act), so it cannot name what the dataset does not offer; sharing shows it to roles of the same organization and grants nothing (every run asks decide() for the reader's own role); only its owner changes, shares or archives it; it is archived, never deleted",
     answers: [],

@@ -36,7 +36,8 @@ import { contentSha256, type DeliveryContent } from "../../lib/reports/deliveryC
 import { membersRepository } from "../../repositories/members.repository";
 import { reportDeliveriesRepository } from "../../repositories/reportDeliveries.repository";
 import { refusalEventsService } from "../refusalEvents.service";
-import { cellVisible, datasetColumnOut, parseRequest, readDataset, requireWindow } from "./reportDatasets.service";
+import { cellVisible, datasetColumnOut, groupedOut, orderByGroup, parseRequest, readDataset, requireWindow, withheldTotalsOut } from "./reportDatasets.service";
+import { groupRows } from "../../lib/reports/grouping";
 import { decideDefinition, definitionQuery } from "./reportDefinitions.service";
 import { DATASET_EXPORT_MAX_ROWS } from "./reportExport.service";
 
@@ -55,7 +56,7 @@ export function schedulePeriodKey(cadence: ReportCadence, businessDay: string): 
 interface DueSchedule extends Record<string, unknown> {
   id: number; organization_id: string; company_id: string; owner_user_id: number; cadence: ReportCadence; definition_id: number;
   name: string; dataset: string; columns: string[]; period_kind: ReportPeriodKind; date_from: string | null; date_to: string | null;
-  filters: Record<string, string>; sort: string | null;
+  filters: Record<string, string>; sort: string | null; group_by: string | null;
 }
 
 export interface ScheduledReportsResult { due: number; alreadyRun: number; delivered: number; skipped: number; refused: number; failed: number }
@@ -68,7 +69,7 @@ async function finish(runId: number, status: "delivered" | "refused" | "failed",
 
 async function runSchedule(s: DueSchedule, runId: number, window: { from: string; to: string }, now: Date, result: ScheduledReportsResult): Promise<void> {
   const ds = DATASETS[s.dataset];
-  const definition = { columns: s.columns, filters: s.filters, sort: s.sort };
+  const definition = { columns: s.columns, filters: s.filters, sort: s.sort, groupBy: s.group_by };
   const grants = await getPermissions();
   const hasFor = (role: string): Has => (resource, action) => grants.has(`${role}:${resource}:${action}`);
   const resource = reportDatasetResource(s.dataset);
@@ -137,7 +138,10 @@ async function runSchedule(s: DueSchedule, runId: number, window: { from: string
   }
 
   const expiresAt = new Date(now.getTime() + REPORT_DELIVERY_RETENTION_DAYS_PROPOSED * 86_400_000);
+  // 19.12: a grouped report's copy carries its rows group by group, and the subtotals THIS recipient may have
+  if (s.group_by) rows = orderByGroup(ds, s.group_by, rows);
   for (const { userId, columns: d } of decided) {
+    const grouped = s.group_by ? groupRows(ds, s.group_by, d.columns, rows) : null;
     const content: DeliveryContent = {
       dataset: ds.name,
       columns: d.columns.map(datasetColumnOut),
@@ -148,7 +152,11 @@ async function runSchedule(s: DueSchedule, runId: number, window: { from: string
         return o;
       }),
       total: rows.length,
-      withheld: d.withheld.map((c) => ({ path: `rows[].${c.column.key}`, class: c.cls, level: c.level === "last4" ? "last4" : "none", rows: rows.filter((r) => !cellVisible(c, r)).length })),
+      withheld: [
+        ...d.withheld.map((c) => ({ path: `rows[].${c.column.key}`, class: c.cls, level: c.level === "last4" ? "last4" : "none", rows: rows.filter((r) => !cellVisible(c, r)).length })),
+        ...(grouped ? withheldTotalsOut(grouped) : []),
+      ],
+      ...(grouped ? { grouped: groupedOut(grouped) } : {}),
     };
     // hashed as it will be stored: through JSON, so a Date or an undefined cannot make the stored form differ
     const stored = JSON.parse(JSON.stringify(content)) as DeliveryContent;
@@ -169,7 +177,7 @@ export const reportSchedulesJob = {
     const today = businessDate(now);
     const { rows: schedules } = await ownerDb.execute<DueSchedule>(sql`
       SELECT s.id, s.organization_id, s.company_id, s.owner_user_id, s.cadence, s.definition_id,
-             d.name, d.dataset, d.columns, d.period_kind, d.date_from::text AS date_from, d.date_to::text AS date_to, d.filters, d.sort
+             d.name, d.dataset, d.columns, d.period_kind, d.date_from::text AS date_from, d.date_to::text AS date_to, d.filters, d.sort, d.group_by
         FROM report_schedules s
         JOIN report_definitions d ON d.id = s.definition_id AND d.organization_id = s.organization_id
        WHERE s.ended_at IS NULL AND d.archived_at IS NULL

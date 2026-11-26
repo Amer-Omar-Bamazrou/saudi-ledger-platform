@@ -37,6 +37,8 @@ export const reportDefinitionsTable = pgTable(
     filters: jsonb("filters").$type<Record<string, string>>().notNull().default({}),
     /** A column key; a leading '-' sorts descending. NULL = the dataset's own order. */
     sort: varchar("sort", { length: 64 }),
+    /** 19.12 — the ONE column the report is grouped and subtotalled by; NULL = not grouped. Checked against the dataset at every save and run. */
+    groupBy: varchar("group_by", { length: 64 }),
     sharedRoles: text("shared_roles").array().notNull().default(sql`'{}'::text[]`),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

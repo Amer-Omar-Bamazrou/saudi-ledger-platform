@@ -15,7 +15,11 @@ export interface DeliveryContent {
   rows: Record<string, unknown>[];
   total: number;
   withheld: DeliveryWithheld[];
+  /** 19.12 — a grouped report's subtotals, as this recipient was given them. Absent on a report that is not grouped. */
+  grouped?: DeliveryGrouped;
 }
+export interface DeliveryTotals { count: number; totals: { column: string; total: number }[]; mixedCurrency: boolean }
+export interface DeliveryGrouped { groupedBy: string; groups: (DeliveryTotals & { key: string | null; label: string | null })[]; grandTotal: DeliveryTotals | null }
 
 /** JSON with every object's keys in sorted order; arrays keep their order. `undefined` is dropped, as JSON drops it. */
 export function canonicalJson(value: unknown): string {

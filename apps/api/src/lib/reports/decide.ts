@@ -129,6 +129,12 @@ export function decide(has: Has, ds: DatasetDef, act: ReportAct, use: Use): Deci
       `The ${ds.title} report cannot be grouped by ${notGroupable.join(", ")}.`,
       `لا يمكن تجميع تقرير «${ds.titleAr}» حسب: ${notGroupable.join("، ")}.`);
   }
+  // 19.12: ONE grouping. Two would need totals at two levels, which no screen or file shows.
+  if (new Set(use.group).size > 1) {
+    return refuse(400, "report_group_not_supported",
+      `The ${ds.title} report can be grouped by one column at a time.`,
+      `يمكن تجميع تقرير «${ds.titleAr}» حسب عمود واحد في كل مرة.`);
+  }
   const notSortable = [...new Set(use.sort)].filter((k) => !byKey.get(k)!.sortable);
   if (notSortable.length) {
     return refuse(400, "report_unknown_column",

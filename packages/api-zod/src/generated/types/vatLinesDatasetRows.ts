@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ReportDatasetColumn } from './reportDatasetColumn';
+import type { ReportDatasetGroup } from './reportDatasetGroup';
+import type { ReportDatasetTotals } from './reportDatasetTotals';
 import type { ReportDatasetWithheld } from './reportDatasetWithheld';
 import type { VatLinesDatasetRow } from './vatLinesDatasetRow';
 
@@ -17,4 +19,9 @@ export interface VatLinesDatasetRows {
   limit: number;
   offset: number;
   withheld: ReportDatasetWithheld[];
+  /** 19.12 — the grouping column; absent or null when the report is not grouped */
+  groupedBy?: string | null;
+  groups?: ReportDatasetGroup[] | null;
+  /** null where a total over all the rows would mean nothing (journal lines, VAT lines) */
+  grandTotal?: ReportDatasetTotals | null;
 }

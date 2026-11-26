@@ -18,4 +18,10 @@ export interface ReportDatasetSummary {
   columns: ReportDatasetColumn[];
   /** 19B S6 — the filters the dataset declares; a report can name no other */
   filters: ReportDatasetFilter[];
+  /** 19.12 — the columns this role may group by */
+  groupBy: string[];
+  /** The money columns a grouped report totals */
+  totals: string[];
+  /** Whether a grouped report of this dataset has a grand total */
+  grandTotal: boolean;
 }

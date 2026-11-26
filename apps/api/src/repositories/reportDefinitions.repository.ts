@@ -13,7 +13,7 @@ const live = () => and(companyScoped(reportDefinitionsTable.companyId), isNull(r
 const visibleTo = (userId: number, role: string) =>
   or(eq(reportDefinitionsTable.ownerUserId, userId), sql`${role} = any(${reportDefinitionsTable.sharedRoles})`);
 
-export type ReportDefinitionValues = Pick<ReportDefinitionRow, "name" | "dataset" | "columns" | "periodKind" | "dateFrom" | "dateTo" | "filters" | "sort">;
+export type ReportDefinitionValues = Pick<ReportDefinitionRow, "name" | "dataset" | "columns" | "periodKind" | "dateFrom" | "dateTo" | "filters" | "sort" | "groupBy">;
 
 export const reportDefinitionsRepository = {
   listVisible(userId: number, role: string): Promise<ReportDefinitionRow[]> {

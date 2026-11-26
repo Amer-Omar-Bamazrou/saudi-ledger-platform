@@ -6272,6 +6272,7 @@ export const ListReportDefinitionsResponse = zod.object({
 }).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
   "filters": zod.record(zod.string(), zod.string()),
   "sort": zod.string().nullable(),
+  "groupBy": zod.string().nullable(),
   "sharedRoles": zod.array(zod.string()),
   "ownerUserId": zod.number(),
   "ownerName": zod.string().describe('The owner\'s name — never an email'),
@@ -6300,7 +6301,8 @@ export const CreateReportDefinitionBody = zod.object({
   "to": zod.coerce.date().nullish()
 }).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
   "filters": zod.record(zod.string(), zod.string()).optional().describe('The dataset\'s other declared filters (not the dates: the period owns them)'),
-  "sort": zod.string().nullish().describe('A column key; a leading \'-\' sorts descending')
+  "sort": zod.string().nullish().describe('A column key; a leading \'-\' sorts descending'),
+  "groupBy": zod.string().nullish().describe('19.12 — one column the dataset offers as a grouping')
 })
 
 export const CreateReportDefinitionResponse = zod.object({
@@ -6315,6 +6317,7 @@ export const CreateReportDefinitionResponse = zod.object({
 }).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
   "filters": zod.record(zod.string(), zod.string()),
   "sort": zod.string().nullable(),
+  "groupBy": zod.string().nullable(),
   "sharedRoles": zod.array(zod.string()),
   "ownerUserId": zod.number(),
   "ownerName": zod.string().describe('The owner\'s name — never an email'),
@@ -6343,6 +6346,7 @@ export const GetReportDefinitionResponse = zod.object({
 }).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
   "filters": zod.record(zod.string(), zod.string()),
   "sort": zod.string().nullable(),
+  "groupBy": zod.string().nullable(),
   "sharedRoles": zod.array(zod.string()),
   "ownerUserId": zod.number(),
   "ownerName": zod.string().describe('The owner\'s name — never an email'),
@@ -6373,7 +6377,8 @@ export const UpdateReportDefinitionBody = zod.object({
   "to": zod.coerce.date().nullish()
 }).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
   "filters": zod.record(zod.string(), zod.string()).optional().describe('The dataset\'s other declared filters (not the dates: the period owns them)'),
-  "sort": zod.string().nullish().describe('A column key; a leading \'-\' sorts descending')
+  "sort": zod.string().nullish().describe('A column key; a leading \'-\' sorts descending'),
+  "groupBy": zod.string().nullish().describe('19.12 — one column the dataset offers as a grouping')
 })
 
 export const UpdateReportDefinitionResponse = zod.object({
@@ -6388,6 +6393,7 @@ export const UpdateReportDefinitionResponse = zod.object({
 }).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
   "filters": zod.record(zod.string(), zod.string()),
   "sort": zod.string().nullable(),
+  "groupBy": zod.string().nullable(),
   "sharedRoles": zod.array(zod.string()),
   "ownerUserId": zod.number(),
   "ownerName": zod.string().describe('The owner\'s name — never an email'),
@@ -6431,6 +6437,7 @@ export const ShareReportDefinitionResponse = zod.object({
 }).describe('19B S6 — a saved report\'s period. A named period is resolved at every run (calendar month, quarter, year; the business day); a fixed one is its dates.'),
   "filters": zod.record(zod.string(), zod.string()),
   "sort": zod.string().nullable(),
+  "groupBy": zod.string().nullable(),
   "sharedRoles": zod.array(zod.string()),
   "ownerUserId": zod.number(),
   "ownerName": zod.string().describe('The owner\'s name — never an email'),
@@ -6670,6 +6677,25 @@ export const OpenReportDeliveryResponse = zod.object({
   "level": zod.enum(['none', 'last4']),
   "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
 })),
+  "groupedBy": zod.string().nullish().describe('19.12 — the grouping column; absent or null when the report is not grouped'),
+  "groups": zod.array(zod.object({
+  "key": zod.string().nullable().describe('The group\'s value (a date groups by its month); null for the rows that have none'),
+  "label": zod.string().nullable().describe('A name for the key where the dataset has one (an account\'s name beside its id)'),
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean()
+})).nullish(),
+  "grandTotal": zod.union([zod.object({
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean().describe('The rows mix currencies, so no money total is given')
+}),zod.null()]).optional().describe('null where a total over all the rows would mean nothing (journal lines, VAT lines)'),
   "message": zod.string().nullable().describe('Set when the copy expired'),
   "messageAr": zod.string().nullable()
 })
@@ -6699,7 +6725,10 @@ export const ListReportDatasetsResponse = zod.object({
   "filters": zod.array(zod.object({
   "param": zod.string().describe('The query parameter'),
   "column": zod.string().describe('The column it filters on')
-})).describe('19B S6 — the filters the dataset declares; a report can name no other')
+})).describe('19B S6 — the filters the dataset declares; a report can name no other'),
+  "groupBy": zod.array(zod.string()).describe('19.12 — the columns this role may group by'),
+  "totals": zod.array(zod.string()).describe('The money columns a grouped report totals'),
+  "grandTotal": zod.boolean().describe('Whether a grouped report of this dataset has a grand total')
 }))
 })
 
@@ -6721,7 +6750,7 @@ export const RunJournalLinesDatasetQueryParams = zod.object({
   "account_id": zod.coerce.number().optional(),
   "source_type": zod.coerce.string().optional(),
   "sort": zod.coerce.string().optional().describe('A column key; a leading \'-\' sorts descending (default: date, then entry number).'),
-  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
   "limit": zod.coerce.number().min(1).max(runJournalLinesDatasetQueryLimitMax).optional(),
   "offset": zod.coerce.number().min(runJournalLinesDatasetQueryOffsetMin).optional()
 })
@@ -6763,7 +6792,26 @@ export const RunJournalLinesDatasetResponse = zod.object({
   "class": zod.string(),
   "level": zod.enum(['none', 'last4']),
   "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
-}))
+})),
+  "groupedBy": zod.string().nullish().describe('19.12 — the grouping column; absent or null when the report is not grouped'),
+  "groups": zod.array(zod.object({
+  "key": zod.string().nullable().describe('The group\'s value (a date groups by its month); null for the rows that have none'),
+  "label": zod.string().nullable().describe('A name for the key where the dataset has one (an account\'s name beside its id)'),
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean()
+})).nullish(),
+  "grandTotal": zod.union([zod.object({
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean().describe('The rows mix currencies, so no money total is given')
+}),zod.null()]).optional().describe('null where a total over all the rows would mean nothing (journal lines, VAT lines)')
 })
 
 
@@ -6778,7 +6826,7 @@ export const ExportJournalLinesDatasetQueryParams = zod.object({
   "account_id": zod.coerce.number().optional(),
   "source_type": zod.coerce.string().optional(),
   "sort": zod.coerce.string().optional().describe('A column key; a leading \'-\' sorts descending (default: date, then entry number).'),
-  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
   "lang": zod.enum(['en', 'ar']).optional()
 })
 
@@ -6800,7 +6848,7 @@ export const RunSalesDocumentsDatasetQueryParams = zod.object({
   "date_from": zod.date().optional(),
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
-  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
   "limit": zod.coerce.number().min(1).max(runSalesDocumentsDatasetQueryLimitMax).optional(),
   "offset": zod.coerce.number().min(runSalesDocumentsDatasetQueryOffsetMin).optional()
 })
@@ -6846,7 +6894,26 @@ export const RunSalesDocumentsDatasetResponse = zod.object({
   "class": zod.string(),
   "level": zod.enum(['none', 'last4']),
   "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
-}))
+})),
+  "groupedBy": zod.string().nullish().describe('19.12 — the grouping column; absent or null when the report is not grouped'),
+  "groups": zod.array(zod.object({
+  "key": zod.string().nullable().describe('The group\'s value (a date groups by its month); null for the rows that have none'),
+  "label": zod.string().nullable().describe('A name for the key where the dataset has one (an account\'s name beside its id)'),
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean()
+})).nullish(),
+  "grandTotal": zod.union([zod.object({
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean().describe('The rows mix currencies, so no money total is given')
+}),zod.null()]).optional().describe('null where a total over all the rows would mean nothing (journal lines, VAT lines)')
 })
 
 
@@ -6859,7 +6926,7 @@ export const ExportSalesDocumentsDatasetQueryParams = zod.object({
   "date_from": zod.date().optional(),
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
-  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
   "lang": zod.enum(['en', 'ar']).optional()
 })
 
@@ -6881,7 +6948,7 @@ export const RunPurchaseDocumentsDatasetQueryParams = zod.object({
   "date_from": zod.date().optional(),
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
-  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
   "limit": zod.coerce.number().min(1).max(runPurchaseDocumentsDatasetQueryLimitMax).optional(),
   "offset": zod.coerce.number().min(runPurchaseDocumentsDatasetQueryOffsetMin).optional()
 })
@@ -6929,7 +6996,26 @@ export const RunPurchaseDocumentsDatasetResponse = zod.object({
   "class": zod.string(),
   "level": zod.enum(['none', 'last4']),
   "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
-}))
+})),
+  "groupedBy": zod.string().nullish().describe('19.12 — the grouping column; absent or null when the report is not grouped'),
+  "groups": zod.array(zod.object({
+  "key": zod.string().nullable().describe('The group\'s value (a date groups by its month); null for the rows that have none'),
+  "label": zod.string().nullable().describe('A name for the key where the dataset has one (an account\'s name beside its id)'),
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean()
+})).nullish(),
+  "grandTotal": zod.union([zod.object({
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean().describe('The rows mix currencies, so no money total is given')
+}),zod.null()]).optional().describe('null where a total over all the rows would mean nothing (journal lines, VAT lines)')
 })
 
 
@@ -6942,7 +7028,7 @@ export const ExportPurchaseDocumentsDatasetQueryParams = zod.object({
   "date_from": zod.date().optional(),
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
-  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
   "lang": zod.enum(['en', 'ar']).optional()
 })
 
@@ -6964,7 +7050,7 @@ export const RunCashMovementsDatasetQueryParams = zod.object({
   "date_from": zod.date().optional(),
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
-  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
   "limit": zod.coerce.number().min(1).max(runCashMovementsDatasetQueryLimitMax).optional(),
   "offset": zod.coerce.number().min(runCashMovementsDatasetQueryOffsetMin).optional()
 })
@@ -7005,7 +7091,26 @@ export const RunCashMovementsDatasetResponse = zod.object({
   "class": zod.string(),
   "level": zod.enum(['none', 'last4']),
   "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
-}))
+})),
+  "groupedBy": zod.string().nullish().describe('19.12 — the grouping column; absent or null when the report is not grouped'),
+  "groups": zod.array(zod.object({
+  "key": zod.string().nullable().describe('The group\'s value (a date groups by its month); null for the rows that have none'),
+  "label": zod.string().nullable().describe('A name for the key where the dataset has one (an account\'s name beside its id)'),
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean()
+})).nullish(),
+  "grandTotal": zod.union([zod.object({
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean().describe('The rows mix currencies, so no money total is given')
+}),zod.null()]).optional().describe('null where a total over all the rows would mean nothing (journal lines, VAT lines)')
 })
 
 
@@ -7018,7 +7123,7 @@ export const ExportCashMovementsDatasetQueryParams = zod.object({
   "date_from": zod.date().optional(),
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
-  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
   "lang": zod.enum(['en', 'ar']).optional()
 })
 
@@ -7040,7 +7145,7 @@ export const RunVatLinesDatasetQueryParams = zod.object({
   "date_from": zod.date().optional(),
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
-  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
   "limit": zod.coerce.number().min(1).max(runVatLinesDatasetQueryLimitMax).optional(),
   "offset": zod.coerce.number().min(runVatLinesDatasetQueryOffsetMin).optional()
 })
@@ -7080,7 +7185,26 @@ export const RunVatLinesDatasetResponse = zod.object({
   "class": zod.string(),
   "level": zod.enum(['none', 'last4']),
   "rows": zod.number().nullish().describe('For a conditional class: on how many of the returned rows it was withheld')
-}))
+})),
+  "groupedBy": zod.string().nullish().describe('19.12 — the grouping column; absent or null when the report is not grouped'),
+  "groups": zod.array(zod.object({
+  "key": zod.string().nullable().describe('The group\'s value (a date groups by its month); null for the rows that have none'),
+  "label": zod.string().nullable().describe('A name for the key where the dataset has one (an account\'s name beside its id)'),
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean()
+})).nullish(),
+  "grandTotal": zod.union([zod.object({
+  "count": zod.number(),
+  "totals": zod.array(zod.object({
+  "column": zod.string(),
+  "total": zod.number()
+}).describe('19.12 — one totalled column. Only a column the role reads on every row is ever totalled.')),
+  "mixedCurrency": zod.boolean().describe('The rows mix currencies, so no money total is given')
+}),zod.null()]).optional().describe('null where a total over all the rows would mean nothing (journal lines, VAT lines)')
 })
 
 
@@ -7093,7 +7217,7 @@ export const ExportVatLinesDatasetQueryParams = zod.object({
   "date_from": zod.date().optional(),
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
-  "group": zod.coerce.string().optional().describe('Not supported by this dataset (refused 400 report_group_not_supported).'),
+  "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
   "lang": zod.enum(['en', 'ar']).optional()
 })
 

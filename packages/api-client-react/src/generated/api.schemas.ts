@@ -58,6 +58,8 @@ export interface ReportDefinitionInput {
   filters?: ReportDefinitionInputFilters;
   /** A column key; a leading '-' sorts descending */
   sort?: string | null;
+  /** 19.12 — one column the dataset offers as a grouping */
+  groupBy?: string | null;
 }
 
 export type ReportDefinitionShareInputRolesItem = typeof ReportDefinitionShareInputRolesItem[keyof typeof ReportDefinitionShareInputRolesItem];
@@ -84,6 +86,7 @@ export interface ReportDefinition {
   period: ReportPeriod;
   filters: ReportDefinitionFilters;
   sort: string | null;
+  groupBy: string | null;
   sharedRoles: string[];
   ownerUserId: number;
   /** The owner's name — never an email */
@@ -441,6 +444,31 @@ export interface ReportDatasetWithheld {
   rows?: number | null;
 }
 
+/**
+ * 19.12 — one totalled column. Only a column the role reads on every row is ever totalled.
+ */
+export interface ReportDatasetTotal {
+  column: string;
+  total: number;
+}
+
+export interface ReportDatasetGroup {
+  /** The group's value (a date groups by its month); null for the rows that have none */
+  key: string | null;
+  /** A name for the key where the dataset has one (an account's name beside its id) */
+  label: string | null;
+  count: number;
+  totals: ReportDatasetTotal[];
+  mixedCurrency: boolean;
+}
+
+export interface ReportDatasetTotals {
+  count: number;
+  totals: ReportDatasetTotal[];
+  /** The rows mix currencies, so no money total is given */
+  mixedCurrency: boolean;
+}
+
 export interface ReportDeliveryOpened {
   id: number;
   reportName: string;
@@ -454,6 +482,11 @@ export interface ReportDeliveryOpened {
   rows: ReportDeliveryRows;
   total: number;
   withheld: ReportDatasetWithheld[];
+  /** 19.12 — the grouping column; absent or null when the report is not grouped */
+  groupedBy?: string | null;
+  groups?: ReportDatasetGroup[] | null;
+  /** null where a total over all the rows would mean nothing (journal lines, VAT lines) */
+  grandTotal?: ReportDatasetTotals | null;
   /** Set when the copy expired */
   message: string | null;
   messageAr: string | null;
@@ -487,6 +520,12 @@ export interface ReportDatasetSummary {
   columns: ReportDatasetColumn[];
   /** 19B S6 — the filters the dataset declares; a report can name no other */
   filters: ReportDatasetFilter[];
+  /** 19.12 — the columns this role may group by */
+  groupBy: string[];
+  /** The money columns a grouped report totals */
+  totals: string[];
+  /** Whether a grouped report of this dataset has a grand total */
+  grandTotal: boolean;
 }
 
 export interface ReportDatasetList {
@@ -541,6 +580,11 @@ export interface JournalLinesDatasetRows {
   limit: number;
   offset: number;
   withheld: ReportDatasetWithheld[];
+  /** 19.12 — the grouping column; absent or null when the report is not grouped */
+  groupedBy?: string | null;
+  groups?: ReportDatasetGroup[] | null;
+  /** null where a total over all the rows would mean nothing (journal lines, VAT lines) */
+  grandTotal?: ReportDatasetTotals | null;
 }
 
 export interface SalesDocumentsDatasetRows {
@@ -551,6 +595,11 @@ export interface SalesDocumentsDatasetRows {
   limit: number;
   offset: number;
   withheld: ReportDatasetWithheld[];
+  /** 19.12 — the grouping column; absent or null when the report is not grouped */
+  groupedBy?: string | null;
+  groups?: ReportDatasetGroup[] | null;
+  /** null where a total over all the rows would mean nothing (journal lines, VAT lines) */
+  grandTotal?: ReportDatasetTotals | null;
 }
 
 export interface PurchaseDocumentsDatasetRows {
@@ -561,6 +610,11 @@ export interface PurchaseDocumentsDatasetRows {
   limit: number;
   offset: number;
   withheld: ReportDatasetWithheld[];
+  /** 19.12 — the grouping column; absent or null when the report is not grouped */
+  groupedBy?: string | null;
+  groups?: ReportDatasetGroup[] | null;
+  /** null where a total over all the rows would mean nothing (journal lines, VAT lines) */
+  grandTotal?: ReportDatasetTotals | null;
 }
 
 export interface CashMovementsDatasetRows {
@@ -571,6 +625,11 @@ export interface CashMovementsDatasetRows {
   limit: number;
   offset: number;
   withheld: ReportDatasetWithheld[];
+  /** 19.12 — the grouping column; absent or null when the report is not grouped */
+  groupedBy?: string | null;
+  groups?: ReportDatasetGroup[] | null;
+  /** null where a total over all the rows would mean nothing (journal lines, VAT lines) */
+  grandTotal?: ReportDatasetTotals | null;
 }
 
 export interface VatLinesDatasetRows {
@@ -581,6 +640,11 @@ export interface VatLinesDatasetRows {
   limit: number;
   offset: number;
   withheld: ReportDatasetWithheld[];
+  /** 19.12 — the grouping column; absent or null when the report is not grouped */
+  groupedBy?: string | null;
+  groups?: ReportDatasetGroup[] | null;
+  /** null where a total over all the rows would mean nothing (journal lines, VAT lines) */
+  grandTotal?: ReportDatasetTotals | null;
 }
 
 /**
@@ -15200,7 +15264,7 @@ source_type?: string;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 /**
@@ -15228,7 +15292,7 @@ source_type?: string;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 lang?: ExportJournalLinesDatasetLang;
@@ -15254,7 +15318,7 @@ date_to?: string;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 /**
@@ -15280,7 +15344,7 @@ date_to?: string;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 lang?: ExportSalesDocumentsDatasetLang;
@@ -15306,7 +15370,7 @@ date_to?: string;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 /**
@@ -15332,7 +15396,7 @@ date_to?: string;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 lang?: ExportPurchaseDocumentsDatasetLang;
@@ -15358,7 +15422,7 @@ date_to?: string;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 /**
@@ -15384,7 +15448,7 @@ date_to?: string;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 lang?: ExportCashMovementsDatasetLang;
@@ -15410,7 +15474,7 @@ date_to?: string;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 /**
@@ -15436,7 +15500,7 @@ date_to?: string;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 lang?: ExportVatLinesDatasetLang;

@@ -19,7 +19,7 @@ date_to?: Date;
  */
 sort?: string;
 /**
- * Not supported by this dataset (refused 400 report_group_not_supported).
+ * 19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group's subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.
  */
 group?: string;
 lang?: ExportPurchaseDocumentsDatasetLang;

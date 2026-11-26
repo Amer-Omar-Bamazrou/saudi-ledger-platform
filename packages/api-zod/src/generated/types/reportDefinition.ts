@@ -16,6 +16,7 @@ export interface ReportDefinition {
   period: ReportPeriod;
   filters: ReportDefinitionFilters;
   sort: string | null;
+  groupBy: string | null;
   sharedRoles: string[];
   ownerUserId: number;
   /** The owner's name — never an email */
