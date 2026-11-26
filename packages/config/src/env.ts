@@ -341,6 +341,12 @@ const EnvSchema = z.object({
   /** Poll interval for the outbox worker. */
   ZATCA_WORKER_INTERVAL_MS: z.coerce.number().int().min(1000).default(15_000),
   /**
+   * 🔴 19B (v4 §5.3) — DEFAULT DENY: a served field with no class is removed for every non-admin and listed as
+   * `unclassified`. PREPARED AND OFF: it stays `off` until the owner approves switching it on, per environment, after
+   * reading the dry run (apps/api/src/lib/fieldClasses/defaultDeny.ts).
+   */
+  FIELD_DEFAULT_DENY: z.enum(["off", "on"]).default("off"),
+  /**
    * How long a document may sit unsubmitted before it is overdue.
    *
    * Simplified invoices must be REPORTED within 24 hours, so the alarm has to
