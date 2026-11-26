@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { ExportPurchaseDocumentsDatasetFormat } from './exportPurchaseDocumentsDatasetFormat';
 import type { ExportPurchaseDocumentsDatasetLang } from './exportPurchaseDocumentsDatasetLang';
 
 export type ExportPurchaseDocumentsDatasetParams = {
@@ -23,4 +24,8 @@ sort?: string;
  */
 group?: string;
 lang?: ExportPurchaseDocumentsDatasetLang;
+/**
+ * 19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.
+ */
+format?: ExportPurchaseDocumentsDatasetFormat;
 };

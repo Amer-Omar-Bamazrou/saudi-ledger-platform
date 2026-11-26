@@ -6827,7 +6827,8 @@ export const ExportJournalLinesDatasetQueryParams = zod.object({
   "source_type": zod.coerce.string().optional(),
   "sort": zod.coerce.string().optional().describe('A column key; a leading \'-\' sorts descending (default: date, then entry number).'),
   "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
-  "lang": zod.enum(['en', 'ar']).optional()
+  "lang": zod.enum(['en', 'ar']).optional(),
+  "format": zod.enum(['csv', 'pdf']).optional().describe('19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.')
 })
 
 export const ExportJournalLinesDatasetResponse = zod.unknown()
@@ -6927,7 +6928,8 @@ export const ExportSalesDocumentsDatasetQueryParams = zod.object({
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
   "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
-  "lang": zod.enum(['en', 'ar']).optional()
+  "lang": zod.enum(['en', 'ar']).optional(),
+  "format": zod.enum(['csv', 'pdf']).optional().describe('19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.')
 })
 
 export const ExportSalesDocumentsDatasetResponse = zod.unknown()
@@ -7029,7 +7031,8 @@ export const ExportPurchaseDocumentsDatasetQueryParams = zod.object({
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
   "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
-  "lang": zod.enum(['en', 'ar']).optional()
+  "lang": zod.enum(['en', 'ar']).optional(),
+  "format": zod.enum(['csv', 'pdf']).optional().describe('19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.')
 })
 
 export const ExportPurchaseDocumentsDatasetResponse = zod.unknown()
@@ -7124,7 +7127,8 @@ export const ExportCashMovementsDatasetQueryParams = zod.object({
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
   "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
-  "lang": zod.enum(['en', 'ar']).optional()
+  "lang": zod.enum(['en', 'ar']).optional(),
+  "format": zod.enum(['csv', 'pdf']).optional().describe('19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.')
 })
 
 export const ExportCashMovementsDatasetResponse = zod.unknown()
@@ -7218,7 +7222,8 @@ export const ExportVatLinesDatasetQueryParams = zod.object({
   "date_to": zod.date().optional(),
   "sort": zod.coerce.string().optional().describe('A sortable column key; a leading \'-\' sorts descending (default: date).'),
   "group": zod.coerce.string().optional().describe('19.12 — ONE column the dataset offers as a grouping (the dataset list names them). The answer then carries each group\'s subtotals over every row of the period, not only the page. Refused 400 report_group_not_supported otherwise.'),
-  "lang": zod.enum(['en', 'ar']).optional()
+  "lang": zod.enum(['en', 'ar']).optional(),
+  "format": zod.enum(['csv', 'pdf']).optional().describe('19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.')
 })
 
 export const ExportVatLinesDatasetResponse = zod.unknown()

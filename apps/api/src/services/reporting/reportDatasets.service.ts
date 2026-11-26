@@ -18,7 +18,7 @@ import { rowConditionApplies } from "../../lib/fieldClasses/classTable";
 import { decide, NO_USE, type DecidedColumn, type Has, type Use } from "../../lib/reports/decide";
 import { reportDatasetsRepository, type JournalLinesFilter, type JournalLinesSortKey, type JournalLineRow } from "../../repositories/reportDatasets.repository";
 import { refusalEventsService } from "../refusalEvents.service";
-import { datasetRowLimit, exportDatasetCsv, type DatasetDocument, type ExportColumn, type ExportRow } from "./reportExport.service";
+import { datasetRowLimit, exportDataset, type DatasetDocument, type ExportColumn, type ExportRow } from "./reportExport.service";
 import { compareGroupKeys, groupKeyOf, groupRows, type Grouped } from "../../lib/reports/grouping";
 import { DATASETS, WINDOW_REQUIRED } from "../../lib/reports/datasets";
 import { documentDatasetsRepository, type WindowFilter } from "../../repositories/reportDatasets.repository";
@@ -131,22 +131,22 @@ export function requireWindow(ds: DatasetDef, filter: { dateFrom?: string; dateT
   }
 }
 
-const tooLarge = (code: "export_too_large" | "report_too_large", ds: DatasetDef, total: number, limit: number) =>
+const tooLarge = (code: "export_too_large" | "report_too_large", ds: DatasetDef, total: number, limit: number, format: "csv" | "pdf" = "csv") =>
   new BusinessRuleError(422, {
     code,
     error: code === "export_too_large"
-      ? `This file would hold ${total} rows; the limit is ${limit}. Narrow the dates${"account_id" in ds.filters ? " or the account" : ""} — an export is never cut short.`
+      ? `This file would hold ${total} rows; the limit is ${limit}. Narrow the dates${"account_id" in ds.filters ? " or the account" : ""}${format === "pdf" ? ", or export CSV" : ""} — an export is never cut short.`
       : `A grouped report reads every row of its period: this one has ${total}, and the limit is ${limit}. Narrow the dates — a total is never worked out on part of the rows.`,
     errorAr: code === "export_too_large"
-      ? `سيحتوي هذا الملف على ${total} سطراً، والحد ${limit}. ضيّق التواريخ${"account_id" in ds.filters ? " أو الحساب" : ""} — لا يُقتطع التصدير أبداً.`
+      ? `سيحتوي هذا الملف على ${total} سطراً، والحد ${limit}. ضيّق التواريخ${"account_id" in ds.filters ? " أو الحساب" : ""}${format === "pdf" ? "، أو صدّر CSV" : ""} — لا يُقتطع التصدير أبداً.`
       : `التقرير المجمَّع يقرأ كل سطور فترته: في هذا التقرير ${total} سطراً، والحد ${limit}. ضيّق التواريخ — لا يُحسب مجموع على جزء من السطور.`,
   });
 
 /** Every row of the window — counted first, and refused WITH the count above the limit, never cut short. */
-async function readAll(ds: DatasetDef, filter: JournalLinesFilter, sort: Sort, code: "export_too_large" | "report_too_large"): Promise<DatasetRow[]> {
+async function readAll(ds: DatasetDef, filter: JournalLinesFilter, sort: Sort, code: "export_too_large" | "report_too_large", format: "csv" | "pdf" = "csv"): Promise<DatasetRow[]> {
   const { total } = await readDataset(ds, filter, sort, { limit: 1, offset: 0 });
-  const limit = datasetRowLimit("csv");
-  if (total > limit) throw tooLarge(code, ds, total, limit);
+  const limit = datasetRowLimit(format);
+  if (total > limit) throw tooLarge(code, ds, total, limit, format);
   return (await readDataset(ds, filter, sort, null)).rows;
 }
 
@@ -203,10 +203,13 @@ export const reportDatasetsService = {
   },
 
   /**
-   * EXPORT a dataset as CSV: refused exports recorded (D6), too many rows refused with the count. 19.12 — a grouped
+   * EXPORT a dataset as CSV or (19.15) PDF — `format`, CSV when absent: one decision, one document, one withholding for
+   * both. Refused exports recorded (D6), too many rows for the format refused with the count. 19.12 — a grouped
    * export carries each group's rows, then its subtotal row, and the grand total where the dataset has one.
    */
   async export(ds: DatasetDef, has: Has, actor: DatasetActor, q: Query, lang: "en" | "ar", readDecider: ReadDecider) {
+    const format = q.format == null || q.format === "" ? "csv" : q.format;
+    if (format !== "csv" && format !== "pdf") throw badRequest("format must be csv or pdf.", "يجب أن يكون format إما csv أو pdf.");
     const { use, filter, sort } = parseRequest(ds, q, false);
     const d = decide(has, ds, "export", use);
     if (!d.allowed) {
@@ -221,9 +224,9 @@ export const reportDatasetsService = {
       throw refusalError(d);
     }
     requireWindow(ds, filter);
-    const doc = buildDatasetDocument(ds, d, use.group[0] ?? null, await readAll(ds, filter, sort, "export_too_large"), { from: filter.dateFrom, to: filter.dateTo }, lang);
-    const params = Object.fromEntries(Object.entries(q).filter(([k]) => k !== "lang"));
-    return exportDatasetCsv(doc, lang, readDecider, { dataset: ds.name, params });
+    const doc = buildDatasetDocument(ds, d, use.group[0] ?? null, await readAll(ds, filter, sort, "export_too_large", format), { from: filter.dateFrom, to: filter.dateTo }, lang);
+    const params = Object.fromEntries(Object.entries(q).filter(([k]) => k !== "lang" && k !== "format"));
+    return exportDataset(doc, format, lang, readDecider, { dataset: ds.name, params });
   },
 
   /** Every dataset this role may run, with the acts it may take, each column's level and what it may be grouped by. */
@@ -264,7 +267,8 @@ export function buildDatasetDocument(ds: DatasetDef, d: Allowed, groupKey: strin
     kind: c.column.kind,
     class: c.cls === "standard" ? "standard" : { cls: c.cls, resource: c.resource! },
   }));
-  const cellOf = (v: unknown): string | number | null => (v == null ? null : typeof v === "boolean" ? (v ? "yes" : "no") : (v as string | number));
+  const yesNo = lang === "ar" ? ["نعم", "لا"] : ["yes", "no"];
+  const cellOf = (v: unknown): string | number | null => (v == null ? null : typeof v === "boolean" ? (v ? yesNo[0]! : yesNo[1]!) : (v as string | number));
   const fileRow = (row: DatasetRow): ExportRow => {
     const subjectTo: Record<number, boolean> = {};
     inFile.forEach((c, i) => { if (c.rowCondition) subjectTo[i] = rowConditionApplies(c.rowCondition, row); });
@@ -276,6 +280,9 @@ export function buildDatasetDocument(ds: DatasetDef, d: Allowed, groupKey: strin
         ar: `محجوب لدورك وغير موجود في هذا الملف: ${absent.map((c) => `${c.column.labelAr} (${c.cls})`).join("، ")}.`,
       }]
     : [];
+
+  // an empty report says so: a header over nothing reads as a file that failed
+  if (rows.length === 0) notes.unshift({ en: "Nothing in this period.", ar: "لا توجد بيانات في هذه الفترة." });
 
   let fileRows: ExportRow[];
   if (!groupKey) {

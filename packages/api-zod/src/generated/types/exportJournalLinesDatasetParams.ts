@@ -5,6 +5,7 @@
  * Saudi Bookkeeping Engine API
  * OpenAPI spec version: 0.1.0
  */
+import type { ExportJournalLinesDatasetFormat } from './exportJournalLinesDatasetFormat';
 import type { ExportJournalLinesDatasetLang } from './exportJournalLinesDatasetLang';
 
 export type ExportJournalLinesDatasetParams = {
@@ -25,4 +26,8 @@ sort?: string;
  */
 group?: string;
 lang?: ExportJournalLinesDatasetLang;
+/**
+ * 19.15 — csv (the default) or pdf. Both carry the same rows, the same withholding and the same subtotals.
+ */
+format?: ExportJournalLinesDatasetFormat;
 };
