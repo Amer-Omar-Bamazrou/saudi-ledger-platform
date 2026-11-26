@@ -139,7 +139,7 @@ export function keyPathsOf(value: unknown): string[] {
 }
 
 /** The walk for a route outside the contract: each key path's class from the route's own entry. */
-export function walkStructural(value: unknown, routeKey: string, lookup: FieldLookup, decide: ReadDecider): WalkResult {
+export function walkStructural(value: unknown, routeKey: string, lookup: FieldLookup, decide: ReadDecider, denyUnclassified = false): WalkResult {
   const withheld: Withheld[] = [];
   const unclassified = new Set<string>();
   const leaf = (v: unknown, path: string): unknown => {
@@ -147,7 +147,10 @@ export function walkStructural(value: unknown, routeKey: string, lookup: FieldLo
     const spec = lookup(routeKey, key);
     if (!spec) {
       unclassified.add(`${routeKey}.${key}`);
-      return v;
+      // default deny (v4 §5.3): removed and listed, instead of served
+      if (!denyUnclassified) return v;
+      withheld.push({ path: key, class: "unclassified", level: "none" });
+      return REMOVE;
     }
     if (spec.cls === "standard" || spec.cls === "by_entity") return v;
     if (!spec.resource) throw new Error(`outside-contract table: ${routeKey} ${key} is ${spec.cls} but names no resource`);
