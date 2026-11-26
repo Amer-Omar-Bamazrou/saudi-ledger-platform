@@ -1092,6 +1092,22 @@ export const CONTROLS: readonly Control[] = [
     provingTests: ["phase19a-security-settings.test.ts"],
   },
   {
+    id: "19B-S6A",
+    title: "A saved report is a definition over one vetted dataset — its columns in order, a period, the filters and the sort the dataset declares — checked at every save as a run is (the dataset's own parser, then decide() with the save act), so it cannot name what the dataset does not offer; sharing shows it to roles of the same organization and grants nothing (every run asks decide() for the reader's own role); only its owner changes, shares or archives it; it is archived, never deleted",
+    answers: [],
+    type: "preventive",
+    activation: ALWAYS,
+    refusalCodes: ["report_unknown_dataset", "report_definition_not_owner", "report_bad_filter"],
+    points: [
+      check("report_definitions", "report_definitions_period_chk"),
+      check("report_definitions", "report_definitions_fixed_window_chk"),
+      check("report_definitions", "report_definitions_shared_roles_chk"),
+      code(`${API}/services/reporting/reportDefinitions.service.ts`, "reportDefinitionsService"),
+      code(`${API}/repositories/reportDefinitions.repository.ts`, "reportDefinitionsRepository"),
+    ],
+    provingTests: ["s6-report-definitions.test.ts", "s6-report-period.test.ts"],
+  },
+  {
     id: "19B-S4",
     title: "Report data is decided by one function, decide(), from the one matrix: a report dataset runs or exports only for a role holding that act on it AND read on its native resources (a dataset never widens a role); a column the role may not read is withheld (absent, listed), and filtering, grouping or sorting by it is refused by name; a refused export, and a refused field write, are recorded as refusal events — names and classes, never a value — on their own connection, in an owner-only, append-only table whose time the database sets; a failed record is alarmed and the refusal stands (Phase 19B S4, v4 §4, §8; migration 0171; an internal control of the platform)",
     answers: [],

@@ -1,5 +1,5 @@
 /**
- * 🔴 19B S6 (control 19B-S6a) — SAVED REPORTS: a definition (dataset, columns in order, period, filters, sort) owned by a
+ * 🔴 19B S6 (control 19B-S6A) — SAVED REPORTS: a definition (dataset, columns in order, period, filters, sort) owned by a
  * member, optionally shared with roles of the same organization. v4 §4 and §6.2; scope 19.9–19.13.
  *
  *  - THE ROLE × ACT MATRIX for `save` and `share`: every role saves what it may run and no more (a viewer is refused

@@ -1,5 +1,5 @@
 /**
- * 🔴 19B S6 — a saved report's period: ONE resolver (`@workspace/shared`), used by the browser and by the server, and
+ * 🔴 19B S6 (control 19B-S6A) — a saved report's period: ONE resolver (`@workspace/shared`), used by the browser and by the server, and
  * one list of period names that the database's own check agrees with.
  *
  *  - Each named period is the CALENDAR's, worked out from the business day it is given: the month and quarter ends are
