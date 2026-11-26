@@ -39,6 +39,7 @@ import { refusalEventsService } from "../refusalEvents.service";
 import { cellVisible, datasetColumnOut, groupedOut, orderByGroup, parseRequest, readDataset, requireWindow, withheldTotalsOut } from "./reportDatasets.service";
 import { groupRows } from "../../lib/reports/grouping";
 import { decideDefinition, definitionQuery } from "./reportDefinitions.service";
+import { reportAuditService } from "./reportAudit.service";
 import { DATASET_EXPORT_MAX_ROWS } from "./reportExport.service";
 
 /** 🔴 A PROPOSAL (v4 §9, D7): 90 days, until the privacy adviser answers B3. Change it here and nowhere else. */
@@ -65,6 +66,43 @@ async function finish(runId: number, status: "delivered" | "refused" | "failed",
   await ownerDb.execute(sql`
     UPDATE report_runs SET status = ${status}, outcome_code = ${outcomeCode}, delivered_count = ${delivered}, skipped_count = ${skipped}, finished_at = now()
      WHERE id = ${runId}`);
+}
+
+/**
+ * 🔴 19.18 — THE RUN'S OWN AUDIT ENTRY, whatever became of it (delivered, refused, failed), written once it has
+ * finished: which schedule and report, for whom (the owner), for which period, with which outcome, and each named
+ * recipient's outcome — by id. Its request id is the RUN's (`scheduled-run:<id>`), and a run is claimed once per period,
+ * so the entry is written once however often, and in however many processes, the job ticks. A system connection: the
+ * entry has no acting user (the job acted), and names the owner in its own words.
+ */
+async function recordRun(s: DueSchedule, runId: number): Promise<void> {
+  const { rows: [run] } = await ownerDb.execute<{ status: string; outcome_code: string | null; period_key: string; window_from: string | null; window_to: string | null; delivered_count: number; skipped_count: number }>(sql`
+    SELECT status, outcome_code, period_key, window_from::text AS window_from, window_to::text AS window_to, delivered_count, skipped_count
+      FROM report_runs WHERE id = ${runId}`);
+  if (!run) return;
+  const { rows: named } = await ownerDb.execute<{ user_id: number }>(sql`SELECT user_id FROM report_schedule_recipients WHERE schedule_id = ${s.id} ORDER BY user_id`);
+  const got = new Set(await reportDeliveriesRepository.recipientsOfRun(runId));
+  const conn = await beginTenantConnection({ organizationId: s.organization_id, companyId: s.company_id, role: "authenticated" });
+  try {
+    await conn.run(() =>
+      auditContext.run({ userId: null, organizationId: s.organization_id, ipAddress: null, requestId: `scheduled-run:${runId}`, companyId: s.company_id }, () =>
+        reportAuditService.record({
+          action: "run", entityType: "report_scheduled_run", entityId: runId,
+          after: {
+            scheduleId: Number(s.id), definitionId: Number(s.definition_id), ownerUserId: Number(s.owner_user_id), cadence: s.cadence, periodKey: run.period_key,
+            dataset: s.dataset, columns: [...s.columns], filters: Object.keys(s.filters ?? {}).sort(), sort: s.sort ?? null, groupBy: s.group_by ?? null,
+            window: { from: run.window_from, to: run.window_to },
+            status: run.status, outcomeCode: run.outcome_code, delivered: Number(run.delivered_count), skipped: Number(run.skipped_count),
+            recipients: named.map((n) => ({ userId: Number(n.user_id), outcome: got.has(Number(n.user_id)) ? "delivered" : "not_delivered" })),
+          },
+        }),
+      ),
+    );
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  }
 }
 
 async function runSchedule(s: DueSchedule, runId: number, window: { from: string; to: string }, now: Date, result: ScheduledReportsResult): Promise<void> {
@@ -200,14 +238,17 @@ export const reportSchedulesJob = {
         if (!window) {
           await finish(runId, "failed", "report_bad_filter");
           result.failed += 1;
-          continue;
+        } else {
+          await runSchedule(s, runId, window, now, result);
         }
-        await runSchedule(s, runId, window, now, result);
       } catch (err) {
         logger.error({ err, scheduleId: s.id, runId }, "a scheduled report run failed");
         await finish(runId, "failed", "internal_error").catch((e) => logger.error({ err: e, runId }, "could not record a failed scheduled report run"));
         result.failed += 1;
       }
+      // 19.18: the run's audit entry, once it has finished — whatever its outcome. The run row above is already
+      // durable; a failure here is loud in the log and leaves the run itself as the record.
+      await recordRun(s, runId).catch((err) => logger.error({ err, scheduleId: s.id, runId }, "a scheduled report run was not written to the audit trail"));
     }
     if (result.due > 0) logger.info({ ...result }, "scheduled reports: run finished");
     return result;

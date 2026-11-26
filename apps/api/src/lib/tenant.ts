@@ -287,7 +287,7 @@ export async function resolveTenant(
     //     context (actor/org/IP) bound for the rest of the request.
     conn.run(() =>
       auditContext.run(
-        { userId: tenant.userId, organizationId: tenant.organizationId, ipAddress: req.ip ?? null },
+        { userId: tenant.userId, organizationId: tenant.organizationId, ipAddress: req.ip ?? null, requestId: String((req as { id?: unknown }).id ?? "") || null, companyId: tenant.companyId },
         () => afterCommitted.run(() => next()),
       ),
     );

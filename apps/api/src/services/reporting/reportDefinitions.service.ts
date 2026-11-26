@@ -21,6 +21,7 @@ import { decide, NO_USE, type Has } from "../../lib/reports/decide";
 import { membersRepository } from "../../repositories/members.repository";
 import { reportDefinitionsRepository, type ReportDefinitionValues } from "../../repositories/reportDefinitions.repository";
 import { parseRequest, refusalError } from "./reportDatasets.service";
+import { definitionFacts, reportAuditService } from "./reportAudit.service";
 
 export interface DefinitionActor { userId: number; organizationId: string; companyId: string | null; role: string }
 
@@ -155,14 +156,19 @@ export const reportDefinitionsService = {
     const { ds, values } = parseBody(body);
     check(has, ds, "save", values);
     if (!actor.companyId) throw new BusinessRuleError(422, { code: "company_required", error: "Create a company before saving a report.", errorAr: "أنشئ منشأة قبل حفظ تقرير." });
-    return one(await reportDefinitionsRepository.insert({ organizationId: actor.organizationId, companyId: actor.companyId, ownerUserId: actor.userId }, values), actor);
+    const row = await reportDefinitionsRepository.insert({ organizationId: actor.organizationId, companyId: actor.companyId, ownerUserId: actor.userId }, values);
+    // 19.18: in the same transaction as the save — a save that does not commit records nothing
+    await reportAuditService.record({ action: "create", entityType: "report_definition", entityId: row.id, after: definitionFacts(row) });
+    return one(row, actor);
   },
 
   async update(id: number, body: unknown, actor: DefinitionActor, has: Has) {
-    await owned(id, actor, has);
+    const before = await owned(id, actor, has);
     const { ds, values } = parseBody(body);
     check(has, ds, "save", values);
-    return one(await reportDefinitionsRepository.update(id, values), actor);
+    const row = await reportDefinitionsRepository.update(id, values);
+    await reportAuditService.record({ action: "update", entityType: "report_definition", entityId: id, before: definitionFacts(before), after: definitionFacts(row) });
+    return one(row, actor);
   },
 
   async share(id: number, body: unknown, actor: DefinitionActor, has: Has) {
@@ -172,12 +178,15 @@ export const reportDefinitionsService = {
       throw bad(`Share with roles from: ${MEMBERSHIP_ROLES.join(", ")}.`, `شارك مع أدوار من: ${MEMBERSHIP_ROLES.join("، ")}.`);
     }
     check(has, DATASETS[row.dataset]!, "share", row);
-    return one(await reportDefinitionsRepository.update(id, { sharedRoles: [...new Set(roles as string[])].sort() }), actor);
+    const shared = await reportDefinitionsRepository.update(id, { sharedRoles: [...new Set(roles as string[])].sort() });
+    await reportAuditService.record({ action: "share", entityType: "report_definition", entityId: id, before: { sharedRoles: [...row.sharedRoles].sort() }, after: { sharedRoles: [...shared.sharedRoles].sort() } });
+    return one(shared, actor);
   },
 
   /** Archived, never deleted: a schedule or a stored delivery that names it keeps its row. */
   async archive(id: number, actor: DefinitionActor, has: Has): Promise<void> {
-    await owned(id, actor, has);
+    const row = await owned(id, actor, has);
     await reportDefinitionsRepository.update(id, { archivedAt: new Date() });
+    await reportAuditService.record({ action: "archive", entityType: "report_definition", entityId: id, before: definitionFacts(row) });
   },
 };

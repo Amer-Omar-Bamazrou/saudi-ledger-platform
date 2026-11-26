@@ -1240,6 +1240,13 @@
       "when": 1795711740555,
       "tag": "0176_19b_s7_report_group_by",
       "breakpoints": true
+    },
+    {
+      "idx": 177,
+      "version": "7",
+      "when": 1795721726984,
+      "tag": "0177_19b_s7_report_audit_trail",
+      "breakpoints": true
     }
   ]
 }
