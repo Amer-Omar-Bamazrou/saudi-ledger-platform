@@ -22177,12 +22177,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "request_id": {
           "name": "request_id",
           "type": "varchar(64)",

@@ -6,8 +6,9 @@
  * It writes to the audit trail the product already has, so these entries get what every entry gets from the database:
  * append-only for every role (0132), the actor taken from the connection and never from the writer (T1b), the time and
  * the order set by the database (0159). On top of that an entry here carries:
- *  - the COMPANY of the request, and the REQUEST'S ID (the `X-Request-Id` the caller was sent; for a scheduled run,
- *    `scheduled-run:<run id>`);
+ *  - the COMPANY of the request (in the entry's own state, `companyId`: the trail itself stays organization-wide, as
+ *    it is for every entry), and the REQUEST'S ID (the `X-Request-Id` the caller was sent; for a scheduled run,
+ *    `scheduled-run:<run id>`), in its own column;
  *  - 🔴 ONCE: `(organization, request id, action, entity)` is unique in the database, and the insert steps aside on a
  *    conflict — the same request cannot record the same act twice, whatever retries it. `record` answers whether it
  *    wrote.
@@ -55,14 +56,14 @@ export const reportAuditService = {
       .insert(auditLogsTable)
       .values({
         organizationId: ctx.organizationId,
-        companyId: ctx.companyId ?? null,
         requestId: ctx.requestId,
         // 🔴 T1b: no `userId` — the row names the connection's declared actor, and the database refuses any other
         action: input.action,
         entityType: input.entityType,
         entityId: String(input.entityId),
         beforeState: input.before ?? null,
-        afterState: input.after ?? null,
+        // the company is a fact OF the entry, recorded with it — never a scoping key
+        afterState: { ...(input.after ?? {}), companyId: ctx.companyId ?? null },
         ipAddress: ctx.ipAddress,
       })
       .onConflictDoNothing({

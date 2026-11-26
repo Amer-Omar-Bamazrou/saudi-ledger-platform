@@ -6,8 +6,9 @@
  * doesn't record twice, tenant isolation, and that no ordinary route can change an entry."
  *
  *  - every act above writes ONE entry in `audit_logs` — the audit trail the product already has (append-only for every
- *    role, the actor taken from the connection, the time and the order set by the database) — carrying the company and
- *    the id of the request that did it (the `X-Request-Id` the caller was sent);
+ *    role, the actor taken from the connection, the time and the order set by the database) — carrying the company (in
+ *    the entry's own state: the trail stays organization-wide, as it is for every entry) and the id of the request
+ *    that did it (the `X-Request-Id` the caller was sent);
  *  - an entry says WHAT was asked for — the dataset, the column names, which filters were used, the period, the
  *    grouping, the counts — and never a value: not a row's figure or text, not a filter's value, not the report's name;
  *  - a refused act writes no entry here (refusals have their own record, D6);
@@ -40,7 +41,7 @@ const REPORT_NAME = "S7AUD-Report-Name-Omega";
 const TYPES = ["report_definition", "report_schedule", "report_run", "report_scheduled_run", "report_delivery"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-interface Entry { id: string; organization_id: string; company_id: string | null; user_id: number | null; action: string; entity_type: string; entity_id: string; request_id: string | null; before_state: any; after_state: any; created_at: Date; seq: number }
+interface Entry { id: string; organization_id: string; user_id: number | null; action: string; entity_type: string; entity_id: string; request_id: string | null; before_state: any; after_state: any; created_at: Date; seq: number }
 
 describeDb("19B 19.18 — the audit trail of reports", () => {
   let orgId = "";
@@ -94,7 +95,7 @@ describeDb("19B 19.18 — the audit trail of reports", () => {
     definitionId = ok(created, 201).id;
     const [c] = await byRequest(created);
     expect((await byRequest(created)).length).toBe(1);
-    expect([c!.entity_type, c!.action, c!.entity_id, c!.user_id, c!.company_id, c!.organization_id]).toEqual(["report_definition", "create", String(definitionId), ids.accountant, companyId, orgId]);
+    expect([c!.entity_type, c!.action, c!.entity_id, c!.user_id, c!.after_state.companyId, c!.organization_id]).toEqual(["report_definition", "create", String(definitionId), ids.accountant, companyId, orgId]);
     // the time is the database's (0159), compared where it was written: the column carries no zone of its own
     const age = (await pool.query(`SELECT abs(extract(epoch FROM (localtimestamp - created_at)))::float AS s FROM audit_logs WHERE id = $1`, [c!.id])).rows[0].s;
     expect(age).toBeLessThan(120);
@@ -116,7 +117,7 @@ describeDb("19B 19.18 — the audit trail of reports", () => {
     ok(shared);
     const [s] = await byRequest(shared);
     expect([s!.entity_type, s!.action, s!.entity_id]).toEqual(["report_definition", "share", String(definitionId)]);
-    expect([s!.before_state, s!.after_state]).toEqual([{ sharedRoles: [] }, { sharedRoles: ["bookkeeper", "viewer"] }]);
+    expect([s!.before_state, s!.after_state]).toEqual([{ sharedRoles: [] }, { sharedRoles: ["bookkeeper", "viewer"], companyId }]);
 
     // refused acts write nothing here: a viewer may not share; a stranger's change is refused
     const n = (await entries()).length;
@@ -137,7 +138,7 @@ describeDb("19B 19.18 — the audit trail of reports", () => {
     ok(first);
     const [r] = await byRequest(first);
     expect((await byRequest(first)).length).toBe(1);
-    expect([r!.entity_type, r!.action, r!.entity_id, r!.user_id, r!.company_id]).toEqual(["report_run", "run", "sales_documents", ids.viewer, companyId]);
+    expect([r!.entity_type, r!.action, r!.entity_id, r!.user_id, r!.after_state.companyId]).toEqual(["report_run", "run", "sales_documents", ids.viewer, companyId]);
     expect(r!.after_state).toMatchObject({ dataset: "sales_documents", columns: ["customerName", "signedTotal"], window: { from: "2026-10-01", to: "2026-10-31" }, filters: [], sort: null, groupBy: "customerName", limit: 1, offset: 0, rows: 1, total: 1, withheld: [] });
     const second = await h.api("viewer", "GET", `/reports/datasets/sales_documents/rows?${WINDOW}&limit=1&offset=0`);
     expect((await byRequest(second)).length).toBe(1);
@@ -155,7 +156,7 @@ describeDb("19B 19.18 — the audit trail of reports", () => {
     const made = await h.api("bookkeeper", "POST", "/report-schedules", { definitionId, cadence: "daily", recipientUserIds: [ids.bookkeeper, ids.viewer] });
     scheduleId = ok(made, 201).id;
     const [m] = await byRequest(made);
-    expect([m!.entity_type, m!.action, m!.entity_id, m!.user_id, m!.company_id]).toEqual(["report_schedule", "create", String(scheduleId), ids.bookkeeper, companyId]);
+    expect([m!.entity_type, m!.action, m!.entity_id, m!.user_id, m!.after_state.companyId]).toEqual(["report_schedule", "create", String(scheduleId), ids.bookkeeper, companyId]);
     expect(m!.after_state).toMatchObject({ definitionId, cadence: "daily", recipients: [ids.bookkeeper, ids.viewer].sort((a, b) => a - b) });
 
     const day = new Date("2026-11-02T09:00:00Z");
@@ -169,7 +170,7 @@ describeDb("19B 19.18 — the audit trail of reports", () => {
     const run = runs[0]!;
     const runRow = (await pool.query(`SELECT id FROM report_runs WHERE schedule_id = $1`, [scheduleId])).rows;
     expect(runRow.length).toBe(1);
-    expect([run.entity_id, run.request_id, run.user_id, run.company_id]).toEqual([String(runRow[0].id), `scheduled-run:${runRow[0].id}`, null, companyId]);
+    expect([run.entity_id, run.request_id, run.user_id, run.after_state.companyId]).toEqual([String(runRow[0].id), `scheduled-run:${runRow[0].id}`, null, companyId]);
     expect(run.after_state).toMatchObject({ scheduleId, definitionId, ownerUserId: ids.bookkeeper, dataset: "sales_documents", status: "delivered", outcomeCode: null, window: { from: "2026-10-01", to: "2026-10-31" }, delivered: 2, skipped: 0 });
     expect(run.after_state.recipients.map((x: any) => [x.userId, x.outcome]).sort()).toEqual([[ids.bookkeeper, "delivered"], [ids.viewer, "delivered"]].sort());
     // the next day is another run: another entry
@@ -190,7 +191,7 @@ describeDb("19B 19.18 — the audit trail of reports", () => {
     const opens = await of("report_delivery", "open", copy.id);
     expect(opens.length).toBe(2);
     expect(new Set(opens.map((o) => o.request_id))).toEqual(new Set([one.headers["x-request-id"], two.headers["x-request-id"]]));
-    expect([opens[0]!.user_id, opens[0]!.company_id]).toEqual([ids.viewer, companyId]);
+    expect([opens[0]!.user_id, opens[0]!.after_state.companyId]).toEqual([ids.viewer, companyId]);
     expect(opens[0]!.after_state).toMatchObject({ dataset: "sales_documents", definitionId, status: "available", rows: 1, withheld: [] });
     const n = (await entries()).length;
     expect((await h.api("accountant", "GET", `/report-deliveries/${copy.id}`)).status).toBe(404);
@@ -208,7 +209,7 @@ describeDb("19B 19.18 — the audit trail of reports", () => {
     expect(JSON.stringify(seen.rows)).toContain(CUSTOMER);
     expect(JSON.stringify(seen.rows)).toContain("4878.78");
     // every entry carries its company and a request id
-    for (const e of all) expect([e.entity_type, e.action, e.company_id, !!e.request_id]).toEqual([e.entity_type, e.action, companyId, true]);
+    for (const e of all) expect([e.entity_type, e.action, e.after_state.companyId, !!e.request_id]).toEqual([e.entity_type, e.action, companyId, true]);
   });
 
   it("🔴 a retry does not record twice: the same request cannot write the same act again — the database's own key, whatever the caller does", async () => {
@@ -231,12 +232,15 @@ describeDb("19B 19.18 — the audit trail of reports", () => {
     expect((await entries()).filter((e) => e.request_id === requestId).length).toBe(1);
     // the key is the database's: a second row for the same request and act is refused outright
     await expect(pool.query(
-      `INSERT INTO audit_logs (organization_id, company_id, action, entity_type, entity_id, request_id) VALUES ($1, $2, 'create', 'report_definition', '987654321', $3)`,
-      [orgId, companyId, requestId],
+      `INSERT INTO audit_logs (organization_id, action, entity_type, entity_id, request_id) VALUES ($1, 'create', 'report_definition', '987654321', $2)`,
+      [orgId, requestId],
     )).rejects.toThrow(/audit_logs_request_event_unq/);
     // a different act in the same request is its own entry
-    await pool.query(`INSERT INTO audit_logs (organization_id, company_id, action, entity_type, entity_id, request_id) VALUES ($1, $2, 'share', 'report_definition', '987654321', $3)`, [orgId, companyId, requestId]);
+    await pool.query(`INSERT INTO audit_logs (organization_id, action, entity_type, entity_id, request_id, after_state) VALUES ($1, 'share', 'report_definition', '987654321', $2, $3)`, [orgId, requestId, JSON.stringify({ companyId })]);
     expect((await entries()).filter((e) => e.request_id === requestId).length).toBe(2);
+    // and a row with NO request id is outside the key (every other audit entry, before and since)
+    for (let i = 0; i < 2; i++) await pool.query(`INSERT INTO audit_logs (organization_id, action, entity_type, entity_id) VALUES ($1, 'create', 's7aud_plain', '1')`, [orgId]);
+    expect((await pool.query(`SELECT count(*)::int AS n FROM audit_logs WHERE organization_id = $1 AND entity_type = 's7aud_plain'`, [orgId])).rows[0].n).toBe(2);
     // a recorder with no request to name refuses to write (an entry without its request id is not this trail's)
     const conn = await beginTenantConnection({ organizationId: orgId, companyId, role: "authenticated", actorUserId: ids.accountant });
     await expect(conn.run(() => auditContext.run({ userId: ids.accountant, organizationId: orgId, ipAddress: null }, () =>
@@ -248,6 +252,7 @@ describeDb("19B 19.18 — the audit trail of reports", () => {
     const mine = ok(await h.api("admin", "GET", "/audit-logs?limit=200"));
     const theirs = ok(await h.api("outsider", "GET", "/audit-logs?limit=200"));
     const reportEntries = (logs: any[]) => logs.filter((l) => TYPES.includes(l.entityType));
+    // what the reader serves: the admin reads an entry's state (the company with it); the request id is in the trail
     expect(reportEntries(mine.logs).length).toBeGreaterThan(5);
     expect(reportEntries(theirs.logs)).toEqual([]);
     expect(theirs.logs.every((l: any) => l.organizationId === otherOrgId)).toBe(true);
