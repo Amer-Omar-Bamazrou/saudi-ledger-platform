@@ -2,7 +2,8 @@
  * 🔴 19B S6 — THE REPORT BUILDER (scope 19.9–19.13; v4 §4, §6.2).
  *
  * A report is built from ONE vetted dataset: which of its columns, in which order, for which period, with which of the
- * filters and the sort the dataset declares. The screen offers only what the server lists (`GET /reports/datasets`) and
+ * filters and the sort the dataset declares, and (19.12) grouped by one of the columns it offers for that — the
+ * subtotals are the server's, never added up here. The screen offers only what the server lists (`GET /reports/datasets`) and
  * decides nothing: the rows come from the dataset's own endpoint through the generated client, so every run is checked
  * by `decide()` for the reader's own role — a saved or shared report included. A column the role may not read is
  * marked withheld with the permission it needs, never shown blank; a refusal is shown in the server's words.
@@ -17,7 +18,7 @@ import { ArrowDown, ArrowUp, Download, Play, Save } from "lucide-react";
 import {
   getListReportDefinitionsQueryKey, useCreateReportDefinition, useGetReportDefinition, useListReportDatasets, useRunCashMovementsDataset,
   useRunJournalLinesDataset, useRunPurchaseDocumentsDataset, useRunSalesDocumentsDataset, useRunVatLinesDataset, useShareReportDefinition,
-  useUpdateReportDefinition, type ReportDatasetColumn, type ReportDatasetSummary, type ReportDatasetWithheld, type ReportDefinition, type ReportDefinitionInput,
+  useUpdateReportDefinition, type ReportDatasetColumn, type ReportDatasetGroup, type ReportDatasetSummary, type ReportDatasetTotals, type ReportDatasetWithheld, type ReportDefinition, type ReportDefinitionInput,
 } from "@workspace/api-client-react";
 import { REPORT_PERIOD_KINDS, REPORT_PERIOD_LABELS, businessToday, resolveReportPeriod, type ReportPeriod, type ReportPeriodKind } from "@workspace/shared";
 import { apiDownload, fmtNum } from "@/lib/api";
@@ -27,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { GroupTotals } from "@/components/reports/GroupTotals";
 
 const PAGE = 100;
 const ROLES: [key: string, en: string, ar: string][] = [
@@ -41,8 +43,8 @@ const CLASS_WORDS: Record<string, [string, string]> = {
 };
 const SELECT = "w-full mt-1 h-8 text-sm rounded-md border border-input bg-background px-3 py-1";
 
-interface RunParams { columns?: string; date_from: string; date_to: string; sort?: string; limit: number; offset: number; account_id?: number; source_type?: string }
-interface RowsResult { data?: { columns: ReportDatasetColumn[]; rows: object[]; total: number; withheld: ReportDatasetWithheld[] }; isLoading: boolean; error: unknown }
+interface RunParams { columns?: string; date_from: string; date_to: string; sort?: string; group?: string; limit: number; offset: number; account_id?: number; source_type?: string }
+interface RowsResult { data?: { columns: ReportDatasetColumn[]; rows: object[]; total: number; withheld: ReportDatasetWithheld[]; groupedBy?: string | null; groups?: ReportDatasetGroup[] | null; grandTotal?: ReportDatasetTotals | null }; isLoading: boolean; error: unknown }
 /** Each dataset's rows through its own generated hook, and its export route as a literal path. */
 const RUNNERS: Record<string, { useRows: (p: RunParams) => RowsResult; exportPath: string }> = {
   journal_lines: { useRows: (p) => useRunJournalLinesDataset(p), exportPath: "/reports/datasets/journal_lines/export" },
@@ -52,14 +54,14 @@ const RUNNERS: Record<string, { useRows: (p: RunParams) => RowsResult; exportPat
   vat_lines: { useRows: (p) => useRunVatLinesDataset(p), exportPath: "/reports/datasets/vat_lines/export" },
 };
 
-interface Draft { name: string; dataset: string; columns: string[]; period: ReportPeriod; filters: Record<string, string>; sortKey: string; sortDesc: boolean }
-const blank = (dataset: string): Draft => ({ name: "", dataset, columns: [], period: { kind: "this_month", from: null, to: null }, filters: {}, sortKey: "", sortDesc: false });
+interface Draft { name: string; dataset: string; columns: string[]; period: ReportPeriod; filters: Record<string, string>; sortKey: string; sortDesc: boolean; groupBy: string }
+const blank = (dataset: string): Draft => ({ name: "", dataset, columns: [], period: { kind: "this_month", from: null, to: null }, filters: {}, sortKey: "", sortDesc: false, groupBy: "" });
 const fromDefinition = (d: ReportDefinition): Draft => ({
   name: d.name, dataset: d.dataset, columns: d.columns, period: { kind: d.period.kind, from: d.period.from ?? null, to: d.period.to ?? null },
-  filters: d.filters, sortKey: (d.sort ?? "").replace(/^-/, ""), sortDesc: (d.sort ?? "").startsWith("-"),
+  filters: d.filters, sortKey: (d.sort ?? "").replace(/^-/, ""), sortDesc: (d.sort ?? "").startsWith("-"), groupBy: d.groupBy ?? "",
 });
 const sortOf = (d: Draft) => (d.sortKey ? `${d.sortDesc ? "-" : ""}${d.sortKey}` : null);
-const inputOf = (d: Draft): ReportDefinitionInput => ({ name: d.name, dataset: d.dataset, columns: d.columns, period: d.period, filters: d.filters, sort: sortOf(d) });
+const inputOf = (d: Draft): ReportDefinitionInput => ({ name: d.name, dataset: d.dataset, columns: d.columns, period: d.period, filters: d.filters, sort: sortOf(d), groupBy: d.groupBy || null });
 
 export default function ReportBuilder() {
   const { t, lang } = useLanguage();
@@ -105,6 +107,7 @@ export default function ReportBuilder() {
     ...(d.columns.length ? { columns: d.columns.join(",") } : {}),
     date_from: w.from, date_to: w.to,
     ...(sortOf(d) ? { sort: sortOf(d)! } : {}),
+    ...(d.groupBy ? { group: d.groupBy } : {}),
     ...(d.filters.account_id ? { account_id: Number(d.filters.account_id) } : {}),
     ...(d.filters.source_type ? { source_type: d.filters.source_type } : {}),
   });
@@ -176,6 +179,7 @@ export default function ReportBuilder() {
   const unchosen = ds.columns.filter((c) => !draft.columns.includes(c.key));
   const otherFilters = ds.filters.filter((f) => f.param !== "date_from" && f.param !== "date_to");
   const sortable = ds.columns.filter((c) => c.sortable && c.level === "read");
+  const groupable = ds.groupBy.map((k) => ds.columns.find((c) => c.key === k)).filter((c): c is ReportDatasetColumn => !!c);
   const busy = create.isPending || update.isPending;
 
   return (
@@ -244,6 +248,15 @@ export default function ReportBuilder() {
               )}
             </div>
           </div>
+          {groupable.length > 0 && (
+            <div>
+              <Label className="text-xs text-muted-foreground" htmlFor="builder-group">{t("Group and subtotal by", "التجميع والمجاميع الفرعية حسب")}</Label>
+              <select id="builder-group" className={SELECT} value={draft.groupBy} onChange={(e) => set({ groupBy: e.target.value })} data-testid="builder-group">
+                <option value="">{t("Not grouped", "بدون تجميع")}</option>
+                {groupable.map((c) => <option key={c.key} value={c.key}>{label(c)}{c.kind === "date" ? t(" (month)", " (الشهر)") : ""}</option>)}
+              </select>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -316,12 +329,12 @@ export default function ReportBuilder() {
         </Card>
       )}
 
-      {applied && <Results key={`${applied.dataset}:${JSON.stringify(applied.params)}:${offset}`} applied={applied} offset={offset} setOffset={setOffset} needs={needs} />}
+      {applied && <Results key={`${applied.dataset}:${JSON.stringify(applied.params)}:${offset}`} applied={applied} offset={offset} setOffset={setOffset} needs={needs} names={ds.columns} />}
     </div>
   );
 }
 
-function Results({ applied, offset, setOffset, needs }: { applied: { dataset: string; params: Omit<RunParams, "limit" | "offset"> }; offset: number; setOffset: (n: number) => void; needs: (c: ReportDatasetColumn) => string }) {
+function Results({ applied, offset, setOffset, needs, names }: { applied: { dataset: string; params: Omit<RunParams, "limit" | "offset"> }; offset: number; setOffset: (n: number) => void; needs: (c: ReportDatasetColumn) => string; names: ReportDatasetColumn[] }) {
   const { t, lang } = useLanguage();
   const { data, isLoading, error } = RUNNERS[applied.dataset]!.useRows({ ...applied.params, limit: PAGE, offset });
   const refusal = (error as { data?: { error?: string; errorAr?: string } } | null)?.data;
@@ -344,6 +357,7 @@ function Results({ applied, offset, setOffset, needs }: { applied: { dataset: st
         ) : data ? (
           <>
             {data.withheld.length > 0 && <p className="text-xs text-muted-foreground pb-2" data-testid="builder-withheld-note">{t("Some values are withheld for your role; each is marked where it would be.", "بعض القيم محجوبة لدورك، وكل منها مُعلَّم في مكانه.")}</p>}
+            {data.groupedBy && data.groups && <GroupTotals groupedBy={data.groupedBy} groups={data.groups} grandTotal={data.grandTotal} columns={data.columns} withheld={data.withheld} names={names} testId="builder-groups" />}
             <table className="w-full text-sm" data-testid="builder-table">
               <thead>
                 <tr className="text-muted-foreground border-b border-border">

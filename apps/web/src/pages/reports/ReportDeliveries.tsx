@@ -12,6 +12,7 @@ import { fmtNum } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { GroupTotals } from "@/components/reports/GroupTotals";
 
 const CLASS_WORDS: Record<string, [string, string]> = {
   bank_narrative: ["the bank text permission", "صلاحية نص كشف البنك"],
@@ -99,6 +100,7 @@ function Opened({ id }: { id: number }) {
           <>
             <h2 className="text-sm font-semibold text-foreground pb-2">{data.reportName}</h2>
             {data.withheld.length > 0 && <p className="text-xs text-muted-foreground pb-2" data-testid="delivery-withheld-note">{t("Some values are withheld for your role; each is marked where it would be.", "بعض القيم محجوبة لدورك، وكل منها مُعلَّم في مكانه.")}</p>}
+            {data.groupedBy && data.groups && <GroupTotals groupedBy={data.groupedBy} groups={data.groups} grandTotal={data.grandTotal} columns={data.columns} withheld={data.withheld} testId="delivery-groups" />}
             <table className="w-full text-sm" data-testid="delivery-table">
               <thead>
                 <tr className="text-muted-foreground border-b border-border">

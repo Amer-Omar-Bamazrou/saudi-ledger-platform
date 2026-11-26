@@ -1,0 +1,2 @@
+-- 19B 19.12 — a saved report may be grouped by ONE column its dataset offers (checked at every save and run). Additive; NULL = not grouped.
+ALTER TABLE "report_definitions" ADD COLUMN "group_by" varchar(64);

@@ -18,7 +18,8 @@ import { rowConditionApplies } from "../../lib/fieldClasses/classTable";
 import { decide, NO_USE, type DecidedColumn, type Has, type Use } from "../../lib/reports/decide";
 import { reportDatasetsRepository, type JournalLinesFilter, type JournalLinesSortKey, type JournalLineRow } from "../../repositories/reportDatasets.repository";
 import { refusalEventsService } from "../refusalEvents.service";
-import { DATASET_EXPORT_MAX_ROWS, exportDatasetCsv, type DatasetDocument, type ExportColumn, type ExportRow } from "./reportExport.service";
+import { datasetRowLimit, exportDatasetCsv, type DatasetDocument, type ExportColumn, type ExportRow } from "./reportExport.service";
+import { compareGroupKeys, groupKeyOf, groupRows, type Grouped } from "../../lib/reports/grouping";
 import { DATASETS, WINDOW_REQUIRED } from "../../lib/reports/datasets";
 import { documentDatasetsRepository, type WindowFilter } from "../../repositories/reportDatasets.repository";
 import { reportsService } from "../reports.service";
@@ -130,33 +131,86 @@ export function requireWindow(ds: DatasetDef, filter: { dateFrom?: string; dateT
   }
 }
 
+const tooLarge = (code: "export_too_large" | "report_too_large", ds: DatasetDef, total: number, limit: number) =>
+  new BusinessRuleError(422, {
+    code,
+    error: code === "export_too_large"
+      ? `This file would hold ${total} rows; the limit is ${limit}. Narrow the dates${"account_id" in ds.filters ? " or the account" : ""} — an export is never cut short.`
+      : `A grouped report reads every row of its period: this one has ${total}, and the limit is ${limit}. Narrow the dates — a total is never worked out on part of the rows.`,
+    errorAr: code === "export_too_large"
+      ? `سيحتوي هذا الملف على ${total} سطراً، والحد ${limit}. ضيّق التواريخ${"account_id" in ds.filters ? " أو الحساب" : ""} — لا يُقتطع التصدير أبداً.`
+      : `التقرير المجمَّع يقرأ كل سطور فترته: في هذا التقرير ${total} سطراً، والحد ${limit}. ضيّق التواريخ — لا يُحسب مجموع على جزء من السطور.`,
+  });
+
+/** Every row of the window — counted first, and refused WITH the count above the limit, never cut short. */
+async function readAll(ds: DatasetDef, filter: JournalLinesFilter, sort: Sort, code: "export_too_large" | "report_too_large"): Promise<DatasetRow[]> {
+  const { total } = await readDataset(ds, filter, sort, { limit: 1, offset: 0 });
+  const limit = datasetRowLimit("csv");
+  if (total > limit) throw tooLarge(code, ds, total, limit);
+  return (await readDataset(ds, filter, sort, null)).rows;
+}
+
+/** 19.12 — the rows group by group (a missing key last), in the order they came within a group. */
+export function orderByGroup(ds: DatasetDef, groupKey: string, rows: readonly DatasetRow[]): DatasetRow[] {
+  const column = ds.columns.find((c) => c.key === groupKey)!;
+  return rows
+    .map((row, i) => ({ row, i, key: groupKeyOf(column, row) }))
+    .sort((a, b) => compareGroupKeys(a.key, b.key) || a.i - b.i)
+    .map((x) => x.row);
+}
+
+/** 19.12 — a grouped answer's own fields, and the totals this role is not given (listed, never computed). */
+export const groupedOut = (g: Grouped) => ({ groupedBy: g.groupedBy, groups: g.groups, grandTotal: g.grandTotal });
+export const withheldTotalsOut = (g: Grouped) =>
+  g.withheldTotals.map((c) => ({ path: `groups[].totals.${c.column.key}`, class: c.cls, level: c.level === "last4" ? "last4" : "none", rows: null as number | null }));
+
 export const reportDatasetsService = {
-  /** 19B S5 — RUN one of the remaining datasets: the same decision, withholding and paging as journal lines. */
+  /**
+   * RUN a dataset: the decision, the withholding, the page. 19.12 — with a grouping, every row of the window is read
+   * (refused with the count above the limit), the subtotals are of ALL of them, and the page is cut from the rows in
+   * group order.
+   */
   async rows(ds: DatasetDef, has: Has, q: Query) {
     const { use, filter, sort, page } = parseRequest(ds, q, true);
     const d = decide(has, ds, "run", use);
     if (!d.allowed) throw refusalError(d);
     requireWindow(ds, filter);
-    const { rows, total } = await READERS[ds.name]!(filter, sort, page);
+    const groupKey = use.group[0];
+    let rows: DatasetRow[];
+    let total: number;
+    let grouped: Grouped | null = null;
+    if (groupKey) {
+      const all = await readAll(ds, filter, sort, "report_too_large");
+      grouped = groupRows(ds, groupKey, d.columns, all);
+      total = all.length;
+      rows = orderByGroup(ds, groupKey, all).slice(page!.offset, page!.offset + page!.limit);
+    } else {
+      ({ rows, total } = await readDataset(ds, filter, sort, page));
+    }
     const out = rows.map((r) => {
       const o: Record<string, unknown> = {};
       for (const c of d.columns) if (visible(c, r)) o[c.column.key] = r[c.column.key];
       return o;
     });
-    const withheld = d.withheld.map((c) => ({
+    const withheld: { path: string; class: string; level: string; rows: number | null }[] = d.withheld.map((c) => ({
       path: `rows[].${c.column.key}`,
       class: c.cls,
       level: c.level === "last4" ? "last4" : "none",
       rows: rows.filter((r) => !visible(c, r)).length,
     }));
-    return { dataset: ds.name, columns: d.columns.map(columnOut), rows: out, total, limit: page!.limit, offset: page!.offset, withheld };
+    if (grouped) withheld.push(...withheldTotalsOut(grouped));
+    return { dataset: ds.name, columns: d.columns.map(columnOut), rows: out, total, limit: page!.limit, offset: page!.offset, withheld, ...(grouped ? groupedOut(grouped) : {}) };
   },
 
-  /** 19B S5 — EXPORT one of the remaining datasets: refused exports recorded (D6), too many rows refused with the count. */
+  /**
+   * EXPORT a dataset as CSV: refused exports recorded (D6), too many rows refused with the count. 19.12 — a grouped
+   * export carries each group's rows, then its subtotal row, and the grand total where the dataset has one.
+   */
   async export(ds: DatasetDef, has: Has, actor: DatasetActor, q: Query, lang: "en" | "ar", readDecider: ReadDecider) {
     const { use, filter, sort } = parseRequest(ds, q, false);
     const d = decide(has, ds, "export", use);
     if (!d.allowed) {
+      // 🔴 D6: a refused export is recorded — names and classes only — on its own connection; then answered.
       if (d.status === 403) {
         await refusalEventsService.record({
           action: "export", actorUserId: actor.userId, organizationId: actor.organizationId, companyId: actor.companyId,
@@ -167,132 +221,102 @@ export const reportDatasetsService = {
       throw refusalError(d);
     }
     requireWindow(ds, filter);
-    const { total } = await READERS[ds.name]!(filter, sort, { limit: 1, offset: 0 });
-    if (total > DATASET_EXPORT_MAX_ROWS) {
-      throw new BusinessRuleError(422, {
-        code: "export_too_large",
-        error: `This CSV would hold ${total} rows; the limit is ${DATASET_EXPORT_MAX_ROWS}. Narrow the dates — an export is never cut short.`,
-        errorAr: `سيحتوي هذا الملف على ${total} سطراً، والحد ${DATASET_EXPORT_MAX_ROWS}. ضيّق التواريخ — لا يُقتطع التصدير أبداً.`,
-      });
-    }
-    const { rows } = await READERS[ds.name]!(filter, sort, null);
-    const inFile = d.columns.filter((c) => c.level === "read" || c.rowCondition != null);
-    const absent = d.columns.filter((c) => !inFile.includes(c));
-    const columns: ExportColumn[] = inFile.map((c) => ({
-      label: { en: c.column.label, ar: c.column.labelAr },
-      kind: c.column.kind,
-      class: c.cls === "standard" ? "standard" : { cls: c.cls, resource: c.resource! },
-    }));
-    const cellOf = (v: unknown): string | number | null => (v == null ? null : typeof v === "boolean" ? (v ? "yes" : "no") : (v as string | number));
-    const fileRows: ExportRow[] = rows.map((row) => {
-      const subjectTo: Record<number, boolean> = {};
-      inFile.forEach((c, i) => { if (c.rowCondition) subjectTo[i] = rowConditionApplies(c.rowCondition, row); });
-      return { kind: "row", cells: inFile.map((c) => cellOf(row[c.column.key])), subjectTo };
-    });
-    const window = `${filter.dateFrom ?? "…"} – ${filter.dateTo ?? "…"}`;
-    const doc: DatasetDocument = {
-      title: { en: ds.title, ar: ds.titleAr },
-      scope: { en: window, ar: window },
-      tables: [{ columns, rows: fileRows }],
-      notes: absent.length
-        ? [{
-            en: `Withheld for your role, and absent from this file: ${absent.map((c) => `${c.column.label} (${c.cls})`).join(", ")}.`,
-            ar: `محجوب لدورك وغير موجود في هذا الملف: ${absent.map((c) => `${c.column.labelAr} (${c.cls})`).join("، ")}.`,
-          }]
-        : [],
-      filenameStem: `${ds.name.replace(/_/g, "-")}_${filter.dateFrom ?? "start"}_${filter.dateTo ?? "end"}`,
-    };
+    const doc = buildDatasetDocument(ds, d, use.group[0] ?? null, await readAll(ds, filter, sort, "export_too_large"), { from: filter.dateFrom, to: filter.dateTo }, lang);
     const params = Object.fromEntries(Object.entries(q).filter(([k]) => k !== "lang"));
     return exportDatasetCsv(doc, lang, readDecider, { dataset: ds.name, params });
   },
 
-  /** Every dataset this role may run, with the acts it may take and each column's level. */
+  /** Every dataset this role may run, with the acts it may take, each column's level and what it may be grouped by. */
   list(has: Has) {
     const items = Object.values(DATASETS).flatMap((ds) => {
       const acts = REPORT_ACTS.filter((a) => decide(has, ds, a, NO_USE).allowed);
       const run = decide(has, ds, "run", NO_USE);
       if (!run.allowed) return [];
       const filters = Object.entries(ds.filters).map(([param, column]) => ({ param, column }));
-      return [{ name: ds.name, title: ds.title, titleAr: ds.titleAr, acts, columns: run.columns.map(columnOut), filters }];
+      // a grouping this role could not read is not offered (decide() would refuse it by name)
+      const groupBy = run.columns.filter((c) => c.column.groupable && c.level === "read").map((c) => c.column.key);
+      return [{ name: ds.name, title: ds.title, titleAr: ds.titleAr, acts, columns: run.columns.map(columnOut), filters, groupBy, totals: [...ds.totals], grandTotal: ds.grandTotal }];
     });
     return { items };
   },
 
-  async journalLinesRows(ds: DatasetDef, has: Has, q: Query) {
-    const { use, filter, sort, page } = parseRequest(ds, q, true);
-    const d = decide(has, ds, "run", use);
-    if (!d.allowed) throw refusalError(d);
-    const { rows, total } = await reportDatasetsRepository.journalLines(filter, sort, page);
-    const out = rows.map((r) => {
-      const o: Record<string, unknown> = {};
-      for (const c of d.columns) if (visible(c, r as unknown as DatasetRow)) o[c.column.key] = (r as unknown as DatasetRow)[c.column.key];
-      return o;
-    });
-    const withheld = d.withheld.map((c) => ({
-      path: `rows[].${c.column.key}`,
-      class: c.cls,
-      level: c.level === "last4" ? "last4" : "none",
-      rows: rows.filter((r) => !visible(c, r as unknown as DatasetRow)).length,
-    }));
-    return { dataset: ds.name, columns: d.columns.map(columnOut), rows: out, total, limit: page!.limit, offset: page!.offset, withheld };
+  journalLinesRows(ds: DatasetDef, has: Has, q: Query) {
+    return this.rows(ds, has, q);
   },
 
-  async journalLinesExport(ds: DatasetDef, has: Has, actor: DatasetActor, q: Query, lang: "en" | "ar", readDecider: ReadDecider) {
-    const { use, filter, sort } = parseRequest(ds, q, false);
-    const d = decide(has, ds, "export", use);
-    if (!d.allowed) {
-      // 🔴 D6: a refused export is recorded — names and classes only — on its own connection; then answered.
-      if (d.status === 403) {
-        await refusalEventsService.record({
-          action: "export",
-          actorUserId: actor.userId,
-          organizationId: actor.organizationId,
-          companyId: actor.companyId,
-          resource: reportDatasetResource(ds.name),
-          refusalCode: d.code,
-          fieldNames: d.fields.map((f) => f.field),
-          fieldClasses: d.fields.map((f) => f.class),
-        });
-      }
-      throw refusalError(d);
-    }
-    const { total } = await reportDatasetsRepository.journalLines(filter, sort, { limit: 1, offset: 0 });
-    if (total > DATASET_EXPORT_MAX_ROWS) {
-      throw new BusinessRuleError(422, {
-        code: "export_too_large",
-        error: `This CSV would hold ${total} rows; the limit is ${DATASET_EXPORT_MAX_ROWS}. Narrow the dates or the account — an export is never cut short.`,
-        errorAr: `سيحتوي هذا الملف على ${total} سطراً، والحد ${DATASET_EXPORT_MAX_ROWS}. ضيّق التواريخ أو الحساب — لا يُقتطع التصدير أبداً.`,
-      });
-    }
-    const { rows } = await reportDatasetsRepository.journalLines(filter, sort, null);
-    // A column the role may not read at all is ABSENT from the file; a conditional one stays, its cells marked per row.
-    const inFile = d.columns.filter((c) => c.level === "read" || c.rowCondition != null);
-    const absent = d.columns.filter((c) => !inFile.includes(c));
-    const columns: ExportColumn[] = inFile.map((c) => ({
-      label: { en: c.column.label, ar: c.column.labelAr },
-      kind: c.column.kind,
-      class: c.cls === "standard" ? "standard" : { cls: c.cls, resource: c.resource! },
-    }));
-    const fileRows: ExportRow[] = rows.map((r: JournalLineRow) => {
-      const row = r as unknown as DatasetRow;
-      const subjectTo: Record<number, boolean> = {};
-      inFile.forEach((c, i) => { if (c.rowCondition) subjectTo[i] = rowConditionApplies(c.rowCondition, row); });
-      return { kind: "row", cells: inFile.map((c) => (row[c.column.key] ?? null) as string | number | null), subjectTo };
-    });
-    const window = `${filter.dateFrom ?? "…"} – ${filter.dateTo ?? "…"}`;
-    const doc: DatasetDocument = {
-      title: { en: ds.title, ar: ds.titleAr },
-      scope: { en: window, ar: window },
-      tables: [{ columns, rows: fileRows }],
-      notes: absent.length
-        ? [{
-            en: `Withheld for your role, and absent from this file: ${absent.map((c) => `${c.column.label} (${c.cls})`).join(", ")}.`,
-            ar: `محجوب لدورك وغير موجود في هذا الملف: ${absent.map((c) => `${c.column.labelAr} (${c.cls})`).join("، ")}.`,
-          }]
-        : [],
-      filenameStem: `journal-lines_${filter.dateFrom ?? "start"}_${filter.dateTo ?? "end"}`,
-    };
-    const params = Object.fromEntries(Object.entries(q).filter(([k]) => k !== "lang"));
-    return exportDatasetCsv(doc, lang, readDecider, { dataset: ds.name, params });
+  journalLinesExport(ds: DatasetDef, has: Has, actor: DatasetActor, q: Query, lang: "en" | "ar", readDecider: ReadDecider) {
+    return this.export(ds, has, actor, q, lang, readDecider);
   },
 };
+
+type Allowed = Extract<ReturnType<typeof decide>, { allowed: true }>;
+
+/**
+ * A dataset's rows as the one export document (CSV and PDF render the same one). A column the role may not read at all
+ * is ABSENT from the file; a conditional one stays, its cells withheld row by row (`subjectTo`). 19.12 — grouped: each
+ * group's rows, its subtotal, and the grand total; a total the role is not given is not in the file, and is named.
+ */
+export function buildDatasetDocument(ds: DatasetDef, d: Allowed, groupKey: string | null, rows: readonly DatasetRow[], window: { from?: string; to?: string }, lang: "en" | "ar"): DatasetDocument {
+  const inFile = d.columns.filter((c) => c.level === "read" || c.rowCondition != null);
+  const absent = d.columns.filter((c) => !inFile.includes(c));
+  const columns: ExportColumn[] = inFile.map((c) => ({
+    label: { en: c.column.label, ar: c.column.labelAr },
+    kind: c.column.kind,
+    class: c.cls === "standard" ? "standard" : { cls: c.cls, resource: c.resource! },
+  }));
+  const cellOf = (v: unknown): string | number | null => (v == null ? null : typeof v === "boolean" ? (v ? "yes" : "no") : (v as string | number));
+  const fileRow = (row: DatasetRow): ExportRow => {
+    const subjectTo: Record<number, boolean> = {};
+    inFile.forEach((c, i) => { if (c.rowCondition) subjectTo[i] = rowConditionApplies(c.rowCondition, row); });
+    return { kind: "row", cells: inFile.map((c) => cellOf(row[c.column.key])), subjectTo };
+  };
+  const notes: DatasetDocument["notes"] = absent.length
+    ? [{
+        en: `Withheld for your role, and absent from this file: ${absent.map((c) => `${c.column.label} (${c.cls})`).join(", ")}.`,
+        ar: `محجوب لدورك وغير موجود في هذا الملف: ${absent.map((c) => `${c.column.labelAr} (${c.cls})`).join("، ")}.`,
+      }]
+    : [];
+
+  let fileRows: ExportRow[];
+  if (!groupKey) {
+    fileRows = rows.map(fileRow);
+  } else {
+    const g = groupRows(ds, groupKey, d.columns, rows);
+    const column = ds.columns.find((c) => c.key === groupKey)!;
+    const ordered = orderByGroup(ds, groupKey, rows);
+    // the words go in the first column that is not itself a total
+    const labelAt = inFile.findIndex((c) => !ds.totals.includes(c.column.key));
+    const totalRow = (kind: "subtotal" | "total", label: string, totals: { column: string; total: number }[]): ExportRow => ({
+      kind,
+      cells: inFile.map((c, i) => (i === labelAt ? label : (totals.find((t) => t.column === c.column.key)?.total ?? null))),
+    });
+    const groupName = (key: string | null, label: string | null) => (key === null ? (lang === "ar" ? "بدون قيمة" : "(none)") : label ? `${key} — ${label}` : key);
+    fileRows = [];
+    for (const grp of g.groups) {
+      for (const row of ordered) if (groupKeyOf(column, row) === grp.key) fileRows.push(fileRow(row));
+      fileRows.push(totalRow("subtotal", `${lang === "ar" ? "المجموع الفرعي" : "Subtotal"}: ${groupName(grp.key, grp.label)} (${grp.count})`, grp.totals));
+    }
+    if (g.grandTotal) fileRows.push(totalRow("total", `${lang === "ar" ? "الإجمالي" : "Total"} (${g.grandTotal.count})`, g.grandTotal.totals));
+    notes.push({ en: `Grouped by ${column.label}${column.groupAs === "month" ? " (month)" : ""}.`, ar: `مجمَّع حسب ${column.labelAr}${column.groupAs === "month" ? " (الشهر)" : ""}.` });
+    if (!g.grandTotal) notes.push({
+      en: "This report has no grand total: a total over all its rows would not be a figure of the books.",
+      ar: "لا يوجد إجمالي عام لهذا التقرير: مجموع كل سطوره ليس رقماً من أرقام الدفاتر.",
+    });
+    if (g.withheldTotals.length) notes.push({
+      en: `Totals withheld for your role, and not worked out: ${g.withheldTotals.map((c) => `${c.column.label} (${c.cls})`).join(", ")}.`,
+      ar: `مجاميع محجوبة لدورك ولم تُحسب: ${g.withheldTotals.map((c) => `${c.column.labelAr} (${c.cls})`).join("، ")}.`,
+    });
+    if ([...g.groups, ...(g.grandTotal ? [g.grandTotal] : [])].some((x) => x.mixedCurrency)) notes.push({
+      en: "A set that mixes currencies has no money total.",
+      ar: "المجموعة التي تختلط فيها العملات ليس لها مجموع مالي.",
+    });
+  }
+  const scope = `${window.from ?? "…"} – ${window.to ?? "…"}`;
+  return {
+    title: { en: ds.title, ar: ds.titleAr },
+    scope: { en: scope, ar: scope },
+    tables: [{ columns, rows: fileRows }],
+    notes,
+    filenameStem: `${ds.name.replace(/_/g, "-")}_${window.from ?? "start"}_${window.to ?? "end"}`,
+  };
+}

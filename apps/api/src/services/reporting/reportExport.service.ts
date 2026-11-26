@@ -598,6 +598,15 @@ export async function exportReport(report: string, q: Q, format: ExportFormat, l
 
 /** 19B S4: the most rows a dataset's CSV holds — the fixed reports' CSV limit. Above it the export is refused, never cut. */
 export const DATASET_EXPORT_MAX_ROWS = MAX_ROWS.csv;
+/**
+ * A dataset's row ceiling for a format — the one the grouped run and the dataset exports refuse above, WITH the count.
+ * Tests lower it (`__setDatasetRowLimitsForTests`): the refusal is by count, and nobody seeds 50,000 rows to see it.
+ */
+let datasetLimits: Record<ExportFormat, number> = { ...MAX_ROWS };
+export const datasetRowLimit = (format: ExportFormat): number => datasetLimits[format];
+export function __setDatasetRowLimitsForTests(limits: Partial<Record<ExportFormat, number>> | null): void {
+  datasetLimits = { ...MAX_ROWS, ...(limits ?? {}) };
+}
 export type DatasetDocument = Omit<ReportDocument, "report">;
 export type ExportBi = Bi;
 export type ExportRow = Row;

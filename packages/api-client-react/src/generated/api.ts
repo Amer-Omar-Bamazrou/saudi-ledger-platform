@@ -14297,7 +14297,7 @@ export const getRunJournalLinesDatasetQueryKey = (params?: RunJournalLinesDatase
     }
 
 
-export const getRunJournalLinesDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runJournalLinesDataset>>, TError = ErrorType<ReportDatasetRefusal>>(params?: RunJournalLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runJournalLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getRunJournalLinesDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runJournalLinesDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(params?: RunJournalLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runJournalLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -14316,7 +14316,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type RunJournalLinesDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof runJournalLinesDataset>>>
-export type RunJournalLinesDatasetQueryError = ErrorType<ReportDatasetRefusal>
+export type RunJournalLinesDatasetQueryError = ErrorType<ReportDatasetRefusal | void>
 
 
 /**
@@ -14324,7 +14324,7 @@ export type RunJournalLinesDatasetQueryError = ErrorType<ReportDatasetRefusal>
 
  */
 
-export function useRunJournalLinesDataset<TData = Awaited<ReturnType<typeof runJournalLinesDataset>>, TError = ErrorType<ReportDatasetRefusal>>(
+export function useRunJournalLinesDataset<TData = Awaited<ReturnType<typeof runJournalLinesDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(
  params?: RunJournalLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runJournalLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -14469,7 +14469,7 @@ export const getRunSalesDocumentsDatasetQueryKey = (params?: RunSalesDocumentsDa
     }
 
 
-export const getRunSalesDocumentsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(params?: RunSalesDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getRunSalesDocumentsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(params?: RunSalesDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -14488,7 +14488,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type RunSalesDocumentsDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof runSalesDocumentsDataset>>>
-export type RunSalesDocumentsDatasetQueryError = ErrorType<ReportDatasetRefusal>
+export type RunSalesDocumentsDatasetQueryError = ErrorType<ReportDatasetRefusal | void>
 
 
 /**
@@ -14496,7 +14496,7 @@ export type RunSalesDocumentsDatasetQueryError = ErrorType<ReportDatasetRefusal>
 
  */
 
-export function useRunSalesDocumentsDataset<TData = Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(
+export function useRunSalesDocumentsDataset<TData = Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(
  params?: RunSalesDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runSalesDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -14641,7 +14641,7 @@ export const getRunPurchaseDocumentsDatasetQueryKey = (params?: RunPurchaseDocum
     }
 
 
-export const getRunPurchaseDocumentsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(params?: RunPurchaseDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getRunPurchaseDocumentsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(params?: RunPurchaseDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -14660,7 +14660,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type RunPurchaseDocumentsDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>>
-export type RunPurchaseDocumentsDatasetQueryError = ErrorType<ReportDatasetRefusal>
+export type RunPurchaseDocumentsDatasetQueryError = ErrorType<ReportDatasetRefusal | void>
 
 
 /**
@@ -14668,7 +14668,7 @@ export type RunPurchaseDocumentsDatasetQueryError = ErrorType<ReportDatasetRefus
 
  */
 
-export function useRunPurchaseDocumentsDataset<TData = Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(
+export function useRunPurchaseDocumentsDataset<TData = Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(
  params?: RunPurchaseDocumentsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runPurchaseDocumentsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -14813,7 +14813,7 @@ export const getRunCashMovementsDatasetQueryKey = (params?: RunCashMovementsData
     }
 
 
-export const getRunCashMovementsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runCashMovementsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(params?: RunCashMovementsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runCashMovementsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getRunCashMovementsDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runCashMovementsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(params?: RunCashMovementsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runCashMovementsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -14832,7 +14832,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type RunCashMovementsDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof runCashMovementsDataset>>>
-export type RunCashMovementsDatasetQueryError = ErrorType<ReportDatasetRefusal>
+export type RunCashMovementsDatasetQueryError = ErrorType<ReportDatasetRefusal | void>
 
 
 /**
@@ -14840,7 +14840,7 @@ export type RunCashMovementsDatasetQueryError = ErrorType<ReportDatasetRefusal>
 
  */
 
-export function useRunCashMovementsDataset<TData = Awaited<ReturnType<typeof runCashMovementsDataset>>, TError = ErrorType<ReportDatasetRefusal>>(
+export function useRunCashMovementsDataset<TData = Awaited<ReturnType<typeof runCashMovementsDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(
  params?: RunCashMovementsDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runCashMovementsDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -14985,7 +14985,7 @@ export const getRunVatLinesDatasetQueryKey = (params?: RunVatLinesDatasetParams,
     }
 
 
-export const getRunVatLinesDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runVatLinesDataset>>, TError = ErrorType<ReportDatasetRefusal>>(params?: RunVatLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runVatLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getRunVatLinesDatasetQueryOptions = <TData = Awaited<ReturnType<typeof runVatLinesDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(params?: RunVatLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runVatLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -15004,7 +15004,7 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type RunVatLinesDatasetQueryResult = NonNullable<Awaited<ReturnType<typeof runVatLinesDataset>>>
-export type RunVatLinesDatasetQueryError = ErrorType<ReportDatasetRefusal>
+export type RunVatLinesDatasetQueryError = ErrorType<ReportDatasetRefusal | void>
 
 
 /**
@@ -15012,7 +15012,7 @@ export type RunVatLinesDatasetQueryError = ErrorType<ReportDatasetRefusal>
 
  */
 
-export function useRunVatLinesDataset<TData = Awaited<ReturnType<typeof runVatLinesDataset>>, TError = ErrorType<ReportDatasetRefusal>>(
+export function useRunVatLinesDataset<TData = Awaited<ReturnType<typeof runVatLinesDataset>>, TError = ErrorType<ReportDatasetRefusal | void>>(
  params?: RunVatLinesDatasetParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof runVatLinesDataset>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {

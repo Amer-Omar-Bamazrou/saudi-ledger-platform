@@ -385,16 +385,16 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   // (lib/reports/datasets.ts reads them from here; a test fails when they disagree). The line text is the bank's own text
   // only on an entry built from a bank line, or of unknown origin — applied PER ROW by the dataset (D11 amended).
   JournalLinesDatasetRow: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "lineId date entryNumber status sourceType textOrigin reference accountId accountCode accountName accountNameAr debit credit", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
-  JournalLinesDatasetRows: { standard: "dataset total limit offset" },
+  JournalLinesDatasetRows: { standard: "dataset total limit offset groupedBy" },
   // 19B S5 — the remaining datasets' rows. A party's NAME is standard (the pickers serve it to every role); the bank's text is bank_narrative on every row.
   SalesDocumentsDatasetRow: { standard: "documentId documentNumber documentType date dueDate status customerId customerName currency subtotal vatAmount total sign signedSubtotal signedVat signedTotal paidAmount isOpening" },
-  SalesDocumentsDatasetRows: { standard: "dataset total limit offset" },
+  SalesDocumentsDatasetRows: { standard: "dataset total limit offset groupedBy" },
   PurchaseDocumentsDatasetRow: { standard: "documentId documentNumber supplierReference documentType date dueDate status vendorId vendorName currency subtotal vatAmount total sign signedSubtotal signedVat signedTotal outstanding inputVat isOpening" },
-  PurchaseDocumentsDatasetRows: { standard: "dataset total limit offset" },
+  PurchaseDocumentsDatasetRows: { standard: "dataset total limit offset groupedBy" },
   CashMovementsDatasetRow: { resource: "transactions", standard: "transactionId date type kind amount signedAmount vatAmount reviewStatus bankAccountId categoryId categoryName countsInAggregates", bank_narrative: "description" },
-  CashMovementsDatasetRows: { standard: "dataset total limit offset" },
+  CashMovementsDatasetRows: { standard: "dataset total limit offset groupedBy" },
   VatLinesDatasetRow: { standard: "lineNo side source documentId documentNumber documentType date taxCategory taxable vat taxableBox vatBox" },
-  VatLinesDatasetRows: { standard: "dataset total limit offset" },
+  VatLinesDatasetRows: { standard: "dataset total limit offset groupedBy" },
   JournalReport: { standard: "count grandDebit grandCredit balanced" },
   JournalReportEntry: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "id entryNumber date textOrigin reference status totalDebit totalCredit balanced", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
   JournalReportLine: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "id textOrigin accountName accountId debit credit", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
@@ -545,7 +545,12 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   // 19B S6 — a saved report: its own shape and its owner's NAME (never an email); nothing here is a business value
   ReportPeriod: { standard: "kind from to" },
   ReportDatasetFilter: { standard: "param column" },
-  ReportDefinitionInput: { standard: "name dataset columns filters sort" },
+  // 19.12 — a grouped report's subtotals. A total is `standard` because only a `standard` money column is ever totalled
+  // (tests/s7-report-grouping.test.ts holds every dataset to that), and a column the role may not read is never summed.
+  ReportDatasetTotal: { standard: "column total" },
+  ReportDatasetTotals: { standard: "count mixedCurrency" },
+  ReportDatasetGroup: { standard: "key label count mixedCurrency" },
+  ReportDefinitionInput: { standard: "name dataset columns filters sort groupBy" },
   ReportDefinitionShareInput: { standard: "roles" },
   // 19B S6 — schedules and stored copies: a recipient is a NAME and a ROLE; a copy's rows are its dataset's own nodes
   ReportRecipient: { standard: "userId name role" },
@@ -554,9 +559,9 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   ReportSchedule: { standard: "id definitionId reportName dataset cadence createdAt" },
   ReportDeliveryWindow: { standard: "from to" },
   ReportDeliverySummary: { standard: "id reportName dataset status rowCount createdAt expiresAt" },
-  ReportDeliveryOpened: { standard: "id reportName dataset status rowCount createdAt expiresAt total message messageAr" },
-  ReportDefinition: { standard: "id name dataset columns filters sort sharedRoles ownerUserId ownerName mine createdAt updatedAt" },
-  ReportDatasetSummary: { standard: "name title titleAr acts" },
+  ReportDeliveryOpened: { standard: "id reportName dataset status rowCount createdAt expiresAt total message messageAr groupedBy" },
+  ReportDefinition: { standard: "id name dataset columns filters sort groupBy sharedRoles ownerUserId ownerName mine createdAt updatedAt" },
+  ReportDatasetSummary: { standard: "name title titleAr acts groupBy totals grandTotal" },
   ReportDatasetWithheld: { standard: "path class level rows" },
   ReportDatasetRefusal: { standard: "code error errorAr dataset act" },
   "ReportDatasetRefusal.fields": { standard: "field class use" },

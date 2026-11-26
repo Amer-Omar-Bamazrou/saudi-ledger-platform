@@ -22,4 +22,6 @@ export interface ReportDefinitionInput {
   filters?: ReportDefinitionInputFilters;
   /** A column key; a leading '-' sorts descending */
   sort?: string | null;
+  /** 19.12 — one column the dataset offers as a grouping */
+  groupBy?: string | null;
 }

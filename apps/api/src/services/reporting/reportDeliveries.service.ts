@@ -48,7 +48,7 @@ export const reportDeliveriesService = {
   async open(id: number, actor: DefinitionActor, has: Has, now: Date = new Date()) {
     const row = Number.isSafeInteger(id) && id > 0 && id <= MAX_ID ? await reportDeliveriesRepository.findMine(id, actor.userId) : null;
     if (!row) throw new NotFoundError("Delivery not found");
-    const empty = { columns: [], rows: {}, total: 0, withheld: [] };
+    const empty = { columns: [], rows: {}, total: 0, withheld: [], groupedBy: null, groups: null, grandTotal: null };
 
     // 2. expired: a message, no data — whether or not the job has cleared the content yet
     if (isExpired(row, now) || row.content == null) {
@@ -121,6 +121,21 @@ export const reportDeliveriesService = {
       if (n > 0 && !withheld.some((w) => w.path === `rows[].${l.key}`)) withheld.push({ path: `rows[].${l.key}`, class: l.cls, level: "none", rows: n });
     }
     const columns = content.columns.map((c) => (lostKeys.has(c.key) ? { ...c, level: "none" } : c));
-    return { ...facts(row, now), columns, rows: { [row.dataset]: rows }, total: rows.length, withheld, message: null, messageAr: null };
+    // 19.12 — the stored subtotals, at the level this reader holds NOW: a total of a column lost since delivery is
+    // dropped and listed; a grouping BY a lost column goes whole (its keys are that column's values)
+    let grouped = content.grouped ?? null;
+    if (grouped && lostKeys.has(grouped.groupedBy)) {
+      withheld.push({ path: "groups", class: lostKeys.get(grouped.groupedBy)!.cls, level: "none", rows: null });
+      grouped = null;
+    } else if (grouped) {
+      const keep = <T extends { totals: { column: string; total: number }[] }>(t: T): T => ({ ...t, totals: t.totals.filter((x) => !lostKeys.has(x.column)) });
+      const dropped = new Set([...grouped.groups, ...(grouped.grandTotal ? [grouped.grandTotal] : [])].flatMap((g) => g.totals.map((t) => t.column)).filter((k) => lostKeys.has(k)));
+      for (const k of dropped) if (!withheld.some((w) => w.path === `groups[].totals.${k}`)) withheld.push({ path: `groups[].totals.${k}`, class: lostKeys.get(k)!.cls, level: "none", rows: null });
+      grouped = { groupedBy: grouped.groupedBy, groups: grouped.groups.map(keep), grandTotal: grouped.grandTotal ? keep(grouped.grandTotal) : null };
+    }
+    return {
+      ...facts(row, now), columns, rows: { [row.dataset]: rows }, total: rows.length, withheld, message: null, messageAr: null,
+      groupedBy: grouped?.groupedBy ?? null, groups: grouped?.groups ?? null, grandTotal: grouped?.grandTotal ?? null,
+    };
   },
 };

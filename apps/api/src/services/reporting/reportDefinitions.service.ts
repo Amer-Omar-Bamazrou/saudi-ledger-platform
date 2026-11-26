@@ -1,8 +1,8 @@
 /**
  * 🔴 19B S6 (v4 §4, §6.2; scope 19.9–19.13) — SAVED REPORTS: the builder's definitions.
  *
- * A definition names a dataset, its columns in order, a period, the dataset's declared filters and a sort — and nothing
- * else. Every save and every change is checked the way a run is: the request it would make is parsed by the dataset's
+ * A definition names a dataset, its columns in order, a period, the dataset's declared filters, a sort and (19.12) one
+ * grouping — and nothing else. Every save and every change is checked the way a run is: the request it would make is parsed by the dataset's
  * own parser (`parseRequest`) and asked of `decide()` with the `save` act, so a definition cannot name a column, a
  * filter or a sort its dataset does not offer, nor filter or sort by a column its author may not read.
  *
@@ -28,10 +28,11 @@ const bad = (error: string, errorAr: string, code = "report_bad_filter") => new 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** A definition as the query its dataset's own endpoint would be asked — the one parser, so the two cannot disagree. */
-export function definitionQuery(d: Pick<ReportDefinitionValues, "columns" | "filters" | "sort">, window: { from: string; to: string } | null): Record<string, string> {
+export function definitionQuery(d: Pick<ReportDefinitionValues, "columns" | "filters" | "sort"> & { groupBy?: string | null }, window: { from: string; to: string } | null): Record<string, string> {
   const q: Record<string, string> = { ...d.filters };
   if (d.columns.length) q.columns = d.columns.join(",");
   if (d.sort) q.sort = d.sort;
+  if (d.groupBy) q.group = d.groupBy;
   if (window) { q.date_from = window.from; q.date_to = window.to; }
   return q;
 }
@@ -69,20 +70,23 @@ function parseBody(body: unknown): { ds: DatasetDef; values: ReportDefinitionVal
   }
   const sort = body.sort == null || body.sort === "" ? null : body.sort;
   if (sort !== null && (typeof sort !== "string" || sort.length > 64)) throw bad("Sort is a column key.", "الترتيب يكون بمفتاح عمود.");
+  // 19.12: one column; whether the dataset offers it, and whether the author may read it, is decide()'s to answer
+  const groupBy = body.groupBy == null || body.groupBy === "" ? null : body.groupBy;
+  if (groupBy !== null && (typeof groupBy !== "string" || groupBy.length > 64 || groupBy.includes(","))) throw bad("A report is grouped by one column key.", "يُجمَّع التقرير حسب مفتاح عمود واحد.");
   return {
     ds,
-    values: { name, dataset: ds.name, columns: columns as string[], periodKind: period.kind, dateFrom: period.kind === "fixed" ? period.from : null, dateTo: period.kind === "fixed" ? period.to : null, filters, sort },
+    values: { name, dataset: ds.name, columns: columns as string[], periodKind: period.kind, dateFrom: period.kind === "fixed" ? period.from : null, dateTo: period.kind === "fixed" ? period.to : null, filters, sort, groupBy },
   };
 }
 
 /** `decide()` for an act on a definition: the dataset's own parser on the query the definition makes, then the decision. */
-export function decideDefinition(has: Has, ds: DatasetDef, act: ReportAct, values: Pick<ReportDefinitionValues, "columns" | "filters" | "sort">) {
+export function decideDefinition(has: Has, ds: DatasetDef, act: ReportAct, values: Pick<ReportDefinitionValues, "columns" | "filters" | "sort"> & { groupBy?: string | null }) {
   const { use } = parseRequest(ds, definitionQuery(values, { from: "2000-01-01", to: "2000-01-31" }), false);
   return decide(has, ds, act, use);
 }
 
 /** The same, refused by name. */
-function check(has: Has, ds: DatasetDef, act: ReportAct, values: Pick<ReportDefinitionValues, "columns" | "filters" | "sort">) {
+function check(has: Has, ds: DatasetDef, act: ReportAct, values: Pick<ReportDefinitionValues, "columns" | "filters" | "sort"> & { groupBy?: string | null }) {
   const d = decideDefinition(has, ds, act, values);
   if (!d.allowed) throw refusalError(d);
 }
@@ -98,6 +102,7 @@ function out(row: ReportDefinitionRow, actor: DefinitionActor, names: Map<number
     period: { kind: row.periodKind, from: row.dateFrom, to: row.dateTo },
     filters: row.filters,
     sort: row.sort,
+    groupBy: row.groupBy,
     sharedRoles: [...row.sharedRoles].sort(),
     ownerUserId: row.ownerUserId,
     ownerName: names.get(row.ownerUserId)?.name ?? `#${row.ownerUserId}`,

@@ -21,7 +21,12 @@ export interface DatasetColumn {
   kind: ColumnKind;
   filterable: boolean;
   sortable: boolean;
+  /** 19.12 — the dataset offers this column as a grouping. */
   groupable?: boolean;
+  /** A date groups by its calendar month (YYYY-MM), never by the day. */
+  groupAs?: "month";
+  /** Another (standard) column of the same row that names the group for a reader — an account's name beside its id. */
+  groupLabel?: string;
   /** When the column's protected class applies to SOME rows only (the class table's rowConditions): which, in words. */
   conditionLabel?: { label: string; labelAr: string };
 }
@@ -36,6 +41,13 @@ export interface DatasetDef {
   columns: readonly DatasetColumn[];
   /** Query parameter → the column it filters on (a filter is a USE of that column). */
   filters: Readonly<Record<string, string>>;
+  /**
+   * 19.12 — the money columns a grouped report totals. Only columns whose sum MEANS something: a signed amount, never an
+   * amount stored positive whatever its document's direction.
+   */
+  totals: readonly string[];
+  /** Whether a total over ALL the rows means anything. False for journal lines: across whole entries debits equal credits. */
+  grandTotal: boolean;
 }
 
 const text = (key: string, label: string, labelAr: string, opts: Partial<DatasetColumn> = {}): DatasetColumn =>
@@ -57,7 +69,8 @@ export const JOURNAL_LINES: DatasetDef = {
     // review follow-up (2026-11-24): where the line text came from — the bank's own text on a bank line or unknown origin
     text("textOrigin", "Text origin", "مصدر النص"),
     text("reference", "Reference", "المرجع"),
-    text("accountId", "Account id", "معرّف الحساب", { kind: "int", filterable: true }),
+    // 19.12: by account, an account's debits and credits are the trial balance's period columns
+    text("accountId", "Account id", "معرّف الحساب", { kind: "int", filterable: true, groupable: true, groupLabel: "accountName" }),
     text("accountCode", "Account code", "رمز الحساب", { sortable: true }),
     text("accountName", "Account", "الحساب"),
     text("accountNameAr", "Account (Arabic)", "الحساب بالعربية"),
@@ -68,6 +81,9 @@ export const JOURNAL_LINES: DatasetDef = {
     text("credit", "Credit", "دائن", { kind: "money", sortable: true }),
   ],
   filters: { date_from: "date", date_to: "date", account_id: "accountId", source_type: "sourceType" },
+  totals: ["debit", "credit"],
+  // 🔴 no cross-entry money total: an entry's debits equal its credits, so a total over the rows is twice the turnover
+  grandTotal: false,
 };
 
 const money = (key: string, label: string, labelAr: string): DatasetColumn => text(key, label, labelAr, { kind: "money" });
@@ -88,12 +104,12 @@ export const SALES_DOCUMENTS: DatasetDef = {
   columns: [
     text("documentId", "Document id", "معرّف المستند", { kind: "int" }),
     text("documentNumber", "Number", "الرقم", { sortable: true }),
-    text("documentType", "Type", "النوع"),
-    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true }),
+    text("documentType", "Type", "النوع", { groupable: true }),
+    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true, groupable: true, groupAs: "month" }),
     text("dueDate", "Due date", "تاريخ الاستحقاق", { kind: "date" }),
-    text("status", "Status", "الحالة"),
+    text("status", "Status", "الحالة", { groupable: true }),
     text("customerId", "Customer id", "معرّف العميل", { kind: "int" }),
-    text("customerName", "Customer", "العميل"),
+    text("customerName", "Customer", "العميل", { groupable: true }),
     text("currency", "Currency", "العملة"),
     money("subtotal", "Subtotal", "المجموع قبل الضريبة"),
     money("vatAmount", "VAT", "الضريبة"),
@@ -106,6 +122,8 @@ export const SALES_DOCUMENTS: DatasetDef = {
     text("isOpening", "Opening item", "بند افتتاحي"),
   ],
   filters: DOC_FILTERS,
+  totals: ["signedSubtotal", "signedVat", "signedTotal"],
+  grandTotal: true,
 };
 
 /**
@@ -123,12 +141,12 @@ export const PURCHASE_DOCUMENTS: DatasetDef = {
     text("documentId", "Document id", "معرّف المستند", { kind: "int" }),
     text("documentNumber", "Number", "الرقم", { sortable: true }),
     text("supplierReference", "Supplier's number", "رقم مستند المورد"),
-    text("documentType", "Type", "النوع"),
-    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true }),
+    text("documentType", "Type", "النوع", { groupable: true }),
+    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true, groupable: true, groupAs: "month" }),
     text("dueDate", "Due date", "تاريخ الاستحقاق", { kind: "date" }),
-    text("status", "Status", "الحالة"),
+    text("status", "Status", "الحالة", { groupable: true }),
     text("vendorId", "Supplier id", "معرّف المورد", { kind: "int" }),
-    text("vendorName", "Supplier", "المورد"),
+    text("vendorName", "Supplier", "المورد", { groupable: true }),
     text("currency", "Currency", "العملة"),
     money("subtotal", "Subtotal", "المجموع قبل الضريبة"),
     money("vatAmount", "VAT", "الضريبة"),
@@ -142,6 +160,8 @@ export const PURCHASE_DOCUMENTS: DatasetDef = {
     text("isOpening", "Opening item", "بند افتتاحي"),
   ],
   filters: DOC_FILTERS,
+  totals: ["signedSubtotal", "signedVat", "signedTotal", "outstanding"],
+  grandTotal: true,
 };
 
 /**
@@ -158,20 +178,22 @@ export const CASH_MOVEMENTS: DatasetDef = {
   native: ["transactions"],
   columns: [
     text("transactionId", "Movement id", "معرّف الحركة", { kind: "int" }),
-    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true }),
+    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true, groupable: true, groupAs: "month" }),
     text("description", "Bank text", "نص كشف البنك"),
-    text("type", "Direction", "الاتجاه"),
-    text("kind", "Kind", "النوع"),
+    text("type", "Direction", "الاتجاه", { groupable: true }),
+    text("kind", "Kind", "النوع", { groupable: true }),
     money("amount", "Amount", "المبلغ"),
     money("signedAmount", "Signed amount", "المبلغ بالإشارة"),
     money("vatAmount", "VAT", "الضريبة"),
-    text("reviewStatus", "Review", "المراجعة"),
-    text("bankAccountId", "Bank account id", "معرّف الحساب البنكي", { kind: "int" }),
+    text("reviewStatus", "Review", "المراجعة", { groupable: true }),
+    text("bankAccountId", "Bank account id", "معرّف الحساب البنكي", { kind: "int", groupable: true }),
     text("categoryId", "Account id", "معرّف الحساب", { kind: "int" }),
-    text("categoryName", "Account", "الحساب"),
+    text("categoryName", "Account", "الحساب", { groupable: true }),
     text("countsInAggregates", "Counts in income, expense and VAT figures", "يدخل في أرقام الإيراد والمصروف والضريبة"),
   ],
   filters: DOC_FILTERS,
+  totals: ["signedAmount"],
+  grandTotal: true,
 };
 
 /**
@@ -189,19 +211,22 @@ export const VAT_LINES: DatasetDef = {
   native: ["invoices", "bills"],
   columns: [
     text("lineNo", "Line", "السطر", { kind: "int" }),
-    text("side", "Side", "الجانب"),
+    text("side", "Side", "الجانب", { groupable: true }),
     text("source", "Source", "المصدر"),
     text("documentId", "Document id", "معرّف المستند", { kind: "int" }),
     text("documentNumber", "Number", "الرقم"),
     text("documentType", "Type", "النوع"),
-    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true }),
-    text("taxCategory", "Tax category", "الفئة الضريبية"),
+    text("date", "Date", "التاريخ", { kind: "date", filterable: true, sortable: true, groupable: true, groupAs: "month" }),
+    text("taxCategory", "Tax category", "الفئة الضريبية", { groupable: true }),
     money("taxable", "Taxable amount", "المبلغ الخاضع"),
     money("vat", "VAT", "الضريبة"),
-    text("taxableBox", "Box (amount)", "الخانة (المبلغ)", { kind: "int" }),
-    text("vatBox", "Box (VAT)", "الخانة (الضريبة)", { kind: "int" }),
+    text("taxableBox", "Box (amount)", "الخانة (المبلغ)", { kind: "int", groupable: true }),
+    text("vatBox", "Box (VAT)", "الخانة (الضريبة)", { kind: "int", groupable: true }),
   ],
   filters: DOC_FILTERS,
+  totals: ["taxable", "vat"],
+  // sales and purchases sit side by side: a total over both sides is neither the VAT due nor a turnover
+  grandTotal: false,
 };
 
 /** The datasets whose window is REQUIRED (it is part of what the figure means). */
