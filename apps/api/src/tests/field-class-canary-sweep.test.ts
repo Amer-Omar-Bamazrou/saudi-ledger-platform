@@ -29,6 +29,8 @@ import { OUTSIDE_CONTRACT_ROUTES } from "../lib/fieldClasses/outsideContract";
 import { EXPORTABLE_REPORTS } from "../services/reporting/reportExport.service";
 import { approveHeldIbans } from "./helpers/approveHeldIbans";
 import { g04Harness } from "./helpers/g04Harness";
+import { writeFileSync } from "node:fs";
+import { __setDefaultDenyForTests } from "../lib/fieldClasses/defaultDeny";
 
 const url = process.env.DATABASE_URL;
 const describeDb = !!url && !url.includes("placeholder") ? describe : describe.skip;
@@ -210,4 +212,53 @@ describeDb("19B — the canary sweep: no protected value reaches a role that may
       primePermissionCache(PERMISSION_MATRIX);
     }, 300_000);
   }
+
+  /**
+   * 🔴 DEFAULT DENY, A DRY RUN (owner, 2026-11-26: "show me a dry run of what it would withhold, per role, across the
+   * canary sweep's routes; switching it on waits for my approval"). The switch is forced ON for this test only, every
+   * swept route is called as each role, and what the seam REMOVED as `unclassified` is read back from `X-Withheld` —
+   * the mechanism itself, not a prediction of it. With DEFAULT_DENY_DRY_RUN_FILE set, the result is written there.
+   *
+   *  - The probe is shown to SEE: the same header carries what the role's own grants withhold, and a viewer's sweep
+   *    must find some (a probe that read nothing would report "nothing withheld" just the same).
+   *  - The frame beside the count: GET routes only, on this fixture's records; a route the sweep could not fill is in
+   *    `unresolved`. A field served only by a write's response, or only on data this fixture lacks, is not measured
+   *    here — the contract test (every 2xx field has a class) and the test lane's 500 on any unclassified key cover it.
+   *  - It is also a standing check: default deny would withhold NOTHING on the swept routes today, for any role.
+   */
+  it("🔴 default deny, a dry run: per role, what it would withhold across the swept routes — nothing", async () => {
+    primePermissionCache(PERMISSION_MATRIX);
+    type Withheld = { path: string; class: string; level: string };
+    const report: Record<string, { applies: boolean; routesSwept: number; answered: number; routesWithholdingByGrant: number; wouldWithhold: { route: string; paths: string[] }[] }> = {};
+    __setDefaultDenyForTests(true);
+    try {
+      for (const role of ["admin", "accountant", "bookkeeper", "viewer"]) {
+        let answered = 0;
+        let byGrant = 0;
+        const wouldWithhold: { route: string; paths: string[] }[] = [];
+        for (const r of routes) {
+          const res = await h.api(role, "GET", r.path);
+          if (res.status < 500) answered++;
+          const listed: Withheld[] = res.headers["x-withheld"] ? JSON.parse(res.headers["x-withheld"]) : [];
+          const unclassified = listed.filter((w) => w.class === "unclassified").map((w) => w.path);
+          if (listed.some((w) => w.class !== "unclassified")) byGrant++;
+          // the admin is never denied: an unclassified key in an admin's answer is the test lane's 500, named
+          if (res.status === 500 && res.body?.code === "field_unclassified") wouldWithhold.push({ route: r.key, paths: res.body.fields });
+          else if (unclassified.length) wouldWithhold.push({ route: r.key, paths: unclassified });
+        }
+        report[role] = { applies: role !== "admin", routesSwept: routes.length, answered, routesWithholdingByGrant: byGrant, wouldWithhold };
+      }
+    } finally {
+      __setDefaultDenyForTests(null);
+    }
+    const out = process.env.DEFAULT_DENY_DRY_RUN_FILE;
+    if (out) writeFileSync(out, JSON.stringify({ routesSwept: routes.length, notFilled: unresolved, perRole: report }, null, 2));
+    console.log(`[DEFAULT-DENY-DRY-RUN] ${Object.entries(report).map(([role, r]) => `${role}: ${r.wouldWithhold.length} route(s) would lose a field, of ${r.answered} answered`).join(" | ")}`);
+    // every route answered for every role (a 5xx would hide what it serves)
+    expect(Object.entries(report).map(([role, r]) => [role, r.answered])).toEqual(["admin", "accountant", "bookkeeper", "viewer"].map((role) => [role, routes.length]));
+    // 🔴 the probe reads the header: the viewer's own grants withhold something on some route
+    expect(report.viewer!.routesWithholdingByGrant).toBeGreaterThan(0);
+    // 🔴 the result: nothing unclassified would be withheld, for any role
+    expect(Object.fromEntries(Object.entries(report).map(([role, r]) => [role, r.wouldWithhold]))).toEqual({ admin: [], accountant: [], bookkeeper: [], viewer: [] });
+  }, 600_000);
 });

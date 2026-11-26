@@ -33,6 +33,7 @@ import { apiPath, findOperation, findOutsideRoute } from "./operations";
 import { OUTSIDE_CONTRACT_ROUTES, keyPathsOf, walkStructural } from "./outsideContract";
 import { appendFileSync } from "node:fs";
 import { walkValue, type ReadDecider, type ReadLevel, type WalkResult } from "./walk";
+import { defaultDeniesRole, defaultDenyOn } from "./defaultDeny";
 
 export const WITHHELD_HEADER = "X-Withheld";
 
@@ -55,20 +56,25 @@ const outsideSpec = (route: string, keyPath: string): FieldSpec | undefined => {
   return outsideIndex.get(route)?.get(keyPath);
 };
 
-/** The served value after withholding, for one 2xx JSON response. */
-export function classifyResponse(method: string, originalUrl: string, status: number, body: unknown, decide: ReadDecider): WalkResult & { route: string } {
+/**
+ * The served value after withholding, for one 2xx JSON response. `denyUnclassified` (default deny, v4 §5.3): a field
+ * with no class is removed and listed as `unclassified`; a route in neither table is withheld whole.
+ */
+export function classifyResponse(method: string, originalUrl: string, status: number, body: unknown, decide: ReadDecider, denyUnclassified = false): WalkResult & { route: string } {
   const path = apiPath(originalUrl);
   const op = findOperation(method, path);
   // The contract's shape for this status; a route answering 200 where the contract says 201 (or the reverse) is walked
   // with the operation's one JSON response — its node names carry that status.
   const statusKey = op ? (String(status) in op.responses ? String(status) : Object.keys(op.responses)[0]) : undefined;
   if (op && statusKey) {
-    const result = walkValue(op.responses[statusKey]!, body, `${op.operationId}#${statusKey}`, fieldSpec, decide, CONTRACT.components);
+    const result = walkValue(op.responses[statusKey]!, body, `${op.operationId}#${statusKey}`, fieldSpec, decide, CONTRACT.components, denyUnclassified);
     return { ...result, route: `${method} ${op.path}` };
   }
   const outside = findOutsideRoute(method, path);
-  if (outside) return { ...walkStructural(body, outside, outsideSpec, decide), route: outside };
-  return { value: body, withheld: [], unclassified: [`${method} ${path} (a route in neither the contract nor the outside-contract table)`], route: `${method} ${path}` };
+  if (outside) return { ...walkStructural(body, outside, outsideSpec, decide, denyUnclassified), route: outside };
+  const unclassified = [`${method} ${path} (a route in neither the contract nor the outside-contract table)`];
+  if (denyUnclassified) return { value: null, withheld: [{ path: "$", class: "unclassified", level: "none" }], unclassified, route: `${method} ${path}` };
+  return { value: body, withheld: [], unclassified, route: `${method} ${path}` };
 }
 
 const warned = new Set<string>();
@@ -77,8 +83,18 @@ export function fieldClassSeam(req: Request, res: Response, next: NextFunction):
   const json = res.json.bind(res);
   res.json = ((body?: unknown) => {
     if (res.statusCode < 200 || res.statusCode >= 300 || !req.originalUrl.startsWith("/api")) return json(body);
-    const served = classifyResponse(req.method, req.originalUrl, res.statusCode, body, deciderFor(req.tenant?.role, peekPermissions()));
-    if (served.unclassified.length) {
+    // 🔴 Default deny, PREPARED AND OFF (defaultDeny.ts): only with the switch on, and never for the admin or a request
+    // with no organization role. With it off — every environment today — `deny` is false and nothing below changes.
+    const deny = defaultDenyOn() && defaultDeniesRole(req.tenant?.role);
+    const served = classifyResponse(req.method, req.originalUrl, res.statusCode, body, deciderFor(req.tenant?.role, peekPermissions()), deny);
+    if (served.unclassified.length && deny) {
+      // enforced: the field is gone from this response and listed in X-Withheld. Logged once, so the missing class is fixed.
+      const key = `deny ${served.route} ${served.unclassified.join(",")}`;
+      if (!warned.has(key)) {
+        warned.add(key);
+        logger.warn({ route: served.route, fields: served.unclassified }, "default deny: withheld fields the class table cannot classify — give each a class");
+      }
+    } else if (served.unclassified.length) {
       // A REPORT, never a switch: with FIELD_CLASS_CAPTURE_FILE set, each unclassified answer is also appended there —
       // the route, the keys, and every key path the response served — to build the table from what is really served.
       const capture = process.env.FIELD_CLASS_CAPTURE_FILE;

@@ -27,7 +27,8 @@ export type FieldLookup = (node: string, field: string) => { cls: FieldClass; re
 export interface Withheld {
   /** Where in the value: `items[].iban`, `customer.nationalId`, `$` for the whole value. */
   path: string;
-  class: ProtectedFieldClass;
+  /** `unclassified`: a field with no class, removed under default deny (defaultDeny.ts). */
+  class: ProtectedFieldClass | "unclassified";
   level: "none" | "last4";
 }
 
@@ -98,6 +99,8 @@ export function walkValue(
   lookup: FieldLookup,
   decide: ReadDecider,
   components: Record<string, Shape>,
+  /** 🔴 Default deny (v4 §5.3): a field with no class is REMOVED and listed, instead of served. Off unless asked. */
+  denyUnclassified = false,
 ): WalkResult {
   const withheld: Withheld[] = [];
   const unclassified = new Set<string>();
@@ -106,7 +109,9 @@ export function walkValue(
     const spec = lookup(node, field);
     if (!spec) {
       unclassified.add(`${node}.${field}`);
-      return v;
+      if (!denyUnclassified) return v;
+      withheld.push({ path, class: "unclassified", level: "none" });
+      return REMOVE;
     }
     const { cls } = spec;
     // 🔴 19B S3: a per-row resource — the row's own field picks whose grants decide (an employee's held IBAN: employees).
