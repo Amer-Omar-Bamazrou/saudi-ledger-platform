@@ -20,6 +20,7 @@ import { reportDatasetsRepository, type JournalLinesFilter, type JournalLinesSor
 import { refusalEventsService } from "../refusalEvents.service";
 import { datasetRowLimit, exportDataset, type DatasetDocument, type ExportColumn, type ExportRow } from "./reportExport.service";
 import { compareGroupKeys, groupKeyOf, groupRows, type Grouped } from "../../lib/reports/grouping";
+import { reportAuditService } from "./reportAudit.service";
 import { DATASETS, WINDOW_REQUIRED } from "../../lib/reports/datasets";
 import { documentDatasetsRepository, type WindowFilter } from "../../repositories/reportDatasets.repository";
 import { reportsService } from "../reports.service";
@@ -199,6 +200,21 @@ export const reportDatasetsService = {
       rows: rows.filter((r) => !visible(c, r)).length,
     }));
     if (grouped) withheld.push(...withheldTotalsOut(grouped));
+    // 19.18 — each run is recorded: who (the connection's actor), which data, which columns, WHICH filters (their names,
+    // never their values), the period, the page and the counts, and what was withheld. Never anything a row holds.
+    await reportAuditService.record({
+      action: "run", entityType: "report_run", entityId: ds.name,
+      after: {
+        dataset: ds.name,
+        columns: d.columns.map((c) => c.column.key),
+        window: { from: filter.dateFrom ?? null, to: filter.dateTo ?? null },
+        filters: Object.keys(ds.filters).filter((p) => p !== "date_from" && p !== "date_to" && q[p] != null && q[p] !== "").sort(),
+        sort: q.sort?.trim() || null,
+        groupBy: groupKey ?? null,
+        limit: page!.limit, offset: page!.offset, rows: out.length, total,
+        withheld: withheld.map((w) => w.path),
+      },
+    });
     return { dataset: ds.name, columns: d.columns.map(columnOut), rows: out, total, limit: page!.limit, offset: page!.offset, withheld, ...(grouped ? groupedOut(grouped) : {}) };
   },
 

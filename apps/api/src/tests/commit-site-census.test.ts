@@ -50,7 +50,7 @@ const SITES: Record<string, Site> = {
   "apps/api/src/scripts/seedSampleData.ts": tenant(1, "CLI seed", "rethrown, exit 1; nothing inside catches"),
   "apps/api/src/services/findings.explain.service.ts": tenant(1, "scheduled-findings job; findings.controller after its response", "the pass gives up or counts `unavailable`; nothing inside catches"),
   "apps/api/src/services/findings.schedule.service.ts": tenant(2, "scheduled-findings job (hourly)", "`failed` += 1; the (org, period) claim is already committed, so that period is not retried; nothing inside catches"),
-  "apps/api/src/services/reporting/reportSchedules.job.ts": tenant(1, "scheduled-reports job (every 15 minutes)", "the run is recorded `failed` (its (schedule, period) claim is already committed, so that period is not retried); the read wrote nothing"),
+  "apps/api/src/services/reporting/reportSchedules.job.ts": tenant(2, "scheduled-reports job (every 15 minutes)", "the read: the run is recorded `failed` (its (schedule, period) claim is already committed, so that period is not retried); the read wrote nothing. The run's audit entry (19B 19.18, a second connection once the run has finished): the entry is not written, the failure is logged by name, and the run row — already committed — stands as the record"),
   "apps/api/src/services/recurring/generation.service.ts": tenant(1, "recurring-documents job (daily)", "rolled back, the run recorded `generation_failed`; nothing inside catches"),
   "apps/api/src/services/demo/demoSeed.service.ts": {
     beginTenantConnection: 1,

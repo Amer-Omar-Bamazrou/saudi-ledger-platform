@@ -48,6 +48,12 @@ const AUDIT_ACTIONS: Record<string, [string, string]> = {
   schedule: ["Schedule refused", "رُفضت الجدولة"],
   schedule_run: ["Scheduled run refused", "رُفض التشغيل المجدول"],
   deliver: ["Delivery refused", "رُفض التسليم"],
+  // 19B 19.18: the acts on a report that the audit trail records
+  share: ["Shared", "مشاركة"],
+  archive: ["Removed from the list", "إزالة من القائمة"],
+  end: ["Ended", "إنهاء"],
+  run: ["Run", "تشغيل"],
+  open: ["Opened", "فتح"],
   allocate: ["Allocated", "تخصيص"],
   unallocate: ["Allocation undone", "إلغاء التخصيص"],
   reverse_allocation: ["Allocation reversed", "عكس التخصيص"],
@@ -145,6 +151,12 @@ const AUDIT_ENTITIES: Record<string, [string, string]> = {
   recurring_rule: ["Recurring rule", "قاعدة متكررة"],
   report_export: ["Report export", "تصدير تقرير"],
   report_dataset_export: ["Report data export", "تصدير بيانات تقرير"], // 19B S4
+  // 19B 19.18
+  report_definition: ["Saved report", "تقرير محفوظ"],
+  report_schedule: ["Report schedule", "جدولة تقرير"],
+  report_run: ["Report run on screen", "تشغيل تقرير على الشاشة"],
+  report_scheduled_run: ["Scheduled report run", "تشغيل تقرير مجدول"],
+  report_delivery: ["Delivered report copy", "نسخة تقرير مُسلَّمة"],
   finding: ["Finding", "ملاحظة"],
   findings_run: ["Findings run", "فحص الملاحظات"],
   finding_schedule: ["Findings schedule", "جدول فحص الملاحظات"],

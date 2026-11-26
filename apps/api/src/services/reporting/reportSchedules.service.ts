@@ -17,6 +17,7 @@ import type { Has } from "../../lib/reports/decide";
 import { membersRepository } from "../../repositories/members.repository";
 import { reportSchedulesRepository } from "../../repositories/reportSchedules.repository";
 import { refusalEventsService } from "../refusalEvents.service";
+import { reportAuditService } from "./reportAudit.service";
 import { refusalError } from "./reportDatasets.service";
 import { decideDefinition, reportDefinitionsService, type DefinitionActor } from "./reportDefinitions.service";
 
@@ -99,6 +100,8 @@ export const reportSchedulesService = {
     }
     if (!actor.companyId) throw new BusinessRuleError(422, { code: "company_required", error: "Create a company before scheduling a report.", errorAr: "أنشئ منشأة قبل جدولة تقرير." });
     const row = await reportSchedulesRepository.insert({ organizationId: actor.organizationId, companyId: actor.companyId, ownerUserId: actor.userId }, definition.id, b.cadence as ReportCadence, recipientIds);
+    // 19.18: who is to receive it is recorded by id — a name is the member's, and the picker's to show
+    await reportAuditService.record({ action: "create", entityType: "report_schedule", entityId: row.id, after: { definitionId: definition.id, dataset: definition.dataset, cadence: row.cadence, recipients: [...recipientIds].sort((a, b) => a - b) } });
     return {
       id: row.id, definitionId: definition.id, reportName: definition.name, dataset: definition.dataset, cadence: row.cadence,
       recipients: recipientIds.map((u) => person(u, members.get(u))), createdAt: row.createdAt.toISOString(), lastRun: null,
@@ -110,5 +113,6 @@ export const reportSchedulesService = {
     const row = isId(id) ? await reportSchedulesRepository.findMine(id, actor.userId) : null;
     if (!row) throw new NotFoundError("Schedule not found");
     await reportSchedulesRepository.end(row.id);
+    await reportAuditService.record({ action: "end", entityType: "report_schedule", entityId: row.id, before: { definitionId: row.definitionId, cadence: row.cadence } });
   },
 };

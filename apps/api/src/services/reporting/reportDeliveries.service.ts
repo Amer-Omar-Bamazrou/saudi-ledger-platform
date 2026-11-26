@@ -24,6 +24,7 @@ import { contentSha256, type DeliveryContent, type DeliveryWithheld } from "../.
 import { reportDeliveriesRepository } from "../../repositories/reportDeliveries.repository";
 import { refusalEventsService } from "../refusalEvents.service";
 import { refusalError } from "./reportDatasets.service";
+import { reportAuditService } from "./reportAudit.service";
 import type { DefinitionActor } from "./reportDefinitions.service";
 
 const MAX_ID = 2_147_483_647;
@@ -53,6 +54,8 @@ export const reportDeliveriesService = {
     // 2. expired: a message, no data — whether or not the job has cleared the content yet
     if (isExpired(row, now) || row.content == null) {
       const on = businessDate(row.expiredAt ?? row.expiresAt);
+      // 19.18: an open of an expired copy is recorded too — it shows no figures, and says so
+      await reportAuditService.record({ action: "open", entityType: "report_delivery", entityId: row.id, after: { dataset: row.dataset, definitionId: row.definitionId, runId: row.runId, status: "expired", rows: 0, withheld: [] } });
       return {
         ...facts(row, now), status: "expired" as const, ...empty,
         message: `This delivery expired on ${on}. Run the report again to see current figures.`,
@@ -133,6 +136,9 @@ export const reportDeliveriesService = {
       for (const k of dropped) if (!withheld.some((w) => w.path === `groups[].totals.${k}`)) withheld.push({ path: `groups[].totals.${k}`, class: lostKeys.get(k)!.cls, level: "none", rows: null });
       grouped = { groupedBy: grouped.groupedBy, groups: grouped.groups.map(keep), grandTotal: grouped.grandTotal ? keep(grouped.grandTotal) : null };
     }
+    // 19.18 — each open is recorded: by whom (the connection's actor), which copy of which report, and what of it was
+    // withheld from them now. Nothing the copy holds.
+    await reportAuditService.record({ action: "open", entityType: "report_delivery", entityId: row.id, after: { dataset: row.dataset, definitionId: row.definitionId, runId: row.runId, status: "available", rows: rows.length, withheld: withheld.map((w) => w.path) } });
     return {
       ...facts(row, now), columns, rows: { [row.dataset]: rows }, total: rows.length, withheld, message: null, messageAr: null,
       groupedBy: grouped?.groupedBy ?? null, groups: grouped?.groups ?? null, grandTotal: grouped?.grandTotal ?? null,
