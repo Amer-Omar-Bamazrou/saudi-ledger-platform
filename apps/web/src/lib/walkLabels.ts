@@ -44,6 +44,10 @@ const AUDIT_ACTIONS: Record<string, [string, string]> = {
   send_back: ["Sent back", "إعادة للتعديل"],
   export: ["Exported", "تصدير"],
   field_write: ["Field change refused", "رُفض تعديل حقل"], // 19B S4: a refusal event (D6)
+  // 19B S6: the other refusal events (D6) — a schedule refused, a scheduled run refused, a recipient skipped or a copy not opened
+  schedule: ["Schedule refused", "رُفضت الجدولة"],
+  schedule_run: ["Scheduled run refused", "رُفض التشغيل المجدول"],
+  deliver: ["Delivery refused", "رُفض التسليم"],
   allocate: ["Allocated", "تخصيص"],
   unallocate: ["Allocation undone", "إلغاء التخصيص"],
   reverse_allocation: ["Allocation reversed", "عكس التخصيص"],
