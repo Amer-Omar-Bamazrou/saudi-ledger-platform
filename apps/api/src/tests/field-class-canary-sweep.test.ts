@@ -78,12 +78,15 @@ const SWEEP_MATRICES: Array<{ name: string; rows: PermissionRow[] }> = [
 ];
 
 const ROLES_SWEPT = ["viewer", "bookkeeper"] as const;
-const SKIP = [/\/logout/, /\/llm\//, /\/pdf/, /\/document(\/|$)/, /\/stream/, /\/download/];
+// not JSON (a file: a PDF, an image, a stream) or not a read (logout); the LLM routes are reached by their own suite
+const SKIP = [/\/logout/, /\/llm\//, /\/pdf/, /\/document(\/|$)/, /\/stream/, /\/download/, /\/logo$/];
 
 describeDb("19B — the canary sweep: no protected value reaches a role that may not read it, on any GET route", () => {
   let orgId = "";
   const ids: Record<string, number | string> = {};
-  const routes: { key: string; path: string }[] = [];
+  /** `pathFor`: a route whose record is the caller's own (a delivered copy) is called with that caller's id. */
+  const routes: { key: string; path: string; pathFor?: (who: string) => string }[] = [];
+  const pathOf = (r: { path: string; pathFor?: (who: string) => string }, who: string) => r.pathFor?.(who) ?? r.path;
   const unresolved: string[] = [];
 
   beforeAll(async () => {
@@ -130,6 +133,116 @@ describeDb("19B — the canary sweep: no protected value reaches a role that may
     ids.wht = (await pool.query(`SELECT id FROM wht_withholdings WHERE bill_id = $1`, [wBill.id])).rows[0].id;
     ids.je = (await pool.query(`SELECT id FROM journal_entries WHERE organization_id = $1 AND source_type = 'bank_transaction' LIMIT 1`, [orgId])).rows[0].id;
 
+    // ── 🔴 THE 38 ROUTES THE SWEEP USED TO SKIP (owner, 2026-11-26): one record each, made here, so every GET route
+    //    is called with a real id. Through the product's own paths wherever one exists over JSON; the two that have
+    //    none (a captured document is a file upload; an operator is not an organization's member) are rows.
+    const sales = await acct("SALES");
+    const bankOf = async (name: string) => (await ok("admin", "POST", "/bank-accounts", { name, bankName: "SNB", currency: "SAR" })).id as number;
+    // group A — assets, banking, budgets, capture, period locks, orders, schedules, tax, products, invitations, operator
+    const assetCategory = await ok("admin", "POST", "/asset-categories", { name: "Canary class", defaultUsefulLifeMonths: 48, incomeTaxGroup: 3, vatCapitalAssetClass: "movable" });
+    ids.asset = (await ok("admin", "POST", "/assets", { name: "Canary asset", categoryId: assetCategory.id, acquisitionDate: "2026-10-01", cost: 1000 })).id;
+    const statementBank = await bankOf("Canary Statements");
+    const uploaded = await ok("admin", "POST", "/transactions/upload", { rows: [{ date: "2026-10-20", description: "SWEEP STATEMENT LINE", amount: 400, type: "credit", currency: "SAR" }], bankAccountId: statementBank, autoCategrize: false, statement: { fileName: "sweep.csv", fileSha256: "c".repeat(64) } });
+    ids.statement = uploaded.statement.id;
+    ids.statementLine = (await pool.query(`SELECT id FROM transactions WHERE organization_id = $1 AND description = 'SWEEP STATEMENT LINE'`, [orgId])).rows[0].id;
+    // a reconciliation locks its bank through its date, so it gets a bank of its own
+    ids.reconciliation = (await ok("admin", "POST", "/bank-reconciliations", { bankAccountId: await bankOf("Canary Reconciled"), asOf: "2026-10-25", statementBalance: 0 })).id;
+    ids.transfer = (await ok("admin", "POST", "/bank-transfers", { fromBankAccountId: await bankOf("Canary From"), toBankAccountId: await bankOf("Canary To"), amount: 1, transferDate: "2026-10-21", idempotencyKey: "canary-sweep-transfer" })).id;
+    const budget = await ok("admin", "POST", "/budgets", { name: "Canary budget", fiscalYearLabel: 2026 });
+    await ok("admin", "PUT", `/budgets/${budget.id}/versions/${budget.version.id}/lines`, { lines: [{ accountId: sales, periods: Array(12).fill(1000) }] });
+    ids.budget = budget.id;
+    ids.capture = (await pool.query(
+      `INSERT INTO captured_documents (organization_id, company_id, content_type, byte_size, sha256, source)
+       SELECT $1, c.id, 'application/pdf', 10, $2, 'upload' FROM companies c WHERE c.organization_id = $1 RETURNING id`,
+      [orgId, "c".repeat(32)],
+    )).rows[0].id;
+    const po = await ok("admin", "POST", "/purchase-orders", { vendorId: ids.vendor, date: "2026-10-07", items: [{ description: "Stock", quantity: 4, unitPrice: 250, vatRate: 15 }] });
+    await ok("admin", "POST", `/purchase-orders/${po.id}/approve`, {});
+    await ok("admin", "POST", `/purchase-orders/${po.id}/convert`, { date: "2026-10-08", notes: "sweep", billNumber: "CAN-B-PO", vendorReference: "CAN-R-PO" });
+    ids.po = po.id;
+    const quotation = await ok("admin", "POST", "/quotations", { customerId: ids.cust, date: "2026-10-07", items: [{ description: "Consulting", quantity: 10, unitPrice: 100, vatRate: 15 }] });
+    await ok("admin", "POST", `/quotations/${quotation.id}/approve`, {});
+    await ok("admin", "POST", `/quotations/${quotation.id}/convert`, { date: "2026-10-08", notes: "sweep" });
+    ids.quotation = quotation.id;
+    ids.schedule = (await ok("admin", "POST", "/recognition-schedules", { kind: "accrual", reference: "CAN-RS", description: "Canary accrual", totalAmount: 300, periods: 3, startPeriod: "2026-10", expenseAccountId: await acct("RENT_UTILITIES"), balanceAccountId: await acct("ACCRUED_LIABILITIES") })).id;
+    ids.recurring = (await ok("admin", "POST", "/recurring", { entity: "invoice", template: { customerId: ids.cust, items: [{ description: "Monthly service", quantity: 1, unitPrice: 1000, vatRate: 15 }] }, frequency: "monthly", dayOfMonth: 5, startsOn: "2026-12-05", autoIssue: false })).id;
+    ids.computation = (await ok("admin", "POST", "/tax/computations", { kind: "income_tax", fiscalYearLabel: 2025 })).id;
+    ids.product = (await ok("admin", "POST", "/products", { name: "Canary product", code: "CAN-P1", type: "product", unitPrice: 10, currency: "SAR" })).id;
+    const invitation = await ok("admin", "POST", `/orgs/${orgId}/invitations`, { email: h.email("invited"), role: "viewer" });
+    ids.invitation = new URL(invitation.link).searchParams.get("token")!;
+    // the operator surface: an account with no membership anywhere, made an operator (the database's own rule)
+    const operatorId = await h.mkUser("operator", PW, null);
+    await pool.query(`INSERT INTO platform_operators (user_id) VALUES ($1)`, [operatorId]);
+    expect(await h.login("operator", h.email("operator"), PW)).toBe(200);
+    // group B — receipts and their allocations, credit-note applications, a statement match, a refund; supplier
+    // payments and notes; a saved report and each role's own delivered copy; the opening-balance batch
+    const walkIn = (await ok("admin", "POST", "/customers", { name: "Sweep Walk-in" })).id as number;
+    const issued = async (unitPrice: number, extra: Record<string, unknown> = {}) => {
+      const d = await ok("admin", "POST", "/invoices", { date: "2026-10-15", dueDate: "2026-10-31", customerId: walkIn, items: [{ description: "Sweep", quantity: 1, unitPrice, vatRate: 15 }], ...extra });
+      await ok("admin", "POST", `/invoices/${d.id}/submit`);
+      await ok("admin", "POST", `/invoices/${d.id}/approve`);
+      return d.id as number;
+    };
+    ids.payment = (await ok("admin", "POST", "/payments", { customerId: walkIn, amount: 500, paidAt: "2026-10-16", bankAccountId: ids.bank, classification: "unknown" })).id;
+    const allocated = await issued(1000);
+    const receipt = await ok("admin", "POST", "/payments", { customerId: walkIn, amount: 1150, paidAt: "2026-10-17", bankAccountId: ids.bank, allocations: [{ invoiceId: allocated, amount: 1150 }] });
+    ids.allocation = (await pool.query(`SELECT id FROM payment_allocations WHERE invoice_id = $1 AND payment_id = $2`, [allocated, receipt.id])).rows[0].id;
+    const original = await issued(1000);
+    await ok("admin", "POST", `/invoices/${original}/pay`, { amount: 1150, bankAccountId: ids.bank, paidAt: "2026-10-18" });
+    ids.creditNote = await issued(10, { documentType: "credit_note", originalInvoiceId: original, noteReason: "Price correction" });
+    await ok("admin", "POST", `/payments/credit-notes/${ids.creditNote}/apply`, { allocations: [{ invoiceId: await issued(200), amount: 1 }] });
+    const matchBank = await bankOf("Canary Matching");
+    const toMatch = await ok("admin", "POST", "/payments", { customerId: walkIn, amount: 800, bankAccountId: matchBank, paidAt: "2026-10-19", method: "transfer", reference: "SWEEP-DEP-800", allocations: [] });
+    await ok("admin", "POST", "/transactions/upload", { bankAccountId: matchBank, rows: [{ date: "2026-10-20", description: "SWEEP INCOMING 800", amount: 800, type: "credit", currency: "SAR" }] });
+    const matchLine = (await pool.query(`SELECT id FROM transactions WHERE organization_id = $1 AND description = 'SWEEP INCOMING 800'`, [orgId])).rows[0].id;
+    ids.match = (await ok("admin", "POST", "/payments/matching/override", { transactionId: matchLine, paymentId: toMatch.id, reason: "Bank advice confirms this receipt" })).id;
+    const deposit = await ok("admin", "POST", "/payments", { customerId: walkIn, amount: 50, bankAccountId: ids.bank, paidAt: "2026-10-19" });
+    ids.refund = (await ok("admin", "POST", "/payments/refunds", { customerId: walkIn, origin: "deposit", paymentId: deposit.id, amount: 10, bankAccountId: ids.bank, reason: "returned" })).id;
+    const lessor = (await ok("admin", "POST", "/vendors", { name: "Sweep Lessor", residency: "resident" })).id as number;
+    ids.supplierPayment = (await ok("admin", "POST", "/supplier-payments", { vendorId: lessor, bankAccountId: ids.bank, amount: 1000, paidAt: "2026-10-10", classification: "security_deposit" })).id;
+    await ok("admin", "POST", `/supplier-payments/${ids.supplierPayment}/forfeitures`, { forfeitedOn: "2026-10-15", amount: 400, classification: "not_consideration", reason: "The supplier keeps it under clause 9: the lease ended early" });
+    const lessorBill = await ok("admin", "POST", "/bills", { supplierDocumentKind: "tax_invoice", vendorReference: "SWEEP-SUP-1", billNumber: "SWEEP-B-1", date: "2026-10-11", dueDate: "2026-10-31", vendorId: lessor, items: [{ description: "Supplies", quantity: 1, unitPrice: 1000, vatRate: 0 }] });
+    await ok("admin", "POST", `/bills/${lessorBill.id}/approve`, {});
+    const note = await ok("admin", "POST", "/bills", { supplierDocumentKind: "tax_invoice", vendorReference: "SWEEP-SUP-CN-1", billNumber: "SWEEP-CN-1", date: "2026-10-13", vendorId: lessor, documentType: "credit_note", creditNoteAgainstBillId: lessorBill.id, items: [{ description: "Returned supplies", quantity: 1, unitPrice: 500, vatRate: 0 }] });
+    await ok("admin", "POST", `/bills/${note.id}/approve`, {});
+    ids.supplierNote = note.id;
+    // a saved report shared with every role, scheduled to every role: each then opens ITS OWN delivered copy — journal
+    // lines, so the bank's own text (a canary) is in the copies of the roles that may read it and in no other
+    const definition = await ok("accountant", "POST", "/report-definitions", { name: "Sweep lines", dataset: "journal_lines", columns: [], period: { kind: "fixed", from: "2026-10-01", to: "2026-10-31" }, filters: {}, sort: null, groupBy: "accountId" });
+    await ok("accountant", "PUT", `/report-definitions/${definition.id}/share`, { roles: ["admin", "accountant", "bookkeeper", "viewer"] });
+    ids.definition = definition.id;
+    const members = (await pool.query(`SELECT u.id FROM users u JOIN organization_memberships m ON m.user_id = u.id WHERE m.organization_id = $1 ORDER BY u.id`, [orgId])).rows.map((r) => r.id as number);
+    await ok("accountant", "POST", "/report-schedules", { definitionId: definition.id, cadence: "daily", recipientUserIds: members });
+    const delivered = await (await import("../services/reporting/reportSchedules.job")).reportSchedulesJob.runOnce(new Date("2026-11-02T09:00:00Z"), orgId);
+    expect([delivered.delivered, delivered.refused, delivered.failed]).toEqual([4, 0, 0]);
+    for (const role of ["admin", "accountant", "bookkeeper", "viewer"]) ids[`delivery:${role}`] = (await ok(role, "GET", "/report-deliveries")).items[0].id;
+    // the opening-balance batch, committed (its reversal preview needs that): cut over on 1 July, before anything above
+    const openingBank = (await ok("admin", "POST", "/bank-accounts", { name: "Canary Opening", bankName: "Riyad Bank", currency: "SAR", balance: 0, openingBalance: 0 })).id;
+    const batch = await ok("admin", "POST", "/migration/batches", { sourceSystem: "PreviousERP", cutoverDate: "2026-07-01" });
+    const chart = await ok("admin", "PUT", `/migration/batches/${batch.id}/chart`, { rows: [
+      { sourceCode: "1100", sourceName: "Riyad Bank", sourceType: "asset", openingDebit: 1150, sourceRole: "bank", evidenceNote: "statement 30 Jun" },
+      { sourceCode: "1200", sourceName: "Debtors", sourceType: "asset", openingDebit: 1000, sourceRole: "receivable" },
+      { sourceCode: "2300", sourceName: "Advances", sourceType: "liability", openingCredit: 150, sourceRole: "customer_deposits" },
+      { sourceCode: "3100", sourceName: "Capital", sourceType: "equity", openingCredit: 2000 },
+    ] });
+    const chartRow = (code: string) => (chart.rows as { id: number; sourceCode: string }[]).find((r) => r.sourceCode === code)!.id;
+    await ok("admin", "PATCH", `/migration/batches/${batch.id}/chart/${chartRow("1100")}`, { decision: "map_to_bank", targetBankAccountId: openingBank });
+    await ok("admin", "PATCH", `/migration/batches/${batch.id}/chart/${chartRow("1200")}`, { decision: "map_to_system", targetSystemCode: "AR" });
+    await ok("admin", "PATCH", `/migration/batches/${batch.id}/chart/${chartRow("2300")}`, { decision: "map_to_system", targetSystemCode: "CUSTOMER_DEPOSITS" });
+    await ok("admin", "PATCH", `/migration/batches/${batch.id}/chart/${chartRow("3100")}`, { decision: "create" });
+    await ok("admin", "PUT", `/migration/batches/${batch.id}/parties`, { rows: [{ partyType: "customer", sourceId: "C1", name: "Sweep Opening Customer" }] });
+    await ok("admin", "PUT", `/migration/batches/${batch.id}/open-items`, { rows: [{ itemType: "ar", sourceId: "SI-1", partySourceId: "C1", documentNumber: "SWEEP-OPEN-1", issueDate: "2026-06-01", dueDate: "2026-06-30", originalAmount: 1000, outstandingAmount: 1000 }] });
+    await ok("admin", "PUT", `/migration/batches/${batch.id}/advances`, { rows: [{ sourceId: "ADV-1", partySourceId: "C1", bankSourceCode: "1100", amount: 150, receivedAt: "2026-06-10", vatPosition: "unknown" }] });
+    const validated = await ok("admin", "POST", `/migration/batches/${batch.id}/validate`);
+    expect(validated.ok, JSON.stringify(validated.checks)).toBe(true);
+    expect((await ok("admin", "POST", `/migration/batches/${batch.id}/commit`)).status).toBe("committed");
+    ids.batch = batch.id;
+    // October's withholding return, recorded as filed (its correction pack answers only then)
+    await ok("admin", "POST", "/tax/wht/returns/2026-10/file", { filedOn: "2026-11-05", zatcaReference: "SWEEP-ZATCA-REF-1" });
+    ids.sales = sales;
+    // a closed month's history: a month nothing here posts into, closed last
+    await ok("admin", "POST", "/period-locks", { period: "2026-03" });
+
     // every GET route: the contract's and those outside it, each path parameter filled from the planted records
     const fill: Array<[RegExp, Record<string, () => number | string>]> = [
       [/^\/employees\//, { id: () => ids.emp! }],
@@ -146,7 +259,44 @@ describeDb("19B — the canary sweep: no protected value reaches a role that may
       [/^\/tax\/wht\/beneficiaries\//, { vendorId: () => ids.overseas! }],
       [/^\/tax\/wht\/returns\//, { period: () => "2026-10" }],
       [/^\/tax\/wht\/withholdings\//, { id: () => ids.wht! }],
+      // the 38 (2026-11-26)
+      [/^\/assets\//, { id: () => ids.asset! }],
+      [/^\/bank-reconciliation\/lines\//, { id: () => ids.statementLine! }],
+      [/^\/bank-reconciliations\//, { id: () => ids.reconciliation! }],
+      [/^\/bank-statements\//, { id: () => ids.statement! }],
+      [/^\/bank-transfers\//, { id: () => ids.transfer! }],
+      [/^\/budgets\//, { id: () => ids.budget! }],
+      [/^\/capture\//, { id: () => ids.capture! }],
+      [/^\/period-locks\//, { period: () => "2026-03" }],
+      [/^\/purchase-orders\//, { id: () => ids.po! }],
+      [/^\/quotations\//, { id: () => ids.quotation! }],
+      [/^\/recognition-schedules\//, { id: () => ids.schedule! }],
+      [/^\/recurring\//, { id: () => ids.recurring! }],
+      [/^\/tax\/computations\//, { id: () => ids.computation! }],
+      [/^\/products\//, { id: () => ids.product! }],
+      [/^\/invitations\//, { token: () => ids.invitation! }],
+      [/^\/operator\/applications\//, { orgId: () => orgId }],
+      [/^\/payments\/allocations\//, { id: () => ids.allocation! }],
+      [/^\/payments\/credit-notes\//, { id: () => ids.creditNote! }],
+      [/^\/payments\/matching\//, { id: () => ids.match! }],
+      [/^\/payments\/refunds\//, { id: () => ids.refund! }],
+      [/^\/payments\//, { id: () => ids.payment! }],
+      [/^\/supplier-credit-notes\//, { id: () => ids.supplierNote! }],
+      [/^\/supplier-payments\//, { id: () => ids.supplierPayment! }],
+      [/^\/migration\/batches\//, { id: () => ids.batch! }],
+      [/^\/report-definitions\//, { id: () => ids.definition! }],
     ];
+    // 🔴 the query a route cannot answer without (2026-11-26): without it the route answered 400 and its body was never
+    // read — counted as swept, and measuring nothing
+    const months = "from=2026-01&to=2026-12";
+    const REQUIRED: Record<string, () => string> = {
+      "/analytics/trend": () => months, "/analytics/pnl-trend": () => months, "/analytics/receivables-bridge": () => months, "/analytics/cash": () => months,
+      "/analytics/decomposition": () => "dimension=category&from=2026-01-01&to=2026-12-31",
+      "/bank-reconciliations/position": () => `bankAccountId=${ids.bank}`,
+      "/reports/account-statement": () => `account_id=${ids.sales}`,
+      "/tax/wht/exceptions": () => "kind=undeclared",
+      "/tax/wht/preview": () => `vendorId=${ids.overseas}&amount=100`,
+    };
     const keys = [
       ...CONTRACT.operations.filter((op) => op.method === "GET").map((op) => op.path),
       ...Object.keys(OUTSIDE_CONTRACT_ROUTES).filter((k) => k.startsWith("GET ")).map((k) => k.slice(4)),
@@ -155,31 +305,39 @@ describeDb("19B — the canary sweep: no protected value reaches a role that may
       if (SKIP.some((re) => re.test(key))) continue;
       // every report export, as CSV (a PDF needs the renderer CI does not have): exports carry addresses and bank text
       if (key === "/reports/export/{report}") {
-        for (const report of EXPORTABLE_REPORTS) routes.push({ key: `${key} (${report})`, path: `/reports/export/${report}?format=csv&date_from=2026-01-01&date_to=2026-12-31` });
+        // each with the parameter it cannot answer without (2026-11-26: three of these used to answer 400, unread)
+        const needs: Record<string, string> = { "budget-vs-actual": `&budget_id=${ids.budget}`, "wht-return": "&period=2026-10", "tax-computation": `&computation_id=${ids.computation}` };
+        for (const report of EXPORTABLE_REPORTS) routes.push({ key: `${key} (${report})`, path: `/reports/export/${report}?format=csv&date_from=2026-01-01&date_to=2026-12-31${needs[report] ?? ""}` });
+        continue;
+      }
+      // a delivered copy opens for its recipient alone: each role is given its own
+      if (key === "/report-deliveries/{id}") {
+        routes.push({ key, path: `/report-deliveries/${ids["delivery:admin"]}`, pathFor: (who) => `/report-deliveries/${ids[`delivery:${who}`] ?? ids["delivery:admin"]}` });
         continue;
       }
       const params = [...key.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!);
       const rule = fill.find(([re]) => re.test(key))?.[1];
       if (params.some((p) => !rule?.[p])) { unresolved.push(key); continue; }
       const path = key.replace(/\{(\w+)\}/g, (_, p: string) => String(rule![p]!()));
-      routes.push({ key, path: `${path}${path.includes("?") ? "&" : "?"}date_from=2026-01-01&date_to=2026-12-31` });
+      routes.push({ key, path: `${path}${path.includes("?") ? "&" : "?"}date_from=2026-01-01&date_to=2026-12-31${REQUIRED[key] ? `&${REQUIRED[key]!()}` : ""}` });
     }
-  }, 180_000);
+  }, 480_000);
   afterAll(async () => { primePermissionCache(PERMISSION_MATRIX); await h.stop(); await h.cleanup(); });
 
   const seen = async (who: string) => {
     const found = new Map<string, string[]>(); // canary → routes it appeared in
     let answered = 0;
     for (const r of routes) {
-      const res = await h.api(who, "GET", r.path);
+      const res = await h.api(who, "GET", pathOf(r, who));
       if (res.status < 500) answered++;
       for (const c of CANARIES) for (const v of [c.value, ...(c.also ?? [])]) if (res.text.includes(v)) found.set(c.what, [...(found.get(c.what) ?? []), `${r.key}${v === c.value ? "" : " (partial)"}`]);
     }
     return { found, answered };
   };
 
-  it("the frame: every GET route with no path parameter is swept; the ones with a parameter it cannot fill are named", () => {
+  it("🔴 the frame: EVERY GET route is swept — each path parameter filled from a record this sweep created (owner, 2026-11-26: the 38 it used to skip)", () => {
     console.log(`[CANARY-SWEEP] ${routes.length} GET routes swept; ${unresolved.length} not filled: ${unresolved.join(", ")}`);
+    expect(unresolved).toEqual([]);
     const swept = new Set(routes.map((r) => r.key));
     const noParam = [...CONTRACT.operations.filter((op) => op.method === "GET").map((op) => op.path), ...Object.keys(OUTSIDE_CONTRACT_ROUTES).filter((k) => k.startsWith("GET ")).map((k) => k.slice(4))]
       .filter((k) => !k.includes("{") && !SKIP.some((re) => re.test(k)));
@@ -214,39 +372,48 @@ describeDb("19B — the canary sweep: no protected value reaches a role that may
   }
 
   /**
-   * 🔴 DEFAULT DENY, A DRY RUN (owner, 2026-11-26: "show me a dry run of what it would withhold, per role, across the
-   * canary sweep's routes; switching it on waits for my approval"). The switch is forced ON for this test only, every
-   * swept route is called as each role, and what the seam REMOVED as `unclassified` is read back from `X-Withheld` —
-   * the mechanism itself, not a prediction of it. With DEFAULT_DENY_DRY_RUN_FILE set, the result is written there.
+   * 🔴 DEFAULT DENY, ENFORCED (owner, 2026-11-26: on by default; "cover the 38 routes the sweep skipped … and show for
+   * each role what they withhold"). The enforcement is asked for (the test lane otherwise answers an unclassified key
+   * with a 500 by name), every swept route is called as each role, and what the seam REMOVED is read back from
+   * `X-Withheld` — the mechanism itself, not a prediction of it: both what the role's own grants withhold (path, class
+   * and level, per route) and anything removed as `unclassified`. With DEFAULT_DENY_DRY_RUN_FILE set, the whole
+   * per-role, per-route record is written there.
    *
    *  - The probe is shown to SEE: the same header carries what the role's own grants withhold, and a viewer's sweep
    *    must find some (a probe that read nothing would report "nothing withheld" just the same).
-   *  - The frame beside the count: GET routes only, on this fixture's records; a route the sweep could not fill is in
-   *    `unresolved`. A field served only by a write's response, or only on data this fixture lacks, is not measured
-   *    here — the contract test (every 2xx field has a class) and the test lane's 500 on any unclassified key cover it.
-   *  - It is also a standing check: default deny would withhold NOTHING on the swept routes today, for any role.
+   *  - The frame beside the count: GET routes that answer JSON, on this fixture's records (files — a PDF, an image, a
+   *    stream — are not swept). A field served only by a write's response, or only on data this fixture lacks, is not
+   *    measured here — the contract test (every 2xx field has a class) and the test lane's 500 on any unclassified key
+   *    cover it.
+   *  - It is a standing check: default deny withholds NOTHING on any GET route today, for any role.
+   *  - 🔴 And every route must ANSWER WITH ITS BODY to the admin (or, on the operator's surface, to the operator): until
+   *    2026-11-26 fourteen routes answered 400, 404 or 409 for want of a parameter or a record, were counted as swept,
+   *    and measured nothing.
    */
-  it("🔴 default deny, a dry run: per role, what it would withhold across the swept routes — nothing", async () => {
+  it("🔴 default deny, enforced: every swept route answers with its body, and per role nothing unclassified is withheld — what each role's own grants withhold is recorded, route by route", async () => {
     primePermissionCache(PERMISSION_MATRIX);
     type Withheld = { path: string; class: string; level: string };
-    const report: Record<string, { applies: boolean; routesSwept: number; answered: number; routesWithholdingByGrant: number; wouldWithhold: { route: string; paths: string[] }[] }> = {};
+    const report: Record<string, { applies: boolean; routesSwept: number; answered: number; routesWithholdingByGrant: number; wouldWithhold: { route: string; paths: string[] }[]; perRoute: Record<string, { status: number; withheldByGrant: Withheld[]; unclassified: string[]; refusal?: string }> }> = {};
     __setDefaultDenyForTests(true);
     try {
-      for (const role of ["admin", "accountant", "bookkeeper", "viewer"]) {
+      // the four organization roles, and the platform operator (no organization role: never denied) for its own surface
+      for (const role of ["admin", "accountant", "bookkeeper", "viewer", "operator"]) {
         let answered = 0;
         let byGrant = 0;
         const wouldWithhold: { route: string; paths: string[] }[] = [];
+        const perRoute: Record<string, { status: number; withheldByGrant: Withheld[]; unclassified: string[]; refusal?: string }> = {};
         for (const r of routes) {
-          const res = await h.api(role, "GET", r.path);
+          const res = await h.api(role, "GET", pathOf(r, role));
           if (res.status < 500) answered++;
           const listed: Withheld[] = res.headers["x-withheld"] ? JSON.parse(res.headers["x-withheld"]) : [];
           const unclassified = listed.filter((w) => w.class === "unclassified").map((w) => w.path);
           if (listed.some((w) => w.class !== "unclassified")) byGrant++;
+          perRoute[r.key] = { status: res.status, withheldByGrant: listed.filter((w) => w.class !== "unclassified"), unclassified, ...(res.status >= 300 ? { refusal: `${res.body?.code ?? ""}: ${res.body?.error ?? ""}`.slice(0, 240) } : {}) };
           // the admin is never denied: an unclassified key in an admin's answer is the test lane's 500, named
           if (res.status === 500 && res.body?.code === "field_unclassified") wouldWithhold.push({ route: r.key, paths: res.body.fields });
           else if (unclassified.length) wouldWithhold.push({ route: r.key, paths: unclassified });
         }
-        report[role] = { applies: role !== "admin", routesSwept: routes.length, answered, routesWithholdingByGrant: byGrant, wouldWithhold };
+        report[role] = { applies: role !== "admin", routesSwept: routes.length, answered, routesWithholdingByGrant: byGrant, wouldWithhold, perRoute };
       }
     } finally {
       __setDefaultDenyForTests(null);
@@ -255,10 +422,15 @@ describeDb("19B — the canary sweep: no protected value reaches a role that may
     if (out) writeFileSync(out, JSON.stringify({ routesSwept: routes.length, notFilled: unresolved, perRole: report }, null, 2));
     console.log(`[DEFAULT-DENY-DRY-RUN] ${Object.entries(report).map(([role, r]) => `${role}: ${r.wouldWithhold.length} route(s) would lose a field, of ${r.answered} answered`).join(" | ")}`);
     // every route answered for every role (a 5xx would hide what it serves)
-    expect(Object.entries(report).map(([role, r]) => [role, r.answered])).toEqual(["admin", "accountant", "bookkeeper", "viewer"].map((role) => [role, routes.length]));
+    expect(Object.entries(report).map(([role, r]) => [role, r.answered])).toEqual(["admin", "accountant", "bookkeeper", "viewer", "operator"].map((role) => [role, routes.length]));
+    // 🔴 NOT VACUOUS, route by route: every swept route ANSWERS WITH ITS BODY (2xx) to the admin — or, on the operator's
+    // own surface, to the operator. A 400 or a 404 would be "swept" and read nothing.
+    const unread = routes.map((r) => r.key).filter((k) => (k.startsWith("/operator/") ? report.operator!.perRoute[k]!.status : report.admin!.perRoute[k]!.status) >= 300)
+      .map((k) => `${k} → ${(k.startsWith("/operator/") ? report.operator! : report.admin!).perRoute[k]!.status} ${(k.startsWith("/operator/") ? report.operator! : report.admin!).perRoute[k]!.refusal ?? ""}`);
+    expect(unread).toEqual([]);
     // 🔴 the probe reads the header: the viewer's own grants withhold something on some route
     expect(report.viewer!.routesWithholdingByGrant).toBeGreaterThan(0);
     // 🔴 the result: nothing unclassified would be withheld, for any role
-    expect(Object.fromEntries(Object.entries(report).map(([role, r]) => [role, r.wouldWithhold]))).toEqual({ admin: [], accountant: [], bookkeeper: [], viewer: [] });
+    expect(Object.fromEntries(Object.entries(report).map(([role, r]) => [role, r.wouldWithhold]))).toEqual({ admin: [], accountant: [], bookkeeper: [], viewer: [], operator: [] });
   }, 600_000);
 });

@@ -38,6 +38,7 @@ assertHijriCalendarAvailable();
 // Import the app only after config has validated, so any boot failure surfaces
 // as the config error rather than a downstream module-load error.
 const { default: app } = await import("./app");
+const { announceFieldClassCapture } = await import("./lib/fieldClasses/seam");
 
 const server = app.listen(env.PORT, (err) => {
   if (err) {
@@ -46,6 +47,8 @@ const server = app.listen(env.PORT, (err) => {
   }
 
   logger.info({ port: env.PORT }, "Server listening");
+  // 19B: when a capture of unclassified fields is asked for (the browser suite), show it is on
+  announceFieldClassCapture();
 });
 
 // Background jobs (M12.8) — the e-invoice outbox, the archive sweep and the

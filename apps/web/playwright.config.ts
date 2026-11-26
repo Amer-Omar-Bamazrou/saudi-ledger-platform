@@ -60,6 +60,7 @@ import { defineConfig, devices } from "@playwright/test";
  */
 const WEB_PORT = 5173;
 const WEB_DIST = fileURLToPath(new URL("./dist/public", import.meta.url));
+const FIELD_CLASS_CAPTURE_FILE = fileURLToPath(new URL("./.field-class-capture.jsonl", import.meta.url));
 
 export default defineConfig({
   testDir: "./e2e",
@@ -95,6 +96,8 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 
   globalSetup: "./e2e/global-setup.ts",
+  // 19B: default deny is on in the server below; the run fails on anything it withheld as unclassified, by name
+  globalTeardown: "./e2e/global-teardown.ts",
 
   /**
    * The one server, started here rather than in CI shell steps, so local and
@@ -123,7 +126,9 @@ export default defineConfig({
        */
       // REPORT_SCHEDULE_INTERVAL_MS: the scheduled-reports job looks every 3 s here (15 minutes by default), so a
       // schedule made through the page is delivered while its spec waits (e2e/s6-report-schedules.spec.ts).
-      env: { PORT: String(WEB_PORT), SERVE_WEB_DIST: WEB_DIST, REPORT_SCHEDULE_INTERVAL_MS: "3000" },
+      // FIELD_CLASS_CAPTURE_FILE: every response default deny withheld a field from (or served unclassified to an
+      // admin) is written there by name; e2e/global-teardown.ts reads it and fails the run on any line.
+      env: { PORT: String(WEB_PORT), SERVE_WEB_DIST: WEB_DIST, REPORT_SCHEDULE_INTERVAL_MS: "3000", FIELD_CLASS_CAPTURE_FILE },
     },
   ],
 });

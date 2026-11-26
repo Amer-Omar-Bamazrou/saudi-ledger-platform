@@ -70,3 +70,4 @@ docs/ai/receipt-benchmark/images/
 apps/web/e2e/.auth/
 apps/web/playwright-report/
 apps/web/test-results/
+apps/web/.field-class-capture.jsonl
