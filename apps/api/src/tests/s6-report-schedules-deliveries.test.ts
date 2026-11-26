@@ -201,6 +201,9 @@ describeDb("19B S6 — report schedules and the delivery store", () => {
     expect(skipped.every((e) => e.actor_user_id === ids.bookkeeper)).toBe(true);
     const counts = (await pool.query(`SELECT status, delivered_count, skipped_count FROM report_runs WHERE schedule_id = $1`, [cashSchedule.body.id])).rows;
     expect(counts).toEqual([{ status: "delivered", delivered_count: 1, skipped_count: 2 }]);
+    // and a member who left is no longer offered as a recipient
+    const offered = (await h.api("bookkeeper", "GET", "/report-schedules/recipients")).body.items.map((m: { userId: number }) => m.userId);
+    expect([offered.includes(ids.leaver), offered.includes(ids.viewer2), offered.includes(ids.viewer)]).toEqual([false, false, true]);
   });
 
   it("🔴 only the recipient opens a copy; grants are checked again at open; a lost run opens nothing and is recorded", async () => {
@@ -268,15 +271,19 @@ describeDb("19B S6 — report schedules and the delivery store", () => {
   it("🔴 expiry: the job clears the content and keeps the tombstone; an expired copy opens as a message with no data", async () => {
     const copies = await deliveries(ids.bookkeeperSchedule);
     const copy = copies.find((c) => c.recipient_user_id === ids.accountant)!;
-    // the copies of LATER runs are not due when this one is (a run's copies share its expiry)
-    const kept = copies.filter((c) => new Date(c.expires_at).getTime() > new Date(copy.expires_at).getTime()).map((c) => c.id);
+    const kept = copies.filter((c) => c.id !== copy.id).map((c) => c.id); // none of these is due
     expect(kept.length).toBeGreaterThanOrEqual(2);
     // not yet due: the job clears nothing
     expect((await expire(new Date(new Date(copy.created_at).getTime() + 60_000))).expired).toBe(0);
-    const due = new Date(new Date(copy.expires_at).getTime() - 1);
-    await pool.query(`UPDATE report_deliveries SET created_at = created_at - interval '400 days', expires_at = $2 WHERE id = $1`, [copy.id, due]);
-    const out = await expire(new Date(new Date(copy.expires_at).getTime()));
-    expect(out.expired).toBeGreaterThanOrEqual(1);
+    // this one copy's time has come (by the clock the open uses): created long ago, due a second ago
+    await pool.query(`UPDATE report_deliveries SET created_at = now() - interval '400 days', expires_at = now() - interval '1 second' WHERE id = $1`, [copy.id]);
+    // 🔴 its time has come and the job has NOT run yet: the row still holds the content, and the open already shows none
+    const early = await h.api("accountant", "GET", `/report-deliveries/${copy.id}`);
+    expect([early.status, early.body.status, early.body.total]).toEqual([200, "expired", 0]);
+    expect(early.text).not.toContain(BANK_TEXT);
+    expect((await pool.query(`SELECT content IS NOT NULL AS held FROM report_deliveries WHERE id = $1`, [copy.id])).rows[0].held).toBe(true);
+    const out = await expire(new Date());
+    expect(out.expired).toBe(1); // this copy, and no other
 
     const row = (await pool.query(`SELECT * FROM report_deliveries WHERE id = $1`, [copy.id])).rows[0];
     expect([row.content, row.expired_at !== null]).toEqual([null, true]);
