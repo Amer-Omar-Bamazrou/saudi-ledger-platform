@@ -112,10 +112,12 @@ async function runSchedule(s: DueSchedule, runId: number, window: { from: string
   if (decided.length > 0) {
     const { filter, sort } = parseRequest(ds, definitionQuery(definition, window), false);
     requireWindow(ds, filter);
-    const conn = await beginTenantConnection({ organizationId: s.organization_id, companyId: s.company_id, role: "authenticated", actorUserId: s.owner_user_id });
+    // a SYSTEM connection (T1b: only the request path declares an actor). It reads and writes nothing; the schedule's
+    // owner is named where it matters — on the run, and on every refusal event.
+    const conn = await beginTenantConnection({ organizationId: s.organization_id, companyId: s.company_id, role: "authenticated" });
     try {
       const read = await conn.run(() =>
-        auditContext.run({ userId: s.owner_user_id, organizationId: s.organization_id, ipAddress: null }, async () => {
+        auditContext.run({ userId: null, organizationId: s.organization_id, ipAddress: null }, async () => {
           const { total } = await readDataset(ds, filter, sort, { limit: 1, offset: 0 });
           return total > DATASET_EXPORT_MAX_ROWS ? null : (await readDataset(ds, filter, sort, null)).rows;
         }),
