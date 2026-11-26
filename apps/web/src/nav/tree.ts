@@ -376,6 +376,7 @@ export const NAV_TREE: readonly NavSection[] = [
           // 19B S6: the builder over those datasets, and what was saved from it
           built("/reports/builder", "Report Builder", "منشئ التقارير"),
           built("/reports/saved", "Saved Reports", "التقارير المحفوظة"),
+          built("/reports/deliveries", "Delivered Reports", "التقارير المُسلَّمة"),
           built("/reports/general-ledger", "General Ledger", "دفتر الأستاذ العام"),
           // 🔴 THESE FIVE WERE FOUND BY THE COVERAGE CHECK, NOT BY READING.
           // Every one is a real, working report page that the §4 spec never

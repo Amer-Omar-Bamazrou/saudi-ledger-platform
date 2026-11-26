@@ -4,6 +4,7 @@
  * run is checked for the reader's own role. Only the owner can remove one, and removal archives it — the server says so
  * for anyone else.
  */
+import { useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListReportDefinitionsQueryKey, useArchiveReportDefinition, useListReportDatasets, useListReportDefinitions } from "@workspace/api-client-react";
@@ -12,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ScheduleForm, ScheduleList } from "@/components/reports/ReportSchedules";
 
 const ROLE_WORDS: Record<string, [string, string]> = {
   admin: ["Admins", "المسؤولون"], accountant: ["Accountants", "المحاسبون"], bookkeeper: ["Bookkeepers", "ماسكو الدفاتر"], viewer: ["Viewers", "المشاهدون"],
@@ -24,6 +26,8 @@ export default function SavedReports() {
   const { data, isLoading } = useListReportDefinitions();
   const datasets = useListReportDatasets().data?.items ?? [];
   const archive = useArchiveReportDefinition();
+  const [scheduling, setScheduling] = useState<number | null>(null);
+  const actsOf = (dataset: string) => datasets.find((x) => x.name === dataset)?.acts ?? [];
 
   const remove = async (id: number, name: string) => {
     try {
@@ -70,11 +74,23 @@ export default function SavedReports() {
                         : t(`Shared by ${d.ownerName}`, `مشترك من ${d.ownerName}`)}
                     </p>
                   </div>
+                  {actsOf(d.dataset).includes("schedule") && <Button size="sm" variant="outline" className="h-8" onClick={() => setScheduling(scheduling === d.id ? null : d.id)} data-testid={`saved-schedule-${d.id}`}>{t("Schedule", "جدولة")}</Button>}
                   {d.mine && <Button size="sm" variant="outline" className="h-8" disabled={archive.isPending} onClick={() => void remove(d.id, d.name)} data-testid={`saved-remove-${d.id}`}>{t("Remove", "إزالة")}</Button>}
+                  {scheduling === d.id && <div className="basis-full"><ScheduleForm definition={d} canDeliver={actsOf(d.dataset).includes("deliver")} onDone={() => setScheduling(null)} /></div>}
                 </li>
               ))}
             </ul>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border bg-card">
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
+            <h2 className="text-sm font-semibold text-foreground">{t("Your schedules", "جدولتك")}</h2>
+            <Link href="/reports/deliveries" className="text-sm underline text-foreground" data-testid="saved-deliveries-link">{t("Delivered reports", "التقارير المُسلَّمة")}</Link>
+          </div>
+          <ScheduleList />
         </CardContent>
       </Card>
     </div>

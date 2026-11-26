@@ -116,6 +116,7 @@ import JournalReport from '@/pages/reports/JournalReport';
 import JournalLinesDataset from '@/pages/reports/JournalLinesDataset';
 import ReportBuilder from '@/pages/reports/ReportBuilder';
 import SavedReports from '@/pages/reports/SavedReports';
+import ReportDeliveries from '@/pages/reports/ReportDeliveries';
 import { CashMovementsDataset, PurchaseDocumentsDataset, SalesDocumentsDataset, VatLinesDataset } from '@/pages/reports/Datasets';
 import AccountStatement from '@/pages/reports/AccountStatement';
 import AccountSummary from '@/pages/reports/AccountSummary';
@@ -361,6 +362,7 @@ function Router() {
               <Route path="/reports/journal-lines" component={JournalLinesDataset} />
               <Route path="/reports/builder" component={ReportBuilder} />
               <Route path="/reports/saved" component={SavedReports} />
+              <Route path="/reports/deliveries" component={ReportDeliveries} />
               <Route path="/reports/sales-documents" component={SalesDocumentsDataset} />
               <Route path="/reports/purchase-documents" component={PurchaseDocumentsDataset} />
               <Route path="/reports/cash-movements" component={CashMovementsDataset} />

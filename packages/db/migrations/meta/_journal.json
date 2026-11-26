@@ -1226,6 +1226,13 @@
       "when": 1795648295849,
       "tag": "0174_19b_s6_report_definitions",
       "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1795692481972,
+      "tag": "0175_19b_s6_report_schedules_deliveries",
+      "breakpoints": true
     }
   ]
 }

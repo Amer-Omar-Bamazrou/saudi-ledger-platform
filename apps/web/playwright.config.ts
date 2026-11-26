@@ -121,7 +121,9 @@ export default defineConfig({
        * over it — a run green locally and red in CI. Naming it here keeps the
        * suite independent of the surrounding environment.
        */
-      env: { PORT: String(WEB_PORT), SERVE_WEB_DIST: WEB_DIST },
+      // REPORT_SCHEDULE_INTERVAL_MS: the scheduled-reports job looks every 3 s here (15 minutes by default), so a
+      // schedule made through the page is delivered while its spec waits (e2e/s6-report-schedules.spec.ts).
+      env: { PORT: String(WEB_PORT), SERVE_WEB_DIST: WEB_DIST, REPORT_SCHEDULE_INTERVAL_MS: "3000" },
     },
   ],
 });

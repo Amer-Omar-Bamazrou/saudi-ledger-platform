@@ -99,7 +99,7 @@ async function loadFromDb(): Promise<Set<string>> {
   return new Set(rows.map((r) => permKey(r.role, r.resource, r.action)));
 }
 
-async function getPermissions(): Promise<Set<string>> {
+export async function getPermissions(): Promise<Set<string>> {
   if (cache) return cache;
   if (!loading) {
     loading = loadFromDb()

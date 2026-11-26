@@ -378,6 +378,12 @@ import type {
   ReportDefinitionInput,
   ReportDefinitionList,
   ReportDefinitionShareInput,
+  ReportDeliveryList,
+  ReportDeliveryOpened,
+  ReportRecipientList,
+  ReportSchedule,
+  ReportScheduleInput,
+  ReportScheduleList,
   ReverseBankTransferInput,
   ReverseJournalEntryInput,
   ReverseMigrationBatchInput,
@@ -13716,6 +13722,460 @@ export const useShareReportDefinition = <TError = ErrorType<ReportDatasetRefusal
       > => {
       return useMutation(getShareReportDefinitionMutationOptions(options));
     }
+
+export const getListReportSchedulesUrl = () => {
+
+
+
+
+  return `/api/report-schedules`
+}
+
+/**
+ * @summary 19B S6 — this member's report schedules in the request's company, each with its recipients (name and role only) and its last run.
+ */
+export const listReportSchedules = async ( options?: RequestInit): Promise<ReportScheduleList> => {
+
+  return customFetch<ReportScheduleList>(getListReportSchedulesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReportSchedulesQueryKey = () => {
+    return [
+    `/api/report-schedules`
+    ] as const;
+    }
+
+
+export const getListReportSchedulesQueryOptions = <TData = Awaited<ReturnType<typeof listReportSchedules>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReportSchedules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReportSchedulesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReportSchedules>>> = ({ signal }) => listReportSchedules({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReportSchedules>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReportSchedulesQueryResult = NonNullable<Awaited<ReturnType<typeof listReportSchedules>>>
+export type ListReportSchedulesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 19B S6 — this member's report schedules in the request's company, each with its recipients (name and role only) and its last run.
+ */
+
+export function useListReportSchedules<TData = Awaited<ReturnType<typeof listReportSchedules>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReportSchedules>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReportSchedulesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateReportScheduleUrl = () => {
+
+
+
+
+  return `/api/report-schedules`
+}
+
+/**
+ * @summary 19B S6 — schedule a saved report on a cadence (by the business day) for recipients who are active members of this organization; with none named, for the member alone. Needs the dataset's schedule act, and deliver when anyone else is named. A refused schedule is recorded. Delivering never widens access: each recipient is checked against their own grants when the run is delivered and whenever they open their copy.
+
+ */
+export const createReportSchedule = async (reportScheduleInput: ReportScheduleInput, options?: RequestInit): Promise<ReportSchedule> => {
+
+  return customFetch<ReportSchedule>(getCreateReportScheduleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reportScheduleInput)
+  }
+);}
+
+
+
+
+
+export const getCreateReportScheduleMutationOptions = <TError = ErrorType<ReportDatasetRefusal | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReportSchedule>>, TError,{data: BodyType<ReportScheduleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createReportSchedule>>, TError,{data: BodyType<ReportScheduleInput>}, TContext> => {
+
+const mutationKey = ['createReportSchedule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createReportSchedule>>, {data: BodyType<ReportScheduleInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createReportSchedule(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateReportScheduleMutationResult = NonNullable<Awaited<ReturnType<typeof createReportSchedule>>>
+    export type CreateReportScheduleMutationBody = BodyType<ReportScheduleInput>
+    export type CreateReportScheduleMutationError = ErrorType<ReportDatasetRefusal | void>
+
+    /**
+ * @summary 19B S6 — schedule a saved report on a cadence (by the business day) for recipients who are active members of this organization; with none named, for the member alone. Needs the dataset's schedule act, and deliver when anyone else is named. A refused schedule is recorded. Delivering never widens access: each recipient is checked against their own grants when the run is delivered and whenever they open their copy.
+
+ */
+export const useCreateReportSchedule = <TError = ErrorType<ReportDatasetRefusal | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReportSchedule>>, TError,{data: BodyType<ReportScheduleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createReportSchedule>>,
+        TError,
+        {data: BodyType<ReportScheduleInput>},
+        TContext
+      > => {
+      return useMutation(getCreateReportScheduleMutationOptions(options));
+    }
+
+export const getListReportRecipientsUrl = () => {
+
+
+
+
+  return `/api/report-schedules/recipients`
+}
+
+/**
+ * @summary 19B S6 — the members a report can be delivered to — active members of this organization, by name and role only (for every role; never an email).
+ */
+export const listReportRecipients = async ( options?: RequestInit): Promise<ReportRecipientList> => {
+
+  return customFetch<ReportRecipientList>(getListReportRecipientsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReportRecipientsQueryKey = () => {
+    return [
+    `/api/report-schedules/recipients`
+    ] as const;
+    }
+
+
+export const getListReportRecipientsQueryOptions = <TData = Awaited<ReturnType<typeof listReportRecipients>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReportRecipients>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReportRecipientsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReportRecipients>>> = ({ signal }) => listReportRecipients({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReportRecipients>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReportRecipientsQueryResult = NonNullable<Awaited<ReturnType<typeof listReportRecipients>>>
+export type ListReportRecipientsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 19B S6 — the members a report can be delivered to — active members of this organization, by name and role only (for every role; never an email).
+ */
+
+export function useListReportRecipients<TData = Awaited<ReturnType<typeof listReportRecipients>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReportRecipients>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReportRecipientsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getEndReportScheduleUrl = (id: number,) => {
+
+
+
+
+  return `/api/report-schedules/${id}`
+}
+
+/**
+ * @summary 19B S6 — end a schedule (its owner only; anyone else gets 404). It runs no more; its runs and delivered copies stay.
+ */
+export const endReportSchedule = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getEndReportScheduleUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndReportScheduleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endReportSchedule>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endReportSchedule>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['endReportSchedule'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endReportSchedule>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  endReportSchedule(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndReportScheduleMutationResult = NonNullable<Awaited<ReturnType<typeof endReportSchedule>>>
+
+    export type EndReportScheduleMutationError = ErrorType<void>
+
+    /**
+ * @summary 19B S6 — end a schedule (its owner only; anyone else gets 404). It runs no more; its runs and delivered copies stay.
+ */
+export const useEndReportSchedule = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endReportSchedule>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof endReportSchedule>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getEndReportScheduleMutationOptions(options));
+    }
+
+export const getListReportDeliveriesUrl = () => {
+
+
+
+
+  return `/api/report-deliveries`
+}
+
+/**
+ * @summary 19B S6 (D7) — the report copies delivered to this member in the request's company. Facts only — never a copy's content.
+ */
+export const listReportDeliveries = async ( options?: RequestInit): Promise<ReportDeliveryList> => {
+
+  return customFetch<ReportDeliveryList>(getListReportDeliveriesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReportDeliveriesQueryKey = () => {
+    return [
+    `/api/report-deliveries`
+    ] as const;
+    }
+
+
+export const getListReportDeliveriesQueryOptions = <TData = Awaited<ReturnType<typeof listReportDeliveries>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReportDeliveries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReportDeliveriesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReportDeliveries>>> = ({ signal }) => listReportDeliveries({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReportDeliveries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReportDeliveriesQueryResult = NonNullable<Awaited<ReturnType<typeof listReportDeliveries>>>
+export type ListReportDeliveriesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary 19B S6 (D7) — the report copies delivered to this member in the request's company. Facts only — never a copy's content.
+ */
+
+export function useListReportDeliveries<TData = Awaited<ReturnType<typeof listReportDeliveries>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReportDeliveries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReportDeliveriesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getOpenReportDeliveryUrl = (id: number,) => {
+
+
+
+
+  return `/api/report-deliveries/${id}`
+}
+
+/**
+ * @summary 19B S6 (D7) — open a stored copy. Its recipient only (anyone else gets 404). Decided again at every open: an expired copy is a message with no data; a lost run on the dataset opens nothing and is recorded; the content's SHA-256 is checked (a mismatch is refused, recorded and alarmed); a class lost since delivery is withheld.
+
+ */
+export const openReportDelivery = async (id: number, options?: RequestInit): Promise<ReportDeliveryOpened> => {
+
+  return customFetch<ReportDeliveryOpened>(getOpenReportDeliveryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getOpenReportDeliveryQueryKey = (id: number,) => {
+    return [
+    `/api/report-deliveries/${id}`
+    ] as const;
+    }
+
+
+export const getOpenReportDeliveryQueryOptions = <TData = Awaited<ReturnType<typeof openReportDelivery>>, TError = ErrorType<ReportDatasetRefusal | void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof openReportDelivery>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getOpenReportDeliveryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof openReportDelivery>>> = ({ signal }) => openReportDelivery(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof openReportDelivery>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type OpenReportDeliveryQueryResult = NonNullable<Awaited<ReturnType<typeof openReportDelivery>>>
+export type OpenReportDeliveryQueryError = ErrorType<ReportDatasetRefusal | void>
+
+
+/**
+ * @summary 19B S6 (D7) — open a stored copy. Its recipient only (anyone else gets 404). Decided again at every open: an expired copy is a message with no data; a lost run on the dataset opens nothing and is recorded; the content's SHA-256 is checked (a mismatch is refused, recorded and alarmed); a class lost since delivery is withheld.
+
+ */
+
+export function useOpenReportDelivery<TData = Awaited<ReturnType<typeof openReportDelivery>>, TError = ErrorType<ReportDatasetRefusal | void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof openReportDelivery>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getOpenReportDeliveryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListReportDatasetsUrl = () => {
 
