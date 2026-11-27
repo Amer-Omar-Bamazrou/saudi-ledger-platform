@@ -142,6 +142,7 @@ export function walkValue(
     const node = AUDIT_ENTITY_NODES[String(row?.entityType ?? "")];
     const out: Record<string, unknown> = {};
     for (const [k, kv] of Object.entries(v as Record<string, unknown>)) {
+      if (kv === undefined) continue; // never serialized: not served
       const spec = node ? lookup(node, k) : undefined;
       if (node && spec && spec.cls !== "by_entity") {
         const decided = decideLeaf(node, k, kv, `${path}.${k}`, v as Record<string, unknown>);
@@ -183,6 +184,9 @@ export function walkValue(
     let out: Record<string, unknown> | null = null;
     for (const key of Object.keys(v)) {
       const child = v[key];
+      // 🔴 a key whose value is `undefined` is NOT SERVED — JSON drops it — so it is not classified, reported or
+      // withheld (2026-11-27: `window: undefined` on the VAT adjustment rows read as an unclassified field)
+      if (child === undefined) continue;
       const childPath = path ? `${path}.${key}` : key;
       const owner = nodes.find((n) => own(n.p, key));
       let next: unknown;
