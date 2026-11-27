@@ -116,6 +116,25 @@ describe("19B — default deny, on by default", () => {
     expect([on.value, on.withheld]).toEqual([{}, [{ path: "plantedOutside", class: "unclassified", level: "none" }]]);
   });
 
+  it("🔴 a key whose value is undefined is NOT SERVED (JSON drops it): it is neither unclassified nor withheld — and a real key beside it still is (found by the browser suite's capture, 2026-11-27: `window: undefined` on the VAT adjustment rows)", () => {
+    const body = () => ({ items: [{ ...classified().items[0]!, neverSent: undefined }], alsoNeverSent: undefined });
+    for (const deny of [false, true]) {
+      const r = classifyResponse("GET", "/api/reports/datasets", 200, body(), viewer, deny);
+      expect([deny, r.unclassified, r.withheld]).toEqual([deny, [], []]);
+      expect(JSON.stringify(r.value)).toBe(JSON.stringify(classified()));
+    }
+    // the probe still sees: a key that IS sent, beside them, is caught and removed
+    const planted = classifyResponse("GET", "/api/reports/datasets", 200, { ...body(), planted: PLANTED }, viewer, true);
+    expect([planted.unclassified.length, planted.withheld]).toEqual([1, [{ path: "planted", class: "unclassified", level: "none" }]]);
+    expect(JSON.stringify(planted.value)).not.toContain(PLANTED);
+    // null IS sent, and is still classified
+    expect(classifyResponse("GET", "/api/reports/datasets", 200, { ...classified(), sentAsNull: null }, viewer).unclassified.length).toBe(1);
+    // a route outside the contract: the same
+    const key = Object.keys(OUTSIDE_CONTRACT_ROUTES).find((k) => k.startsWith("GET ") && !k.includes("{"))!;
+    const outside = classifyResponse("GET", `/api${key.slice(4)}`, 200, { neverSent: undefined }, viewer, true);
+    expect([outside.unclassified, outside.withheld]).toEqual([[], []]);
+  });
+
   it("🔴 a fully classified response is the same object, on or off", () => {
     const body = classified();
     expect(classifyResponse("GET", "/api/reports/datasets", 200, body, viewer, true).value).toBe(body);

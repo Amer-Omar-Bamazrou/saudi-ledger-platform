@@ -129,7 +129,7 @@ export function keyPathsOf(value: unknown): string[] {
       return;
     }
     if (isPlainObject(v)) {
-      for (const [k, x] of Object.entries(v)) visit(x, path ? `${path}.${k}` : k);
+      for (const [k, x] of Object.entries(v)) if (x !== undefined) visit(x, path ? `${path}.${k}` : k); // undefined is never serialized
       return;
     }
     out.add(path || "$");
@@ -179,6 +179,7 @@ export function walkStructural(value: unknown, routeKey: string, lookup: FieldLo
     if (isPlainObject(v)) {
       let out: Record<string, unknown> | null = null;
       for (const [k, x] of Object.entries(v)) {
+        if (x === undefined) continue; // never serialized: not served
         const next = visit(x, path ? `${path}.${k}` : k);
         if (next === REMOVE) {
           out ??= { ...v };
