@@ -64,7 +64,8 @@ function Inner({ name, slug, title, subtitle, exportPath, useRows, range }: Data
 
   const { data, isLoading, error } = useRows({ date_from: applied.from, date_to: applied.to, limit: PAGE, offset });
   const refusal = (error as { data?: { error?: string; errorAr?: string } } | null)?.data;
-  const acts = useListReportDatasets().data?.items.find((i) => i.name === name)?.acts;
+  const described = useListReportDatasets().data?.items.find((i) => i.name === name);
+  const acts = described?.acts;
   const cannotExport = acts != null && !acts.includes("export");
 
   const needs = (c: ReportDatasetColumn) => {
@@ -114,6 +115,10 @@ function Inner({ name, slug, title, subtitle, exportPath, useRows, range }: Data
       </div>
 
       <FiscalRangeNotice source={range.source} />
+
+      {described?.caveat && (
+        <p className="text-xs text-attention" data-testid={`${slug}-caveat`}>{lang === "ar" ? described.caveatAr ?? described.caveat : described.caveat}</p>
+      )}
 
       <Card className="border-border bg-card">
         <CardContent className="pt-4">

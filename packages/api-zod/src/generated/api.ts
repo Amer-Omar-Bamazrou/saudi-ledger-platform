@@ -6728,7 +6728,9 @@ export const ListReportDatasetsResponse = zod.object({
 })).describe('19B S6 — the filters the dataset declares; a report can name no other'),
   "groupBy": zod.array(zod.string()).describe('19.12 — the columns this role may group by'),
   "totals": zod.array(zod.string()).describe('The money columns a grouped report totals'),
-  "grandTotal": zod.boolean().describe('Whether a grouped report of this dataset has a grand total')
+  "grandTotal": zod.boolean().describe('Whether a grouped report of this dataset has a grand total'),
+  "caveat": zod.string().nullable().describe('A known limitation of what this dataset shows, to be shown to its reader; null when there is none'),
+  "caveatAr": zod.string().nullable()
 }))
 })
 

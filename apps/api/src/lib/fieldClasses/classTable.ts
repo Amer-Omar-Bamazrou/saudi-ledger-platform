@@ -567,7 +567,7 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   ReportDeliverySummary: { standard: "id reportName dataset status rowCount createdAt expiresAt" },
   ReportDeliveryOpened: { standard: "id reportName dataset status rowCount createdAt expiresAt total message messageAr groupedBy" },
   ReportDefinition: { standard: "id name dataset columns filters sort groupBy sharedRoles ownerUserId ownerName mine createdAt updatedAt" },
-  ReportDatasetSummary: { standard: "name title titleAr acts groupBy totals grandTotal" },
+  ReportDatasetSummary: { standard: "name title titleAr acts groupBy totals grandTotal caveat caveatAr" },
   ReportDatasetWithheld: { standard: "path class level rows" },
   ReportDatasetRefusal: { standard: "code error errorAr dataset act" },
   "ReportDatasetRefusal.fields": { standard: "field class use" },

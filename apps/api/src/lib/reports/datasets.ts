@@ -48,6 +48,11 @@ export interface DatasetDef {
   totals: readonly string[];
   /** Whether a total over ALL the rows means anything. False for journal lines: across whole entries debits equal credits. */
   grandTotal: boolean;
+  /**
+   * A KNOWN LIMITATION of what the dataset shows, said to its reader wherever it is shown (the builder, its own screen,
+   * its files). It names an open finding and leaves in the commit that closes it.
+   */
+  caveat?: { label: string; labelAr: string };
 }
 
 const text = (key: string, label: string, labelAr: string, opts: Partial<DatasetColumn> = {}): DatasetColumn =>
@@ -202,6 +207,11 @@ export const CASH_MOVEMENTS: DatasetDef = {
  * joins, recorded by the return itself in the branch that adds it (`reportsService.vatReturnWithLines`). No new
  * classification: the dataset cannot disagree with the return. Input VAT appears only where it is CLAIMED (13A), dated
  * the day of the claim. The window is required — it is the return's. Not a viewer dataset.
+ *
+ * 🔴 IT INHERITS THE BOX 10 FINDING (owner, 2026-11-26; findings file, "THE VAT RETURN'S BOX 10 TAKES EVERY ZERO-VAT
+ * PURCHASE" — open, first in the VAT batch with P13-N1): a bill line carries no tax category, so every purchase recorded
+ * with no VAT is box 10 here as on the return, and box 11 is always empty. The dataset SAYS SO (`caveat`). When the VAT
+ * batch fixes the return, tests/s7-vat-lines-box10-note.test.ts goes red: take the caveat away then.
  */
 export const VAT_LINES: DatasetDef = {
   name: "vat_lines",
@@ -224,6 +234,10 @@ export const VAT_LINES: DatasetDef = {
     text("vatBox", "Box (VAT)", "الخانة (الضريبة)", { kind: "int", groupable: true }),
   ],
   filters: DOC_FILTERS,
+  caveat: {
+    label: "Known limitation: a purchase recorded with no VAT is shown in box 10 (zero-rated purchases) whatever its kind, and box 11 (exempt purchases) is always empty. Exempt and out-of-scope purchases are therefore in box 10 here, as on the VAT return. Review those lines before relying on box 10.",
+    labelAr: "قيد معروف: تظهر المشتريات المسجّلة بلا ضريبة في الخانة 10 (المشتريات الخاضعة لنسبة الصفر) أيّاً كان نوعها، وتبقى الخانة 11 (المشتريات المعفاة) فارغة دائماً. لذلك تظهر المشتريات المعفاة وغير الخاضعة للضريبة في الخانة 10 هنا، كما في إقرار ضريبة القيمة المضافة. راجع تلك السطور قبل الاعتماد على الخانة 10.",
+  },
   totals: ["taxable", "vat"],
   // sales and purchases sit side by side: a total over both sides is neither the VAT due nor a turnover
   grandTotal: false,

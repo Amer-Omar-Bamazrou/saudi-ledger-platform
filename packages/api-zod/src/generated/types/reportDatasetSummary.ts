@@ -24,4 +24,7 @@ export interface ReportDatasetSummary {
   totals: string[];
   /** Whether a grouped report of this dataset has a grand total */
   grandTotal: boolean;
+  /** A known limitation of what this dataset shows, to be shown to its reader; null when there is none */
+  caveat: string | null;
+  caveatAr: string | null;
 }
