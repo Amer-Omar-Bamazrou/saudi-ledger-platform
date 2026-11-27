@@ -8229,6 +8229,13 @@ nothing misfiled is in a local return today. The probe was checked against the b
 **How it was found.** L1's question (2026-11-25): is a separate life-insurance category needed? Not to stop a claim — an
 exempt policy's document carries no VAT — but the answer exposed that the exempt purchase would file as zero-rated.
 
+**The VAT lines report data inherits it, and says so (19B, 2026-11-26).** Its rows are the return's own addends, each
+with the box it joins, so a purchase recorded with no VAT is box 10 there too and box 11 is empty. The dataset carries
+a note saying so — in the builder, on its own screen and in its CSV and PDF files, in English and Arabic
+(`lib/reports/datasets.ts`, `caveat`). `tests/s7-vat-lines-box10-note.test.ts` holds both halves: that the dataset
+still shows it, and that it says so. When the VAT batch fixes the return, that test goes red and the note is removed in
+the same commit. The VAT return's own page carries no such note.
+
 **Not decided here.** Whether the fix is a tax category on bill lines (as sales lines have), a rule from the expense
 account's treatment, or both; and what an existing zero-VAT bill becomes. No box is changed until the layout question
 (P13-N1) is answered with it.
