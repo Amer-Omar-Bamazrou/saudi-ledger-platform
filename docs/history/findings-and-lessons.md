@@ -8232,3 +8232,33 @@ exempt policy's document carries no VAT — but the answer exposed that the exem
 **Not decided here.** Whether the fix is a tax category on bill lines (as sales lines have), a rule from the expense
 account's treatment, or both; and what an existing zero-VAT bill becomes. No box is changed until the layout question
 (P13-N1) is answered with it.
+
+## 19B, D1 — QUESTION 13.1: VIEWERS KEEP READING PAYROLL JOURNAL ENTRIES (decided 2026-11-26)
+
+Status (2026-11-26): decided by the owner; nothing was built. Current state authority: CLAUDE.md §2.
+
+**The question (open since 2026-11-23).** Every role that reads journal entries can derive each payroll run's gross,
+net and both GOSI shares from the run's own entry. Should viewers read payroll journal entries at all?
+
+**The decision (owner, 2026-11-26): yes. Viewers keep reading payroll journal entries.** It is a policy decision under
+D1, like the four on aggregates (the report permission model, §5.4 a–d).
+
+**What it allows, said plainly.** A payroll run posts four lines: gross to Salaries, the employer's GOSI to GOSI
+expense, net to Salaries payable, and both GOSI shares to GOSI payable. So a viewer, from the journal, the general
+ledger, the trial balance or the journal-lines report data, can work out:
+
+- each run's gross pay, net pay, employer GOSI and employee GOSI (GOSI payable minus GOSI expense, or gross minus net);
+- one person's pay, in a run of one employee;
+- one Saudi employee's GOSI, and with the public rate their contributory wage, in a run with one Saudi;
+- a joiner's or a leaver's pay, from the change between two months.
+
+**Why it is accepted.** The statements already show total salaries, and withholding the same figures on the payroll
+page alone would protect nothing while the ledger shows them. Taking the journal from viewers, or giving payroll
+entries their own class, would change every report built on the ledger.
+
+**What stays withheld from a viewer, unchanged.** Each employee's own pay, the payslip lines, the basic and allowances
+split, and the employee list's money totals.
+
+**In the code.** No change in behaviour: the journal's amounts and accounts are `standard` for every role that reads
+it, and no source-type rule sets a payroll entry apart. The class table says so beside `JournalEntry`, and
+`tests/d1-13-1-viewer-payroll-journal.test.ts` pins it, so a later change is a deliberate one.
