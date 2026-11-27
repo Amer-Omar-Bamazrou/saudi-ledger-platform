@@ -348,10 +348,10 @@ const EnvSchema = z.object({
   REPORT_SCHEDULE_INTERVAL_MS: z.coerce.number().int().min(1000).default(15 * 60_000),
   /**
    * 🔴 19B (v4 §5.3) — DEFAULT DENY: a served field with no class is removed for every non-admin and listed as
-   * `unclassified`. PREPARED AND OFF: it stays `off` until the owner approves switching it on, per environment, after
-   * reading the dry run (apps/api/src/lib/fieldClasses/defaultDeny.ts).
+   * `unclassified`. 🔴 ON BY DEFAULT (owner, 2026-11-26). `off` remains a value an operator may set in an emergency;
+   * nothing in the repository sets it (apps/api/src/lib/fieldClasses/defaultDeny.ts).
    */
-  FIELD_DEFAULT_DENY: z.enum(["off", "on"]).default("off"),
+  FIELD_DEFAULT_DENY: z.enum(["off", "on"]).default("on"),
   /**
    * How long a document may sit unsubmitted before it is overdue.
    *

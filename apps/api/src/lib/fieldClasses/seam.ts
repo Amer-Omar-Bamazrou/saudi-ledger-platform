@@ -11,8 +11,10 @@
  *  - A response outside the contract is classified through its route's own entry (outsideContract.ts).
  *  - 🔴 UNCLASSIFIED: in the test lane (NODE_ENV=test) a response that serves a key the tables cannot classify — or a
  *    route that is in neither table — is answered 500 `field_unclassified`, naming each key, so the test that served it
- *    fails. In production S1 serves it as before and logs it once; withholding an unclassified field from non-admins
- *    (v4 §5.3's default deny) is switched on with S2a, with the owner's approval.
+ *    fails — for every role, default deny or not. Everywhere else DEFAULT DENY applies (v4 §5.3, on by default since
+ *    2026-11-26): the key is removed for every non-admin, listed in `X-Withheld` as `unclassified`, logged once, and
+ *    written to the capture file when one is named; the admin, and a request with no organization role, are served it
+ *    and it is logged.
  *
  * 🔴 S1: every role holds every class's grants (PERMISSION_MATRIX), so nothing is withheld: the seam's output is its
  * input, the same object, unchanged. Each S2 step switches its records on by removing grants, with the owner's
@@ -31,9 +33,9 @@ import { CONTRACT } from "./contractShapes.generated";
 import { fieldSpec, indexTable, type FieldSpec } from "./classTable";
 import { apiPath, findOperation, findOutsideRoute } from "./operations";
 import { OUTSIDE_CONTRACT_ROUTES, keyPathsOf, walkStructural } from "./outsideContract";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { walkValue, type ReadDecider, type ReadLevel, type WalkResult } from "./walk";
-import { defaultDeniesRole, defaultDenyOn } from "./defaultDeny";
+import { defaultDeniesRole, defaultDenyForcedForTests, defaultDenyOn } from "./defaultDeny";
 
 export const WITHHELD_HEADER = "X-Withheld";
 
@@ -79,17 +81,33 @@ export function classifyResponse(method: string, originalUrl: string, status: nu
 
 const warned = new Set<string>();
 
+/**
+ * 🔴 The capture, shown to be ON: called once when the server starts. With FIELD_CLASS_CAPTURE_FILE named, the file is
+ * started afresh with one `started` line — so a reader (the browser suite's teardown) can tell "nothing unclassified
+ * was met" from "the capture was never switched on". Without the setting it does nothing.
+ */
+export function announceFieldClassCapture(): void {
+  const capture = process.env.FIELD_CLASS_CAPTURE_FILE;
+  if (capture) writeFileSync(capture, `${JSON.stringify({ started: true, pid: process.pid, defaultDeny: defaultDenyOn() })}\n`);
+}
+
 export function fieldClassSeam(req: Request, res: Response, next: NextFunction): void {
   const json = res.json.bind(res);
   res.json = ((body?: unknown) => {
     if (res.statusCode < 200 || res.statusCode >= 300 || !req.originalUrl.startsWith("/api")) return json(body);
-    // 🔴 Default deny, PREPARED AND OFF (defaultDeny.ts): only with the switch on, and never for the admin or a request
-    // with no organization role. With it off — every environment today — `deny` is false and nothing below changes.
-    const deny = defaultDenyOn() && defaultDeniesRole(req.tenant?.role);
+    // 🔴 Default deny (defaultDeny.ts), ON BY DEFAULT: never for the admin or a request with no organization role.
+    // In the test lane it is not used to hide anything — an unclassified key stays a 500 by name, for every role —
+    // unless the test itself asked to see the enforcement.
+    const testLane = process.env.NODE_ENV === "test" && !defaultDenyForcedForTests();
+    const deny = !testLane && defaultDenyOn() && defaultDeniesRole(req.tenant?.role);
     const served = classifyResponse(req.method, req.originalUrl, res.statusCode, body, deciderFor(req.tenant?.role, peekPermissions()), deny);
     if (served.unclassified.length && deny) {
       // enforced: the field is gone from this response and listed in X-Withheld. Logged once, so the missing class is fixed.
       const key = `deny ${served.route} ${served.unclassified.join(",")}`;
+      // every denial is written to the capture file when one is named — the route, the role and the NAMES of what was
+      // withheld, never a value: the browser suite reads it and fails on any line (e2e/global-teardown.ts)
+      const capture = process.env.FIELD_CLASS_CAPTURE_FILE;
+      if (capture) appendFileSync(capture, `${JSON.stringify({ denied: true, route: served.route, role: req.tenant?.role, status: res.statusCode, fields: served.unclassified })}\n`);
       if (!warned.has(key)) {
         warned.add(key);
         logger.warn({ route: served.route, fields: served.unclassified }, "default deny: withheld fields the class table cannot classify — give each a class");
