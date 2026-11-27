@@ -377,6 +377,12 @@ export const FIELD_CLASS_TABLE: Record<string, NodeClasses> = {
   InvoicePrepayment: { standard: "id advanceInvoiceId advanceInvoiceNumber advanceInvoiceDate amount taxableAmount taxAmount taxCategoryCode vatRate allocationId" },
   InvoiceRejection: { standard: "id invoiceId zatcaResponse reason zatcaRejectedAt recordedBy recordedAt" },
   InvoiceRejectionInput: { standard: "zatcaResponse reason zatcaRejectedAt" },
+  // 🔴 19B D1 — QUESTION 13.1, ANSWERED (owner, 2026-11-26): VIEWERS KEEP READING PAYROLL JOURNAL ENTRIES. Every amount
+  // and account of every entry stays `standard` for every role that reads the journal: no class and no source-type rule
+  // sets a payroll entry, or the payroll accounts, apart. Said plainly: this lets a viewer derive RUN-LEVEL pay and GOSI
+  // figures (a run posts gross, the employer's GOSI, net and both GOSI shares; a one-employee run is that person's pay;
+  // a change between two months is a joiner's or a leaver's). Accepted as policy — the statements already show total
+  // salaries. Each employee's own pay stays withheld (v4 §5.4 a–d). Pinned by tests/d1-13-1-viewer-payroll-journal.test.ts.
   JournalEntry: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "id entryNumber date textOrigin reference status reversalOf correctionKind originFiscalYearStart originFiscalYearEnd originAuthorisedOn originAuthorisedBy originVatFilingReference notes postedAt createdAt totalDebit totalCredit", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
   JournalEntryLine: { resource: "journal_entries", rowConditions: { description: { by: "textOrigin", in: BANK_TEXT_ORIGINS } }, standard: "id journalEntryId textOrigin accountId accountName debitAmount creditAmount partyType customerId vendorId partyNoneReason", bank_narrative: "description", conditions: { description: "the bank's own text where the row's text origin is a bank line or unknown (a mirror follows its original; conditions.ts); standard otherwise — applied per row" } },
   JournalEntryLineInput: { standard: "accountId accountName description debitAmount creditAmount customerId vendorId partyNoneReason" },
