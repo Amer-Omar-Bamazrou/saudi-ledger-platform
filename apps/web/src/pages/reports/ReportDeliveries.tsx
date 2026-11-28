@@ -80,6 +80,9 @@ function Opened({ id }: { id: number }) {
     const [en, ar] = CLASS_WORDS[c.class] ?? [c.class, c.class];
     return t(`Withheld — needs ${en}`, `محجوب — يحتاج ${ar}`);
   };
+  // every column of the copy's dataset, so a grouping by a column the report does not SHOW is still named in the
+  // reader's language (never by its key)
+  const names = useListReportDatasets().data?.items.find((d) => d.name === data?.dataset)?.columns;
   const rows = (data ? Object.values(data.rows)[0] ?? [] : []) as Record<string, unknown>[];
   const cell = (c: ReportDatasetColumn, row: Record<string, unknown>) => {
     if (!(c.key in row)) return <span className="text-[11px] text-muted-foreground italic" data-testid="delivery-cell-withheld">{t("withheld", "محجوب")}</span>;
@@ -100,7 +103,7 @@ function Opened({ id }: { id: number }) {
           <>
             <h2 className="text-sm font-semibold text-foreground pb-2">{data.reportName}</h2>
             {data.withheld.length > 0 && <p className="text-xs text-muted-foreground pb-2" data-testid="delivery-withheld-note">{t("Some values are withheld for your role; each is marked where it would be.", "بعض القيم محجوبة لدورك، وكل منها مُعلَّم في مكانه.")}</p>}
-            {data.groupedBy && data.groups && <GroupTotals groupedBy={data.groupedBy} groups={data.groups} grandTotal={data.grandTotal} columns={data.columns} withheld={data.withheld} testId="delivery-groups" />}
+            {data.groupedBy && data.groups && <GroupTotals groupedBy={data.groupedBy} groups={data.groups} grandTotal={data.grandTotal} columns={data.columns} withheld={data.withheld} names={names} testId="delivery-groups" />}
             <table className="w-full text-sm" data-testid="delivery-table">
               <thead>
                 <tr className="text-muted-foreground border-b border-border">

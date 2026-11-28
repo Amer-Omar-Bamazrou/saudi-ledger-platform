@@ -87,7 +87,7 @@ test.beforeAll(async () => {
   ] }, 201);
   await post("admin", `/api/journal-entries/${je.id}/approve`, {});
   // the bookkeeper's saved report, and one of the viewer's own
-  await post("bookkeeper", "/api/report-definitions", { name: REPORT, dataset: "journal_lines", columns: ["date", "entryNumber", "textOrigin", "description", "debit"], period: { kind: "this_month" }, filters: {}, sort: "date" }, 201);
+  await post("bookkeeper", "/api/report-definitions", { name: REPORT, dataset: "journal_lines", columns: ["date", "entryNumber", "textOrigin", "description", "debit"], period: { kind: "this_month" }, filters: {}, sort: "date", groupBy: "accountId" }, 201);
   await post("viewer", "/api/report-definitions", { name: `Viewer own ${STAMP}`, dataset: "journal_lines", columns: ["date", "debit"], period: { kind: "this_month" }, filters: {}, sort: null }, 201);
 });
 
@@ -177,6 +177,10 @@ test.describe.serial("19B S6 — report schedules and delivered copies", () => {
     await expect(page.getByTestId("delivery-cell-withheld")).toHaveCount(2); // and it is marked where it would be: the bank entry's two lines
     await expect(page.getByTestId("delivery-col-description")).toContainText("محجوب — يحتاج صلاحية نص كشف البنك");
     await expect(page.getByTestId("delivery-withheld-note")).toBeVisible();
+    // 🔴 the copy's subtotals are named by the column's own Arabic label — a column the report does not show (the
+    // grouping, by account) included; never by its key (found by the 19B walk, 2026-11-27: "… حسب accountId")
+    await expect(page.getByTestId("delivery-groups").locator("h2")).toHaveText("المجاميع الفرعية حسب معرّف الحساب");
+    await expect(page.getByTestId("delivery-groups")).not.toContainText("accountId");
     await fitsAtPhoneWidth(page, "an opened delivered report");
 
     // the viewer's own schedule form: everyone else is disabled, and the page says why
